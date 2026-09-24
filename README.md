@@ -15,13 +15,14 @@ pnpm dev
 
 If you do not have pnpm installed, use `npm install` and `npm run dev` instead.
 
-Then open the local address printed by Vite. The login page contains demo access for all three roles.
+Then open the local address printed by Vite. The login page contains demo access for all three roles. The password for every role is `password`.
 
 ## Demo flow
 
-1. Sign in from the login screen (any role).
-2. Use the sidebar role switcher at the bottom to jump between **Management**, **Teacher**, and **Parent** without signing out.
-3. Try workflow dialogs: **New admission**, **Record payment**, **Offline sync**, **Mark attendance**, and **Review mark sheet**.
+1. Sign in from the login screen. An empty email or any password other than `password` is rejected.
+2. Use the sidebar role switcher to move between **Management**, **Teacher**, and **Parent**. Admissions, receipts, attendance, updates, and mark sheets stay in one shared school session.
+3. Try **New admission**, **Record payment**, **Offline sync** (load the sample workbook and review skipped rows before importing), **Mark attendance**, and **Review mark sheet**. Published marks and published updates are what parents see. Submitted or published mark sheets stay locked until management reopens them.
+4. Use **Reset demo school** in the sidebar to restore the starting register.
 
 ## Production check
 
