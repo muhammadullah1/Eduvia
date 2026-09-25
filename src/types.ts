@@ -1,8 +1,21 @@
-export type Role = "management" | "teacher" | "parent"
+import type { ComponentType } from "react"
 
-export type StudentStatus = "Active" | "Pending" | "Inactive"
+export type Role = "management" | "teacher" | "parent"
+export type IconType = ComponentType<{ className?: string }>
+export type RecordValue = string | number | boolean
+export type DataRecord = Record<string, RecordValue>
+
+export type NavItem = {
+  id: string
+  label: string
+  icon: IconType
+  group?: string
+}
+
+export type StudentStatus =
+  "Active" | "Pending" | "Inactive" | "Graduated" | "Struck off"
 export type AdmissionStatus =
-  "New" | "Review" | "Approved" | "Enrolled" | "Rejected"
+  "New" | "Review" | "Interview" | "Approved" | "Enrolled" | "Rejected"
 export type AttendanceStatus = "Present" | "Absent" | "Leave"
 export type UpdateType = "Homework" | "Classwork" | "Notice"
 export type UpdateStatus = "Draft" | "Pending" | "Published"
@@ -14,19 +27,66 @@ export type Student = {
   className: string
   rollNo: string
   guardian: string
-  parentName: string | null
+  parentName?: string | null
+  phone?: string
+  joined?: string
   status: StudentStatus
+  balance?: number
+  attendance?: number
 }
 
 export type Admission = {
   id: string
   name: string
-  dob: string
+  dob?: string
   applyingFor: string
   guardian: string
-  notes: string
+  notes?: string
+  documents?: string
   status: AdmissionStatus
   appliedOn: string
+}
+
+export type Teacher = {
+  id: string
+  name: string
+  subject: string
+  classes: string
+  phone: string
+  joined: string
+  status: "Active" | "On leave" | "Inactive"
+}
+
+export type FeeRecord = {
+  id: string
+  student: string
+  period: string
+  type: string
+  amount: number
+  paid: number
+  due: string
+  method: string
+  status: "Paid" | "Partial" | "Overdue" | "Unpaid" | "Advance"
+}
+
+export type Exam = {
+  id: string
+  name: string
+  className: string
+  startDate: string
+  subjects: string
+  progress: number
+  status: "Draft" | "Marks in progress" | "Verification" | "Published"
+}
+
+export type UpdatePost = {
+  id: string
+  type: UpdateType
+  className: string
+  subject: string
+  text: string
+  due: string
+  status: "Draft" | "Approved" | "Published"
 }
 
 export type Receipt = {

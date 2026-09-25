@@ -34,4 +34,6 @@ pnpm lint
 pnpm build
 ```
 
-This is a front-end presentation prototype with representative data and interactive workflow demonstrations. Authentication, persistent storage, Excel parsing and server-side permission enforcement are intentionally ready for a backend implementation phase.
+The interface runs entirely in the browser on realistic dummy data. Creating admissions, recording payments, importing a fee workbook, marking attendance, editing lessons, drafting updates, and moving mark sheets through review all update the same in-browser school. Use **Reset** on Reports & audit to restore the original sample.
+
+Demo password for every role: `password`.

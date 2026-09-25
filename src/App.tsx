@@ -3,7 +3,7 @@ import { useState } from "react"
 import { PARENT_NAME } from "@/data/session"
 import { parentChildren } from "@/lib/selectors"
 import { useSchool } from "@/lib/school-context"
-import { SchoolProvider } from "@/lib/school-provider"
+import { SchoolProvider as SessionProvider } from "@/lib/school-provider"
 import type { Role } from "@/types"
 
 import { ActionDialog } from "@/portal/dialogs"
@@ -20,8 +20,10 @@ import {
 } from "@/portal/shell"
 import { TeacherView } from "@/portal/teacher"
 import type { PortalAction } from "@/portal/ui"
+import { SchoolProvider } from "@/data/store"
+import { Portal as FeaturePortal } from "@/features/shell/portal"
 
-function Portal() {
+function SessionPortal() {
   const { state } = useSchool()
   const [role, setRole] = useState<Role>("management")
   const [loggedIn, setLoggedIn] = useState(false)
@@ -161,7 +163,10 @@ function Portal() {
 export default function App() {
   return (
     <SchoolProvider>
-      <Portal />
+      <FeaturePortal />
+      <SessionProvider>
+        <SessionPortal />
+      </SessionProvider>
     </SchoolProvider>
   )
 }
