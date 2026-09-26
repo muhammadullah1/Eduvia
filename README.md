@@ -9,11 +9,9 @@ An interactive React prototype built from the updated Creative Leaders School SR
 ## Run locally
 
 ```bash
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
-
-If you do not have pnpm installed, use `npm install` and `npm run dev` instead.
 
 Then open the local address printed by Vite. The login page contains demo access for all three roles. The password for every role is `password`.
 
@@ -29,9 +27,9 @@ Then open the local address printed by Vite. The login page contains demo access
 Verified commands:
 
 ```bash
-pnpm typecheck
-pnpm lint
-pnpm build
+npm run typecheck
+npm run lint
+npm run build
 ```
 
 The interface runs entirely in the browser on realistic dummy data. Creating admissions, recording payments, importing a fee workbook, marking attendance, editing lessons, drafting updates, and moving mark sheets through review all update the same in-browser school. Use **Reset** on Reports & audit to restore the original sample.
