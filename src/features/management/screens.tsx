@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { BadgeCheck, CloudUpload, Download, FileCheck2, FileSpreadsheet, Landmark, Plus, Trash2, UserCheck, Users, WalletCards } from "lucide-react"
 import { toast } from "sonner"
@@ -166,19 +167,37 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
 
 export function AcademicSetup() {
   const { state, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff } = useSchool()
+  const navigate = useNavigate()
+  const params = useParams()
+  const splat = params["*"] ?? ""
+  const classFromUrl = splat.startsWith("classes/") ? splat.slice("classes/".length) : ""
   const [sessionForm, setSessionForm] = useState({ name: "", start: "", end: "" })
   const [classForm, setClassForm] = useState({ grade: "", section: "", room: "" })
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "" })
   const [teacherForm, setTeacherForm] = useState({ name: "", email: "", phone: "", subjects: "", classIds: "" })
-  const [classId, setClassId] = useState(state.classes[0]?.id ?? "")
+  const [classId, setClassId] = useState(classFromUrl || state.classes[0]?.id || "")
+  const [tab, setTab] = useState(classFromUrl ? "timetable" : "sessions")
   const teachers = state.staff.filter((person) => person.role.toLowerCase().includes("teacher"))
   const [slotForm, setSlotForm] = useState({ day: "Monday", time: "08:00", subject: state.subjects[0]?.name ?? "Mathematics", teacher: teachers[0]?.name ?? "Hassan Ali", room: "Room 14" })
   const [error, setError] = useState("")
   const visible = state.slots.filter((slot) => slot.classId === classId).sort((a, b) => a.day.localeCompare(b.day) || a.time.localeCompare(b.time))
   const currentSession = state.sessions.find((session) => session.current)
 
+  useEffect(() => {
+    if (classFromUrl && state.classes.some((item) => item.id === classFromUrl)) {
+      setClassId(classFromUrl)
+      setTab("timetable")
+    }
+  }, [classFromUrl, state.classes])
+
+  function selectClass(id: string) {
+    setClassId(id)
+    setTab("timetable")
+    navigate(`/management/academic/classes/${id}`)
+  }
+
   return (
-    <Tabs defaultValue="sessions" className="grid gap-5">
+    <Tabs value={tab} onValueChange={setTab} className="grid gap-5">
       <TabsList className="h-10 flex-wrap">
         <TabsTrigger value="sessions">Sessions</TabsTrigger>
         <TabsTrigger value="classes">Classes</TabsTrigger>
@@ -265,7 +284,7 @@ export function AcademicSetup() {
               <TableHeader><TableRow><TableHead>Class</TableHead><TableHead>Room</TableHead><TableHead>Students</TableHead></TableRow></TableHeader>
               <TableBody>
                 {state.classes.map((item) => (
-                  <TableRow key={item.id}>
+                  <TableRow key={item.id} className="cursor-pointer" onClick={() => selectClass(item.id)}>
                     <TableCell className="font-medium">{item.label}</TableCell>
                     <TableCell>{item.room}</TableCell>
                     <TableCell>{state.students.filter((student) => student.classId === item.id && student.status === "Active").length}</TableCell>
@@ -349,7 +368,7 @@ export function AcademicSetup() {
             <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div><CardTitle>Weekly periods</CardTitle><CardDescription>Conflict checks cover class, teacher and room.</CardDescription></div>
               <div className="w-full sm:w-56">
-                <Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{state.classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>
+                <Select value={classId} onValueChange={selectClass}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{state.classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>
               </div>
             </CardHeader>
             <CardContent>
@@ -397,15 +416,51 @@ export function AcademicSetup() {
 
 export function Admissions({ query }: { query: string }) {
   const { state, setApplicationStatus, updateStudent } = useSchool()
-  const [tab, setTab] = useState("applications")
+  const navigate = useNavigate()
+  const params = useParams()
+  const splat = params["*"] ?? ""
+  const appFromUrl = splat.startsWith("applications/") ? splat.slice("applications/".length) : ""
+  const studentFromUrl = splat.startsWith("students/") ? splat.slice("students/".length) : ""
+  const [tab, setTab] = useState(studentFromUrl ? "students" : "applications")
   const [localQuery, setLocalQuery] = useState("")
   const [status, setStatus] = useState("all")
   const [classId, setClassId] = useState("all")
   const [open, setOpen] = useState(false)
-  const [selectedApp, setSelectedApp] = useState<Application | null>(null)
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
+  const [selectedApp, setSelectedApp] = useState<Application | null>(() => state.applications.find((item) => item.id === appFromUrl) ?? null)
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(() => state.students.find((item) => item.id === studentFromUrl) ?? null)
   const [confirm, setConfirm] = useState<null | { id: string; status: Application["status"] }>(null)
   const search = localQuery || query
+
+  useEffect(() => {
+    if (appFromUrl) {
+      setTab("applications")
+      setSelectedApp(state.applications.find((item) => item.id === appFromUrl) ?? null)
+      setSelectedStudent(null)
+    } else if (studentFromUrl) {
+      setTab("students")
+      setSelectedStudent(state.students.find((item) => item.id === studentFromUrl) ?? null)
+      setSelectedApp(null)
+    } else {
+      setSelectedApp(null)
+      setSelectedStudent(null)
+    }
+  }, [appFromUrl, studentFromUrl, state.applications, state.students])
+
+  function openApp(item: Application) {
+    setSelectedApp(item)
+    navigate(`/management/admissions/applications/${item.id}`)
+  }
+
+  function openStudent(item: Student) {
+    setSelectedStudent(item)
+    navigate(`/management/admissions/students/${item.id}`)
+  }
+
+  function closeDetails() {
+    setSelectedApp(null)
+    setSelectedStudent(null)
+    navigate("/management/admissions")
+  }
 
   const applications = state.applications.filter((item) => (status === "all" || item.status === status) && (classId === "all" || item.classId === classId) && queryMatch(search, [item.id, item.name, item.guardian, classLabel(state.classes, item.classId)]))
   const students = state.students.filter((item) => (status === "all" || item.status === status) && (classId === "all" || item.classId === classId) && queryMatch(search, [item.id, item.name, item.guardian, classLabel(state.classes, item.classId)]))
@@ -441,7 +496,7 @@ export function Admissions({ query }: { query: string }) {
                 <TableHeader><TableRow><TableHead>ID</TableHead><TableHead>Applicant</TableHead><TableHead>Class</TableHead><TableHead>Guardian</TableHead><TableHead>Submitted</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
                 <TableBody>
                   {appTable.slice.map((item) => (
-                    <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelectedApp(item)}>
+                    <TableRow key={item.id} className="cursor-pointer" onClick={() => openApp(item)}>
                       <TableCell className="font-mono text-xs">{item.id}</TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
                       <TableCell>{classLabel(state.classes, item.classId)}</TableCell>
@@ -458,7 +513,7 @@ export function Admissions({ query }: { query: string }) {
               <TableHeader><TableRow><TableHead>Student ID</TableHead><TableHead>Name</TableHead><TableHead>Class</TableHead><TableHead>Guardian</TableHead><TableHead>Status</TableHead></TableRow></TableHeader>
               <TableBody>
                 {studentTable.slice.map((item) => (
-                  <TableRow key={item.id} className="cursor-pointer" onClick={() => setSelectedStudent(item)}>
+                  <TableRow key={item.id} className="cursor-pointer" onClick={() => openStudent(item)}>
                     <TableCell className="font-mono text-xs">{item.id}</TableCell>
                     <TableCell className="font-medium">{item.name}</TableCell>
                     <TableCell>{classLabel(state.classes, item.classId)}</TableCell>
@@ -475,7 +530,7 @@ export function Admissions({ query }: { query: string }) {
 
       <AdmissionWizard open={open} onOpenChange={setOpen} />
 
-      <Dialog open={Boolean(selectedApp)} onOpenChange={(value) => !value && setSelectedApp(null)}>
+      <Dialog open={Boolean(selectedApp)} onOpenChange={(value) => !value && closeDetails()}>
         <DialogContent className="sm:max-w-lg">
           {selectedApp ? (
             <>
@@ -507,15 +562,15 @@ export function Admissions({ query }: { query: string }) {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(selectedStudent)} onOpenChange={(value) => !value && setSelectedStudent(null)}>
+      <Dialog open={Boolean(selectedStudent)} onOpenChange={(value) => !value && closeDetails()}>
         <DialogContent>
           {selectedStudent ? (
             <>
               <DialogHeader><DialogTitle>{selectedStudent.name}</DialogTitle><DialogDescription>{selectedStudent.id} · {classLabel(state.classes, selectedStudent.classId)} · DOB {formatDate(selectedStudent.dob)}</DialogDescription></DialogHeader>
               <div className="grid gap-3 text-sm"><p>Guardian: {selectedStudent.guardian}</p><p>Phone: {selectedStudent.phone}</p><StatusBadge value={selectedStudent.status} /></div>
               <DialogFooter>
-                <Button variant="outline" onClick={() => { updateStudent(selectedStudent.id, { status: "Active" }, "Ayesha Khan"); toast.success("Student marked active"); setSelectedStudent(null) }}>Mark active</Button>
-                <Button variant="destructive" onClick={() => { updateStudent(selectedStudent.id, { status: "Withdrawn" }, "Ayesha Khan"); toast.success("Student withdrawn"); setSelectedStudent(null) }}>Withdraw</Button>
+                <Button variant="outline" onClick={() => { updateStudent(selectedStudent.id, { status: "Active" }, "Ayesha Khan"); toast.success("Student marked active"); closeDetails() }}>Mark active</Button>
+                <Button variant="destructive" onClick={() => { updateStudent(selectedStudent.id, { status: "Withdrawn" }, "Ayesha Khan"); toast.success("Student withdrawn"); closeDetails() }}>Withdraw</Button>
               </DialogFooter>
             </>
           ) : null}
@@ -534,7 +589,7 @@ export function Admissions({ query }: { query: string }) {
           if (message) toast.error(message)
           else toast.success(confirm.status === "Enrolled" ? "Student enrolled" : confirm.status === "Waitlist" ? "Moved to waitlist" : "Application rejected")
           setConfirm(null)
-          setSelectedApp(null)
+          closeDetails()
         }}
       />
     </div>
@@ -594,10 +649,28 @@ export function People({ query }: { query: string }) {
 
 export function Examinations() {
   const { state, setSheetStatus } = useSchool()
-  const [active, setActive] = useState<MarkSheet | null>(null)
+  const navigate = useNavigate()
+  const params = useParams()
+  const sheetFromUrl = params["*"] ?? ""
+  const [active, setActive] = useState<MarkSheet | null>(() => state.sheets.find((sheet) => sheet.id === sheetFromUrl) ?? null)
   const [status, setStatus] = useState("all")
   const rows = state.sheets.filter((sheet) => status === "all" || sheet.status === status)
   const current = active ? state.sheets.find((sheet) => sheet.id === active.id) ?? null : null
+
+  useEffect(() => {
+    if (sheetFromUrl) setActive(state.sheets.find((sheet) => sheet.id === sheetFromUrl) ?? null)
+    else setActive(null)
+  }, [sheetFromUrl, state.sheets])
+
+  function openSheet(sheet: MarkSheet) {
+    setActive(sheet)
+    navigate(`/management/exams/${sheet.id}`)
+  }
+
+  function closeSheet() {
+    setActive(null)
+    navigate("/management/exams")
+  }
 
   return (
     <div className="grid gap-5">
@@ -612,13 +685,13 @@ export function Examinations() {
                 <div><p className="font-medium">{sheet.examName}</p><p className="text-xs text-muted-foreground">{classLabel(state.classes, sheet.classId)} · {sheet.subject}</p></div>
                 <div><p className="text-xs text-muted-foreground">Entered</p><p className="text-sm font-medium">{entered}/{sheet.rows.length}</p></div>
                 <Progress value={progress} />
-                <div className="flex items-center gap-2"><StatusBadge value={sheet.status} /><Button variant="outline" size="sm" onClick={() => setActive(sheet)}>Open</Button></div>
+                <div className="flex items-center gap-2"><StatusBadge value={sheet.status} /><Button variant="outline" size="sm" onClick={() => openSheet(sheet)}>Open</Button></div>
               </CardContent>
             </Card>
           )
         })}
       </div>
-      <Dialog open={Boolean(current)} onOpenChange={(value) => !value && setActive(null)}>
+      <Dialog open={Boolean(current)} onOpenChange={(value) => !value && closeSheet()}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           {current ? (
             <>

@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
+import { useNavigate, useParams } from "react-router-dom"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { BookOpen, UserCheck, Users } from "lucide-react"
 import { toast } from "sonner"
@@ -82,9 +83,22 @@ export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) 
 
 export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }) {
   const { state } = useSchool()
+  const navigate = useNavigate()
+  const params = useParams()
+  const classFromUrl = params["*"] ?? ""
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
-  const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
+  const [classId, setClassId] = useState(classFromUrl || teacher?.classIds[0] || "")
   const students = state.students.filter((student) => student.classId === classId && student.status !== "Withdrawn")
+
+  useEffect(() => {
+    if (classFromUrl && (teacher?.classIds ?? []).includes(classFromUrl)) setClassId(classFromUrl)
+  }, [classFromUrl, teacher?.classIds])
+
+  function selectClass(id: string) {
+    setClassId(id)
+    navigate(`/teacher/classes/${id}`)
+  }
+
   return (
     <div className="grid gap-5">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -92,7 +106,7 @@ export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }
           const count = state.students.filter((student) => student.classId === id && student.status === "Active").length
           const lesson = state.lessons.find((item) => item.classId === id)
           return (
-            <button key={id} onClick={() => setClassId(id)} className={`rounded-xl border bg-card p-4 text-left ${classId === id ? "ring-2 ring-primary/30" : ""}`}>
+            <button key={id} onClick={() => selectClass(id)} className={`rounded-xl border bg-card p-4 text-left ${classId === id ? "ring-2 ring-primary/30" : ""}`}>
               <Users className="size-4 text-muted-foreground" />
               <p className="mt-3 font-medium">{classLabel(state.classes, id)}</p>
               <p className="text-xs text-muted-foreground">{count} students · {lesson ? `${lesson.progress}% syllabus` : "No plan yet"}</p>
