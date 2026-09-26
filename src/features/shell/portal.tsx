@@ -1,9 +1,18 @@
-import { useMemo, useState, type ComponentType } from "react"
+import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react"
 import {
   Bell, BookOpen, Building2, CalendarDays, Check, ClipboardCheck, FileCheck2, GraduationCap,
   Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, Search, ShieldCheck,
   Sparkles, Sun, UserCheck, UserRound, Users, WalletCards,
 } from "lucide-react"
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -17,9 +26,9 @@ import { useSchool } from "@/data/store"
 import { AcademicSetup, Admissions, Examinations, Fees, Finance, ManagementDashboard, MessagesDesk, People, Reports } from "@/features/management/screens"
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
+import { clearAuth, defaultSection, loadAuth, portalPath, saveAuth, type Role } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
 
-type Role = "management" | "teacher" | "parent"
 type Icon = ComponentType<{ className?: string }>
 
 const roles: Record<Role, { label: string; short: string; description: string; user: string; email: string; initials: string; icon: Icon }> = {
@@ -58,6 +67,12 @@ const navigation: Record<Role, { id: string; label: string; icon: Icon }[]> = {
   ],
 }
 
+const sectionIds: Record<Role, Set<string>> = {
+  management: new Set(navigation.management.map((item) => item.id)),
+  teacher: new Set(navigation.teacher.map((item) => item.id)),
+  parent: new Set(navigation.parent.map((item) => item.id)),
+}
+
 const subtitles: Record<string, string> = {
   dashboard: "A live view of people, learning and school operations.",
   academic: "Sessions, classes, subjects and a conflict-aware timetable.",
@@ -79,6 +94,10 @@ const subtitles: Record<string, string> = {
   timetable: "The weekly timetable for the selected child.",
 }
 
+function isRole(value: string | undefined): value is Role {
+  return value === "management" || value === "teacher" || value === "parent"
+}
+
 function Logo({ compact = false, inverted = false }: { compact?: boolean; inverted?: boolean }) {
   return (
     <div className="flex items-center gap-3">
@@ -88,7 +107,10 @@ function Logo({ compact = false, inverted = false }: { compact?: boolean; invert
   )
 }
 
-function LoginScreen({ onEnter }: { onEnter: (role: Role) => void }) {
+function LoginScreen() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const redirectTo = (location.state as { from?: string } | null)?.from
   const [role, setRole] = useState<Role>("management")
   const [email, setEmail] = useState(roles.management.email)
   const [password, setPassword] = useState("password")
@@ -105,7 +127,9 @@ function LoginScreen({ onEnter }: { onEnter: (role: Role) => void }) {
       return
     }
     setError("")
-    onEnter(next)
+    saveAuth({ role: next })
+    const target = redirectTo && redirectTo !== "/login" ? redirectTo : portalPath(next)
+    navigate(target, { replace: true })
   }
 
   return (
@@ -164,16 +188,46 @@ function LoginScreen({ onEnter }: { onEnter: (role: Role) => void }) {
   )
 }
 
-function PortalApp() {
+function RequireAuth({ children }: { children: ReactNode }) {
+  const location = useLocation()
+  const auth = loadAuth()
+  if (!auth) {
+    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+  }
+  return children
+}
+
+function GuestOnly({ children }: { children: ReactNode }) {
+  const auth = loadAuth()
+  if (auth) return <Navigate to={portalPath(auth.role)} replace />
+  return children
+}
+
+function HomeRedirect() {
+  const auth = loadAuth()
+  if (!auth) return <Navigate to="/login" replace />
+  return <Navigate to={portalPath(auth.role)} replace />
+}
+
+function PortalShell() {
+  const { role: roleParam, section: sectionParam } = useParams()
+  const navigate = useNavigate()
   const { state, resetDemo } = useSchool()
   const { theme, setTheme } = useTheme()
-  const [role, setRole] = useState<Role>("management")
-  const [loggedIn, setLoggedIn] = useState(false)
-  const [section, setSection] = useState("dashboard")
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [notesOpen, setNotesOpen] = useState(false)
+
+  const roleOk = isRole(roleParam)
+  const role: Role = roleOk ? roleParam : "management"
+  const sectionValid = Boolean(sectionParam && sectionIds[role].has(sectionParam))
+  const section = sectionValid && sectionParam ? sectionParam : defaultSection[role]
   const current = navigation[role].find((item) => item.id === section) ?? navigation[role][0]
+  const authRole = loadAuth()?.role
+
+  useEffect(() => {
+    if (roleOk && authRole && authRole !== role) saveAuth({ role })
+  }, [authRole, role, roleOk])
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -183,20 +237,31 @@ function PortalApp() {
     return [...students, ...payments]
   }, [query, role, state.payments, state.students])
 
+  if (!roleOk) {
+    return <Navigate to="/login" replace />
+  }
+  if (!sectionValid) {
+    return <Navigate to={portalPath(role, section)} replace />
+  }
+
   function changeRole(next: Role) {
-    setRole(next)
-    setSection(navigation[next][0].id)
+    saveAuth({ role: next })
     setQuery("")
     setMobileNavOpen(false)
+    navigate(portalPath(next))
   }
 
   function openSection(id: string) {
-    setSection(id)
     setMobileNavOpen(false)
     setNotesOpen(false)
+    navigate(portalPath(role, id))
   }
 
-  if (!loggedIn) return <LoginScreen onEnter={(next) => { changeRole(next); setLoggedIn(true) }} />
+  function logout() {
+    clearAuth()
+    setMobileNavOpen(false)
+    navigate("/login", { replace: true })
+  }
 
   const content = (() => {
     if (role === "teacher") return <TeacherPortal section={section} onOpen={openSection} />
@@ -215,7 +280,7 @@ function PortalApp() {
   return (
     <div className="min-h-svh bg-[var(--page-wash)]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
-        <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={() => setLoggedIn(false)} />
+        <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={logout} />
       </aside>
       <div className="lg:pl-64">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-3 lg:hidden">
@@ -223,7 +288,7 @@ function PortalApp() {
             <SheetTrigger asChild><Button variant="outline" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
             <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
               <SheetHeader className="sr-only"><SheetTitle>Portal navigation</SheetTitle><SheetDescription>Choose a section of the school portal.</SheetDescription></SheetHeader>
-              <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={() => { setLoggedIn(false); setMobileNavOpen(false) }} />
+              <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={logout} />
             </SheetContent>
           </Sheet>
           <Logo />
@@ -299,6 +364,28 @@ function Sidebar({ role, active, onNavigate, onRole, onLogout }: { role: Role; a
   )
 }
 
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/login" element={<GuestOnly><LoginScreen /></GuestOnly>} />
+      <Route path="/" element={<HomeRedirect />} />
+      <Route
+        path="/:role/:section/*"
+        element={
+          <RequireAuth>
+            <PortalShell />
+          </RequireAuth>
+        }
+      />
+      <Route path="*" element={<HomeRedirect />} />
+    </Routes>
+  )
+}
+
 export function Portal() {
-  return <PortalApp />
+  return (
+    <BrowserRouter>
+      <AppRoutes />
+    </BrowserRouter>
+  )
 }
