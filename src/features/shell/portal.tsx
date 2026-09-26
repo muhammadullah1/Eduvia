@@ -79,11 +79,11 @@ const subtitles: Record<string, string> = {
   timetable: "The weekly timetable for the selected child.",
 }
 
-function Logo({ compact = false }: { compact?: boolean }) {
+function Logo({ compact = false, inverted = false }: { compact?: boolean; inverted?: boolean }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="brand-mark grid size-10 shrink-0 place-items-center rounded-xl text-primary-foreground shadow-sm"><GraduationCap className="size-5" /></div>
-      {!compact ? <div className="leading-tight"><p className="font-heading text-sm font-semibold tracking-tight">Creative Leaders</p><p className="text-[11px] text-muted-foreground">School operating system</p></div> : null}
+      <div className={`grid size-10 shrink-0 place-items-center rounded-xl shadow-sm ${inverted ? "bg-white text-[var(--primary-color)]" : "brand-mark text-primary-foreground"}`}><GraduationCap className="size-5" /></div>
+      {!compact ? <div className="leading-tight"><p className={`font-heading text-sm font-semibold tracking-tight ${inverted ? "text-white" : ""}`}>Creative Leaders</p><p className={`text-[11px] ${inverted ? "text-[var(--sidebar-inactive)]" : "text-muted-foreground"}`}>School operating system</p></div> : null}
     </div>
   )
 }
@@ -213,15 +213,15 @@ function PortalApp() {
   })()
 
   return (
-    <div className="min-h-svh bg-muted/30">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r bg-sidebar lg:block">
+    <div className="min-h-svh bg-[var(--page-wash)]">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
         <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={() => setLoggedIn(false)} />
       </aside>
       <div className="lg:pl-64">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-3 lg:hidden">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
             <SheetTrigger asChild><Button variant="outline" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
-            <SheetContent side="left" className="w-72 p-0">
+            <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
               <SheetHeader className="sr-only"><SheetTitle>Portal navigation</SheetTitle><SheetDescription>Choose a section of the school portal.</SheetDescription></SheetHeader>
               <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={() => { setLoggedIn(false); setMobileNavOpen(false) }} />
             </SheetContent>
@@ -232,7 +232,7 @@ function PortalApp() {
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground"><span>2026–27</span><span>·</span><span>{roles[role].short}</span></div>
-              <h1 className="font-heading text-2xl font-semibold tracking-tight md:text-3xl">{current.label}</h1>
+              <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] dark:text-foreground">{current.label}</h1>
               <p className="mt-1 text-sm text-muted-foreground">{subtitles[section] ?? "Creative Leaders School"}</p>
             </div>
             <div className="flex items-center gap-2">
@@ -269,31 +269,31 @@ function PortalApp() {
 function Sidebar({ role, active, onNavigate, onRole, onLogout }: { role: Role; active: string; onNavigate: (id: string) => void; onRole: (role: Role) => void; onLogout: () => void }) {
   const { theme, setTheme } = useTheme()
   return (
-    <div className="flex h-full flex-col p-3">
-      <div className="px-2 py-3"><Logo /></div>
-      <p className="mt-4 px-2 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase">Workspace</p>
+    <div className="flex h-full flex-col bg-sidebar p-3 text-sidebar-foreground">
+      <div className="px-2 py-3"><Logo inverted /></div>
+      <p className="mt-4 px-2 text-[10px] font-semibold tracking-[0.18em] text-[var(--sidebar-inactive)]/80 uppercase">Workspace</p>
       <nav className="mt-2 flex flex-1 flex-col gap-1 overflow-y-auto">
         {navigation[role].map((item) => {
           const Icon = item.icon
           const selected = active === item.id
           return (
-            <button key={item.id} onClick={() => onNavigate(item.id)} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors ${selected ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"}`}>
+            <button key={item.id} onClick={() => onNavigate(item.id)} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${selected ? "bg-white text-[var(--primary-color)] shadow-sm" : "text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white"}`}>
               <Icon className="size-4" /><span>{item.label}</span>
             </button>
           )
         })}
       </nav>
-      <div className="rounded-2xl border bg-background/70 p-3">
+      <div className="rounded-2xl border border-white/15 bg-white/10 p-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-full bg-muted text-xs font-semibold">{roles[role].initials}</div>
-          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold">{roles[role].user}</p><p className="truncate text-[11px] text-muted-foreground">{roles[role].label}</p></div>
-          <Button variant="ghost" size="icon-sm" aria-label="Sign out" onClick={onLogout}><LogOut /></Button>
+          <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">{roles[role].initials}</div>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white">{roles[role].user}</p><p className="truncate text-[11px] text-[var(--sidebar-inactive)]">{roles[role].label}</p></div>
+          <Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white" aria-label="Sign out" onClick={onLogout}><LogOut /></Button>
         </div>
         <Select value={role} onValueChange={(value) => onRole(value as Role)}>
-          <SelectTrigger className="mt-3 h-10 w-full text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="mt-3 h-10 w-full border-white/20 bg-white/10 text-xs text-white"><SelectValue /></SelectTrigger>
           <SelectContent><SelectGroup>{(Object.keys(roles) as Role[]).map((item) => <SelectItem key={item} value={item}>{roles[item].short} demo</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
-        <Button variant="ghost" size="sm" className="mt-2 w-full" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? "Light theme" : "Dark theme"}</Button>
+        <Button variant="ghost" size="sm" className="mt-2 w-full text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? "Light theme" : "Dark theme"}</Button>
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 export type StudentStatus = "Active" | "Pending" | "Withdrawn"
-export type ApplicationStatus = "New" | "Review" | "Enrolled" | "Rejected"
+export type ApplicationStatus = "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected"
 export type PaymentStatus = "Paid" | "Pending"
 export type AttendanceStatus = "Present" | "Absent" | "Leave"
 export type LessonStatus = "Completed" | "In progress" | "Planned"
@@ -43,6 +43,14 @@ export type Student = {
   admittedOn: string
 }
 
+export type DocumentStatus = "Pending" | "Uploaded" | "Verified"
+
+export type AdmissionDocument = {
+  id: string
+  label: string
+  status: DocumentStatus
+}
+
 export type Application = {
   id: string
   name: string
@@ -50,6 +58,18 @@ export type Application = {
   guardian: string
   phone: string
   dob: string
+  gender: "Female" | "Male"
+  address: string
+  previousSchool: string
+  previousClass: string
+  guardianRelation: string
+  guardianAddress: string
+  documents: AdmissionDocument[]
+  interviewType: string
+  interviewDate: string
+  interviewScore: string
+  interviewResult: string
+  decision: "Admit" | "Reject" | "Waitlist" | ""
   status: ApplicationStatus
   submittedOn: string
   notes: string

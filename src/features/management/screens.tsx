@@ -5,6 +5,7 @@ import { toast } from "sonner"
 
 import { ConfirmDialog, EmptyState, Field, MetricCard, Pager, SearchField, SectionHeading, StatusBadge } from "@/components/app/kit"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
@@ -14,7 +15,7 @@ import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
+import { AdmissionWizard } from "@/features/management/admission-wizard"
 import { useSchool, studentName } from "@/data/store"
 import type { Application, MarkSheet, Student } from "@/data/types"
 import { classLabel, formatDate, gradeFromScore, pkr, timeAgo } from "@/lib/format"
@@ -37,11 +38,20 @@ function queryMatch(query: string, parts: Array<string | number>) {
 
 export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => void }) {
   const { state } = useSchool()
+  const currentSession = state.sessions.find((session) => session.current)
   const active = state.students.filter((student) => student.status === "Active").length
+  const inactive = state.students.filter((student) => student.status !== "Active").length
+  const teachers = state.staff.filter((person) => person.role.toLowerCase().includes("teacher")).length
   const presentToday = state.attendance.filter((mark) => mark.date === "2026-09-23" && mark.status === "Present").length
   const markedToday = state.attendance.filter((mark) => mark.date === "2026-09-23").length
   const september = state.payments.filter((payment) => payment.period.startsWith("September") && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0)
+  const unpaid = state.payments.filter((payment) => payment.status === "Pending").reduce((sum, payment) => sum + payment.amount, 0)
   const openApps = state.applications.filter((item) => item.status === "New" || item.status === "Review").length
+  const pendingMarks = state.sheets.filter((sheet) => sheet.status === "Draft" || sheet.status === "Submitted").length
+  const classDistribution = state.classes.map((item) => ({
+    class: item.label,
+    students: state.students.filter((student) => student.classId === item.id && student.status === "Active").length,
+  }))
   const enrollment = months.map((month, index) => ({ month, students: index === months.length - 1 ? active : 1180 + index * 14 }))
   const queue = [
     { count: openApps, title: "Applications to review", tag: "Admissions", section: "admissions" },
@@ -52,11 +62,25 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
 
   return (
     <div className="grid gap-6">
+      <Card className="border-[var(--primary-color)]/15 bg-[var(--secondary-color)]/60">
+        <CardContent className="flex flex-col gap-3 py-5 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-semibold tracking-[0.16em] text-[var(--primary-color)] uppercase">Academic summary</p>
+            <p className="mt-1 text-[20px] font-semibold text-[var(--heading)]">{currentSession?.name ?? "No active session"}</p>
+            <p className="text-sm text-muted-foreground">{currentSession ? `${currentSession.start} to ${currentSession.end}` : "Create a session in Academic setup."}</p>
+          </div>
+          <div className="grid grid-cols-3 gap-4 text-center sm:min-w-[280px]">
+            <div><p className="text-2xl font-semibold text-[var(--primary-color)]">{state.classes.length}</p><p className="text-xs text-muted-foreground">Classes</p></div>
+            <div><p className="text-2xl font-semibold text-[var(--primary-color)]">{state.subjects.length}</p><p className="text-xs text-muted-foreground">Subjects</p></div>
+            <div><p className="text-2xl font-semibold text-[var(--primary-color)]">{teachers}</p><p className="text-xs text-muted-foreground">Teachers</p></div>
+          </div>
+        </CardContent>
+      </Card>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={Users} label="Active students" value={active.toLocaleString("en-PK")} note="Current session register" tone="accent" />
+        <MetricCard icon={Users} label="Active students" value={active.toLocaleString("en-PK")} note={`${inactive} inactive / withdrawn`} tone="accent" />
         <MetricCard icon={UserCheck} label="Today’s attendance" value={markedToday ? `${Math.round((presentToday / markedToday) * 1000) / 10}%` : "—"} note={`${presentToday} present today`} />
-        <MetricCard icon={WalletCards} label="September collected" value={pkr(september)} note="Paid receipts only" />
-        <MetricCard icon={FileCheck2} label="Open admissions" value={String(openApps)} note="New or in review" />
+        <MetricCard icon={WalletCards} label="September collected" value={pkr(september)} note={`${pkr(unpaid)} still outstanding`} />
+        <MetricCard icon={FileCheck2} label="Pending marks sheets" value={String(pendingMarks)} note={`${openApps} open admissions`} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
         <Card>
@@ -81,6 +105,36 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
                 <span className="min-w-0 flex-1"><span className="block text-sm font-medium">{item.title}</span><span className="block text-xs text-muted-foreground">{item.tag}</span></span>
               </button>
             ))}
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>Student distribution by class</CardTitle><CardDescription>Active students per section</CardDescription></CardHeader>
+          <CardContent>
+            <ChartContainer config={chartConfig} className="h-[245px] w-full">
+              <BarChart data={classDistribution} margin={{ left: 0, right: 8, top: 10 }}>
+                <CartesianGrid vertical={false} />
+                <XAxis dataKey="class" tickLine={false} axisLine={false} interval={0} angle={-20} textAnchor="end" height={60} />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Bar dataKey="students" fill="var(--color-students)" radius={6} />
+              </BarChart>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle>Fee position</CardTitle><CardDescription>Paid versus outstanding (dummy ledger)</CardDescription></CardHeader>
+          <CardContent className="grid gap-4">
+            <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
+              <span className="text-sm text-muted-foreground">Collected this month</span>
+              <span className="font-semibold text-[var(--primary-color)]">{pkr(september)}</span>
+            </div>
+            <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
+              <span className="text-sm text-muted-foreground">Outstanding</span>
+              <span className="font-semibold">{pkr(unpaid)}</span>
+            </div>
+            <Progress value={(september + unpaid) ? Math.round((september / (september + unpaid)) * 100) : 0} className="h-2" />
+            <p className="text-xs text-muted-foreground">{(september + unpaid) ? Math.round((september / (september + unpaid)) * 100) : 0}% of tracked fee value is paid.</p>
           </CardContent>
         </Card>
       </div>
@@ -111,21 +165,88 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
 }
 
 export function AcademicSetup() {
-  const { state, addClass, addSubject, addSlot, removeSlot } = useSchool()
+  const { state, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff } = useSchool()
+  const [sessionForm, setSessionForm] = useState({ name: "", start: "", end: "" })
   const [classForm, setClassForm] = useState({ grade: "", section: "", room: "" })
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "" })
+  const [teacherForm, setTeacherForm] = useState({ name: "", email: "", phone: "", subjects: "", classIds: "" })
   const [classId, setClassId] = useState(state.classes[0]?.id ?? "")
-  const [slotForm, setSlotForm] = useState({ day: "Monday", time: "08:00", subject: "Mathematics", teacher: "Hassan Ali", room: "Room 14" })
+  const teachers = state.staff.filter((person) => person.role.toLowerCase().includes("teacher"))
+  const [slotForm, setSlotForm] = useState({ day: "Monday", time: "08:00", subject: state.subjects[0]?.name ?? "Mathematics", teacher: teachers[0]?.name ?? "Hassan Ali", room: "Room 14" })
   const [error, setError] = useState("")
   const visible = state.slots.filter((slot) => slot.classId === classId).sort((a, b) => a.day.localeCompare(b.day) || a.time.localeCompare(b.time))
+  const currentSession = state.sessions.find((session) => session.current)
 
   return (
-    <Tabs defaultValue="classes" className="grid gap-5">
-      <TabsList className="h-10">
+    <Tabs defaultValue="sessions" className="grid gap-5">
+      <TabsList className="h-10 flex-wrap">
+        <TabsTrigger value="sessions">Sessions</TabsTrigger>
         <TabsTrigger value="classes">Classes</TabsTrigger>
         <TabsTrigger value="subjects">Subjects</TabsTrigger>
+        <TabsTrigger value="teachers">Teachers</TabsTrigger>
         <TabsTrigger value="timetable">Timetable</TabsTrigger>
       </TabsList>
+      <TabsContent value="sessions" className="grid gap-4 lg:grid-cols-[320px_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Create session</CardTitle>
+            <CardDescription>New sessions become current immediately so classes and admissions use them.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <Field label="Session name"><Input value={sessionForm.name} onChange={(event) => setSessionForm({ ...sessionForm, name: event.target.value })} placeholder="2027–28" /></Field>
+            <Field label="Start date"><Input type="date" value={sessionForm.start} onChange={(event) => setSessionForm({ ...sessionForm, start: event.target.value })} /></Field>
+            <Field label="End date"><Input type="date" value={sessionForm.end} onChange={(event) => setSessionForm({ ...sessionForm, end: event.target.value })} /></Field>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={() => {
+              const message = addSession(sessionForm, "Ayesha Khan")
+              if (message) toast.error(message)
+              else {
+                toast.success("Session created and activated")
+                setSessionForm({ name: "", start: "", end: "" })
+              }
+            }}>Create session</Button>
+          </CardFooter>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle>Academic sessions</CardTitle>
+            <CardDescription>{currentSession ? `Current: ${currentSession.name}` : "No active session yet."}</CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Start</TableHead>
+                  <TableHead>End</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead />
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {state.sessions.map((session) => (
+                  <TableRow key={session.id}>
+                    <TableCell className="font-medium">{session.name}</TableCell>
+                    <TableCell>{session.start}</TableCell>
+                    <TableCell>{session.end}</TableCell>
+                    <TableCell>{session.current ? <Badge>Current</Badge> : <Badge variant="secondary">Archived</Badge>}</TableCell>
+                    <TableCell>
+                      {session.current ? null : (
+                        <Button variant="outline" size="sm" onClick={() => {
+                          const message = activateSession(session.id, "Ayesha Khan")
+                          if (message) toast.error(message)
+                          else toast.success(`${session.name} is now current`)
+                        }}>Activate</Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </TabsContent>
       <TabsContent value="classes" className="grid gap-4 lg:grid-cols-[280px_1fr]">
         <Card>
           <CardHeader><CardTitle>Add section</CardTitle><CardDescription>Creates a class that admissions and timetables can use.</CardDescription></CardHeader>
@@ -166,6 +287,62 @@ export function AcademicSetup() {
         </Card>
         <Card><CardContent className="grid gap-2 pt-4">{state.subjects.map((subject) => <div key={subject.id} className="flex items-center justify-between rounded-xl border px-4 py-3"><span className="font-medium">{subject.name}</span><span className="font-mono text-xs text-muted-foreground">{subject.code}</span></div>)}</CardContent></Card>
       </TabsContent>
+      <TabsContent value="teachers" className="grid gap-4 lg:grid-cols-[320px_1fr]">
+        <Card>
+          <CardHeader>
+            <CardTitle>Assign teacher</CardTitle>
+            <CardDescription>Link subjects and class sections so the timetable can pick real staff.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4">
+            <Field label="Full name"><Input value={teacherForm.name} onChange={(event) => setTeacherForm({ ...teacherForm, name: event.target.value })} placeholder="Nadia Khan" /></Field>
+            <Field label="Email"><Input value={teacherForm.email} onChange={(event) => setTeacherForm({ ...teacherForm, email: event.target.value })} placeholder="nadia@cls.edu.pk" /></Field>
+            <Field label="Phone"><Input value={teacherForm.phone} onChange={(event) => setTeacherForm({ ...teacherForm, phone: event.target.value })} placeholder="03xx-xxxxxxx" /></Field>
+            <Field label="Subjects"><Input value={teacherForm.subjects} onChange={(event) => setTeacherForm({ ...teacherForm, subjects: event.target.value })} placeholder="Mathematics, Science" /></Field>
+            <Field label="Class IDs"><Input value={teacherForm.classIds} onChange={(event) => setTeacherForm({ ...teacherForm, classIds: event.target.value })} placeholder="g4b, g5g" /></Field>
+          </CardContent>
+          <CardFooter>
+            <Button onClick={() => {
+              const message = addStaff({
+                name: teacherForm.name,
+                role: "Teacher",
+                email: teacherForm.email,
+                phone: teacherForm.phone,
+                subjects: teacherForm.subjects.split(",").map((item) => item.trim()).filter(Boolean),
+                classIds: teacherForm.classIds.split(",").map((item) => item.trim()).filter(Boolean),
+              }, "Ayesha Khan")
+              if (message) toast.error(message)
+              else {
+                toast.success("Teacher assigned")
+                setTeacherForm({ name: "", email: "", phone: "", subjects: "", classIds: "" })
+              }
+            }}>Add teacher</Button>
+          </CardFooter>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Teacher</TableHead>
+                  <TableHead>Subjects</TableHead>
+                  <TableHead>Classes</TableHead>
+                  <TableHead>Contact</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {teachers.map((person) => (
+                  <TableRow key={person.id}>
+                    <TableCell className="font-medium">{person.name}</TableCell>
+                    <TableCell>{person.subjects.join(", ") || "—"}</TableCell>
+                    <TableCell>{person.classIds.map((id) => state.classes.find((item) => item.id === id)?.label ?? id).join(", ") || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">{person.email}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </TabsContent>
       <TabsContent value="timetable" className="grid gap-4">
         <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
           <Card>
@@ -196,8 +373,18 @@ export function AcademicSetup() {
             <CardContent className="grid gap-4">
               <Field label="Day"><Select value={slotForm.day} onValueChange={(day) => setSlotForm({ ...slotForm, day })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"].map((day) => <SelectItem key={day} value={day}>{day}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
               <Field label="Time"><Input value={slotForm.time} onChange={(event) => setSlotForm({ ...slotForm, time: event.target.value })} placeholder="08:00" /></Field>
-              <Field label="Subject"><Input value={slotForm.subject} onChange={(event) => setSlotForm({ ...slotForm, subject: event.target.value })} /></Field>
-              <Field label="Teacher"><Input value={slotForm.teacher} onChange={(event) => setSlotForm({ ...slotForm, teacher: event.target.value })} /></Field>
+              <Field label="Subject">
+                <Select value={slotForm.subject} onValueChange={(subject) => setSlotForm({ ...slotForm, subject })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectGroup>{state.subjects.map((subject) => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}</SelectGroup></SelectContent>
+                </Select>
+              </Field>
+              <Field label="Teacher">
+                <Select value={slotForm.teacher} onValueChange={(teacher) => setSlotForm({ ...slotForm, teacher })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectGroup>{teachers.map((person) => <SelectItem key={person.id} value={person.name}>{person.name}</SelectItem>)}</SelectGroup></SelectContent>
+                </Select>
+              </Field>
               <Field label="Room" error={error}><Input value={slotForm.room} aria-invalid={Boolean(error)} onChange={(event) => setSlotForm({ ...slotForm, room: event.target.value })} /></Field>
             </CardContent>
             <CardFooter><Button onClick={() => { const message = addSlot({ ...slotForm, classId }, "Ayesha Khan"); setError(message ?? ""); if (!message) toast.success("Period scheduled") }}>Schedule</Button></CardFooter>
@@ -209,14 +396,12 @@ export function AcademicSetup() {
 }
 
 export function Admissions({ query }: { query: string }) {
-  const { state, addApplication, setApplicationStatus, updateStudent } = useSchool()
+  const { state, setApplicationStatus, updateStudent } = useSchool()
   const [tab, setTab] = useState("applications")
   const [localQuery, setLocalQuery] = useState("")
   const [status, setStatus] = useState("all")
   const [classId, setClassId] = useState("all")
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ name: "", dob: "", classId: state.classes[0]?.id ?? "", guardian: "", phone: "", notes: "" })
-  const [errors, setErrors] = useState<Record<string, string>>({})
   const [selectedApp, setSelectedApp] = useState<Application | null>(null)
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
   const [confirm, setConfirm] = useState<null | { id: string; status: Application["status"] }>(null)
@@ -226,23 +411,6 @@ export function Admissions({ query }: { query: string }) {
   const students = state.students.filter((item) => (status === "all" || item.status === status) && (classId === "all" || item.classId === classId) && queryMatch(search, [item.id, item.name, item.guardian, classLabel(state.classes, item.classId)]))
   const appTable = useClientTable(applications, `${search}|${status}|${classId}|apps`)
   const studentTable = useClientTable(students, `${search}|${status}|${classId}|students`)
-
-  function submitApplication() {
-    const next: Record<string, string> = {}
-    if (!form.name.trim()) next.name = "Student name is required."
-    if (!form.dob) next.dob = "Date of birth is required."
-    if (!form.guardian.trim()) next.guardian = "Guardian name is required."
-    if (!form.phone.trim()) next.phone = "Phone is required."
-    setErrors(next)
-    if (Object.keys(next).length) return
-    const message = addApplication(form, "Ayesha Khan")
-    if (message) toast.error(message)
-    else {
-      toast.success("Application created")
-      setOpen(false)
-      setForm({ name: "", dob: "", classId: state.classes[0]?.id ?? "", guardian: "", phone: "", notes: "" })
-    }
-  }
 
   return (
     <div className="grid gap-5">
@@ -260,7 +428,7 @@ export function Admissions({ query }: { query: string }) {
           <div className="flex flex-col gap-3 lg:flex-row">
             <SearchField value={localQuery} onChange={setLocalQuery} placeholder={query ? `Also matching “${query}”` : "Search name, ID or guardian"} />
             <div className="grid grid-cols-2 gap-3 sm:w-[360px]">
-              <Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">All statuses</SelectItem>{["New", "Review", "Enrolled", "Rejected", "Active", "Pending", "Withdrawn"].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectGroup></SelectContent></Select>
+              <Select value={status} onValueChange={setStatus}><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">All statuses</SelectItem>{["New", "Review", "Waitlist", "Enrolled", "Rejected", "Active", "Pending", "Withdrawn"].map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectGroup></SelectContent></Select>
               <Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">All classes</SelectItem>{state.classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>
             </div>
           </div>
@@ -305,29 +473,32 @@ export function Admissions({ query }: { query: string }) {
         <Pager {...(tab === "applications" ? appTable : studentTable)} onPage={(tab === "applications" ? appTable : studentTable).setPage} />
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader><DialogTitle>Create new admission</DialogTitle><DialogDescription>The application starts as New and can be reviewed before enrollment.</DialogDescription></DialogHeader>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Student name" error={errors.name}><Input aria-invalid={Boolean(errors.name)} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></Field>
-            <Field label="Date of birth" error={errors.dob}><Input aria-invalid={Boolean(errors.dob)} type="date" value={form.dob} onChange={(event) => setForm({ ...form, dob: event.target.value })} /></Field>
-            <Field label="Applying for"><Select value={form.classId} onValueChange={(value) => setForm({ ...form, classId: value })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{state.classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-            <Field label="Guardian" error={errors.guardian}><Input aria-invalid={Boolean(errors.guardian)} value={form.guardian} onChange={(event) => setForm({ ...form, guardian: event.target.value })} /></Field>
-            <Field label="Phone" error={errors.phone}><Input aria-invalid={Boolean(errors.phone)} value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></Field>
-            <div className="sm:col-span-2"><Field label="Notes"><Textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Interview, documents or special notes" /></Field></div>
-          </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={submitApplication}>Save application</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AdmissionWizard open={open} onOpenChange={setOpen} />
 
       <Dialog open={Boolean(selectedApp)} onOpenChange={(value) => !value && setSelectedApp(null)}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           {selectedApp ? (
             <>
-              <DialogHeader><DialogTitle>{selectedApp.name}</DialogTitle><DialogDescription>{selectedApp.id} · {classLabel(state.classes, selectedApp.classId)} · Guardian {selectedApp.guardian}</DialogDescription></DialogHeader>
-              <p className="text-sm text-muted-foreground">{selectedApp.notes || "No admission notes yet."}</p>
+              <DialogHeader>
+                <DialogTitle className="text-[20px] text-[var(--heading)]">{selectedApp.name}</DialogTitle>
+                <DialogDescription>{selectedApp.id} · {classLabel(state.classes, selectedApp.classId)} · {selectedApp.gender}</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 text-sm">
+                <p><span className="text-muted-foreground">Guardian:</span> {selectedApp.guardian} ({selectedApp.guardianRelation || "Guardian"}) · {selectedApp.phone}</p>
+                <p><span className="text-muted-foreground">Address:</span> {selectedApp.address || "—"}</p>
+                <p><span className="text-muted-foreground">Previous school:</span> {selectedApp.previousSchool || "—"}{selectedApp.previousClass ? ` · ${selectedApp.previousClass}` : ""}</p>
+                <p><span className="text-muted-foreground">Interview:</span> {selectedApp.interviewType || "—"}{selectedApp.interviewScore ? ` · score ${selectedApp.interviewScore}` : ""}{selectedApp.interviewResult ? ` · ${selectedApp.interviewResult}` : ""}</p>
+                <p><span className="text-muted-foreground">Decision:</span> {selectedApp.decision || "Pending"}</p>
+                <div className="flex flex-wrap gap-2">
+                  {(selectedApp.documents || []).map((doc) => (
+                    <span key={doc.id} className="rounded-full border px-2.5 py-1 text-xs">{doc.label}: {doc.status}</span>
+                  ))}
+                </div>
+                <p className="text-muted-foreground">{selectedApp.notes || "No admission notes yet."}</p>
+              </div>
               <div className="flex flex-wrap gap-2">
                 <Button variant="outline" onClick={() => { setApplicationStatus(selectedApp.id, "Review", "Ayesha Khan"); setSelectedApp({ ...selectedApp, status: "Review" }); toast.success("Moved to review") }}>Mark in review</Button>
+                <Button variant="secondary" onClick={() => setConfirm({ id: selectedApp.id, status: "Waitlist" })}>Waitlist</Button>
                 <Button onClick={() => setConfirm({ id: selectedApp.id, status: "Enrolled" })}>Enroll</Button>
                 <Button variant="destructive" onClick={() => setConfirm({ id: selectedApp.id, status: "Rejected" })}>Reject</Button>
               </div>
@@ -350,7 +521,22 @@ export function Admissions({ query }: { query: string }) {
           ) : null}
         </DialogContent>
       </Dialog>
-      <ConfirmDialog open={Boolean(confirm)} title={confirm?.status === "Enrolled" ? "Enroll this applicant?" : "Reject this application?"} description={confirm?.status === "Enrolled" ? "A student record will be created if one does not already exist." : "The family will no longer appear in the open queue."} confirmLabel={confirm?.status === "Enrolled" ? "Enroll" : "Reject"} destructive={confirm?.status === "Rejected"} onClose={() => setConfirm(null)} onConfirm={() => { if (!confirm) return; const message = setApplicationStatus(confirm.id, confirm.status, "Ayesha Khan"); if (message) toast.error(message); else toast.success(confirm.status === "Enrolled" ? "Student enrolled" : "Application rejected"); setConfirm(null); setSelectedApp(null) }} />
+      <ConfirmDialog
+        open={Boolean(confirm)}
+        title={confirm?.status === "Enrolled" ? "Enroll this applicant?" : confirm?.status === "Waitlist" ? "Move to waitlist?" : "Reject this application?"}
+        description={confirm?.status === "Enrolled" ? "A student record will be created if one does not already exist." : confirm?.status === "Waitlist" ? "The applicant stays in the queue without a student record." : "The family will no longer appear in the open queue."}
+        confirmLabel={confirm?.status === "Enrolled" ? "Enroll" : confirm?.status === "Waitlist" ? "Waitlist" : "Reject"}
+        destructive={confirm?.status === "Rejected"}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          if (!confirm) return
+          const message = setApplicationStatus(confirm.id, confirm.status, "Ayesha Khan")
+          if (message) toast.error(message)
+          else toast.success(confirm.status === "Enrolled" ? "Student enrolled" : confirm.status === "Waitlist" ? "Moved to waitlist" : "Application rejected")
+          setConfirm(null)
+          setSelectedApp(null)
+        }}
+      />
     </div>
   )
 }
