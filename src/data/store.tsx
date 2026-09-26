@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 
 import { createSeed } from "@/data/seed"
 import type {
+  AcademicSession,
   Application,
   AttendanceStatus,
   ClassSection,
@@ -20,7 +21,7 @@ import type {
   UpdateStatus,
 } from "@/data/types"
 
-const STORAGE_KEY = "eduvia-demo-v1"
+const STORAGE_KEY = "eduvia-demo-v3"
 
 type PaymentInput = Omit<Payment, "status" | "date"> & { date?: string }
 type ApplicationInput = Omit<Application, "id" | "status" | "submittedOn">
@@ -28,13 +29,15 @@ type SyncReport = { imported: number; skipped: number; failed: number; notes: st
 
 type SchoolContextValue = {
   state: SchoolState
-  addApplication: (input: ApplicationInput, actor: string) => string | null
+  addApplication: (input: ApplicationInput, actor: string) => { id: string } | { error: string }
   setApplicationStatus: (id: string, status: Application["status"], actor: string) => string | null
   updateStudent: (id: string, patch: Partial<Pick<Student, "status" | "classId" | "phone" | "guardian">>, actor: string) => void
   addPayment: (input: PaymentInput, actor: string) => string | null
   setPaymentStatus: (ref: string, status: Payment["status"], actor: string) => void
   importWorkbook: (fileName: string, actor: string) => SyncReport | string
   addExpense: (input: Omit<Expense, "id">, actor: string) => string | null
+  addSession: (input: Omit<AcademicSession, "id" | "current">, actor: string) => string | null
+  activateSession: (id: string, actor: string) => string | null
   addClass: (input: Omit<ClassSection, "id" | "label">, actor: string) => string | null
   addSubject: (input: Omit<Subject, "id">, actor: string) => string | null
   addSlot: (input: Omit<TimetableSlot, "id">, actor: string) => string | null
@@ -56,7 +59,7 @@ function loadState(): SchoolState {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return createSeed()
     const parsed = JSON.parse(raw) as SchoolState
-    if (!parsed.students?.length || !parsed.sheets || !parsed.attendance) return createSeed()
+    if (!parsed.students?.length || !parsed.sheets || !parsed.attendance || !parsed.sessions?.length) return createSeed()
     return parsed
   } catch {
     return createSeed()
@@ -83,19 +86,36 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const addApplication = useCallback((input: ApplicationInput, actor: string) => {
     if (!input.name.trim() || !input.guardian.trim() || !input.dob || !input.phone.trim()) {
-      return "Name, date of birth, guardian and phone are required."
+      return { error: "Name, date of birth, guardian and phone are required." }
     }
     const application: Application = {
       ...input,
       name: input.name.trim(),
       guardian: input.guardian.trim(),
+      gender: input.gender || "Female",
+      address: input.address || "",
+      previousSchool: input.previousSchool || "",
+      previousClass: input.previousClass || "",
+      guardianRelation: input.guardianRelation || "Guardian",
+      guardianAddress: input.guardianAddress || input.address || "",
+      documents: input.documents?.length ? input.documents : [
+        { id: "birth", label: "Birth certificate", status: "Pending" },
+        { id: "slc", label: "School leaving certificate", status: "Pending" },
+        { id: "cnic", label: "Guardian CNIC copy", status: "Pending" },
+        { id: "photo", label: "Student photograph", status: "Pending" },
+      ],
+      interviewType: input.interviewType || "",
+      interviewDate: input.interviewDate || "",
+      interviewScore: input.interviewScore || "",
+      interviewResult: input.interviewResult || "",
+      decision: input.decision || "",
       id: `APP-${1045 + Math.floor(Math.random() * 400)}`,
       status: "New",
       submittedOn: new Date().toISOString().slice(0, 10),
     }
     setState((current) => ({ ...current, applications: [application, ...current.applications] }))
     audit(actor, `Created admission application for ${application.name}`)
-    return null
+    return { id: application.id }
   }, [audit])
 
   const setApplicationStatus = useCallback((id: string, status: Application["status"], actor: string) => {
@@ -118,7 +138,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             phone: application.phone,
             status: "Active",
             dob: application.dob,
-            gender: "Female",
+            gender: application.gender || "Female",
             admittedOn: new Date().toISOString().slice(0, 10),
           }
           students = [student, ...students]
@@ -228,6 +248,52 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }))
     audit(actor, `Posted expense ${input.title.trim()}`)
     return null
+  }, [audit])
+
+  const addSession = useCallback((input: Omit<AcademicSession, "id" | "current">, actor: string) => {
+    if (!input.name.trim() || !input.start || !input.end) return "Session name, start date and end date are required."
+    if (input.end < input.start) return "End date must be after the start date."
+    let error: string | null = null
+    setState((current) => {
+      if (current.sessions.some((item) => item.name.toLowerCase() === input.name.trim().toLowerCase())) {
+        error = "A session with that name already exists."
+        return current
+      }
+      return {
+        ...current,
+        sessions: [
+          ...current.sessions.map((item) => ({ ...item, current: false })),
+          {
+            id: uid("ses"),
+            name: input.name.trim(),
+            start: input.start,
+            end: input.end,
+            current: true,
+          },
+        ],
+      }
+    })
+    if (!error) audit(actor, `Created and activated session ${input.name.trim()}`)
+    return error
+  }, [audit])
+
+  const activateSession = useCallback((id: string, actor: string) => {
+    let error: string | null = null
+    let name = id
+    setState((current) => {
+      const target = current.sessions.find((item) => item.id === id)
+      if (!target) {
+        error = "Session not found."
+        return current
+      }
+      name = target.name
+      return {
+        ...current,
+        sessions: current.sessions.map((item) => ({ ...item, current: item.id === id })),
+      }
+    })
+    if (!error) audit(actor, `Activated academic session ${name}`)
+    return error
   }, [audit])
 
   const addClass = useCallback((input: Omit<ClassSection, "id" | "label">, actor: string) => {
@@ -395,6 +461,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setPaymentStatus,
     importWorkbook,
     addExpense,
+    addSession,
+    activateSession,
     addClass,
     addSubject,
     addSlot,
@@ -407,7 +475,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     saveScores,
     setSheetStatus,
     resetDemo,
-  }), [state, addApplication, setApplicationStatus, updateStudent, addPayment, setPaymentStatus, importWorkbook, addExpense, addClass, addSubject, addSlot, removeSlot, addStaff, saveAttendance, updateLesson, addUpdate, setUpdateStatus, saveScores, setSheetStatus, resetDemo])
+  }), [state, addApplication, setApplicationStatus, updateStudent, addPayment, setPaymentStatus, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff, saveAttendance, updateLesson, addUpdate, setUpdateStatus, saveScores, setSheetStatus, resetDemo])
 
   return <SchoolContext.Provider value={value}>{children}</SchoolContext.Provider>
 }

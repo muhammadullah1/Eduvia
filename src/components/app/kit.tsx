@@ -7,16 +7,16 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
-const positive = new Set(["Active", "Paid", "Published", "Present", "Completed", "Approved", "Enrolled", "Verified", "Complete"])
-const warning = new Set(["Pending", "Review", "Draft", "In progress", "Submitted", "Leave", "Next", "Upcoming", "New", "Planned"])
-const negative = new Set(["Rejected", "Absent", "Withdrawn", "Failed"])
+const positive = new Set(["Active", "Paid", "Published", "Present", "Completed", "Approved", "Enrolled", "Verified", "Complete", "Admit", "Excused"])
+const warning = new Set(["Pending", "Review", "Draft", "In progress", "Submitted", "Leave", "Late", "Next", "Upcoming", "New", "Planned", "Waitlist"])
+const negative = new Set(["Rejected", "Absent", "Withdrawn", "Failed", "Reject", "Archived"])
 
 export function StatusBadge({ value }: { value: string }) {
   const tone = positive.has(value) ? "good" : negative.has(value) ? "bad" : warning.has(value) ? "warn" : "neutral"
   const className = {
     good: "border-transparent bg-success/10 text-success",
     bad: "border-transparent bg-destructive/10 text-destructive",
-    warn: "border-transparent bg-accent/15 text-accent-foreground",
+    warn: "border-transparent bg-[var(--warning-light)] text-[var(--warning)]",
     neutral: "",
   }[tone]
   return <Badge variant="outline" className={className}>{value}</Badge>
