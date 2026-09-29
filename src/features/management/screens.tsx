@@ -166,19 +166,19 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
 }
 
 export function AcademicSetup() {
-  const { state, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff } = useSchool()
+  const { state, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff, setClassPeriodCount, setStaffPrimarySubject } = useSchool()
   const navigate = useNavigate()
   const params = useParams()
   const splat = params["*"] ?? ""
   const classFromUrl = splat.startsWith("classes/") ? splat.slice("classes/".length) : ""
   const [sessionForm, setSessionForm] = useState({ name: "", start: "", end: "" })
-  const [classForm, setClassForm] = useState({ grade: "", section: "", room: "" })
+  const [classForm, setClassForm] = useState({ grade: "", section: "", room: "", periodCount: "8" })
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "" })
-  const [teacherForm, setTeacherForm] = useState({ name: "", email: "", phone: "", subjects: "", classIds: "" })
+  const [teacherForm, setTeacherForm] = useState({ name: "", email: "", phone: "", primarySubject: state.subjects[0]?.name ?? "Mathematics", classIds: "" })
   const [classId, setClassId] = useState(classFromUrl || state.classes[0]?.id || "")
   const [tab, setTab] = useState(classFromUrl ? "timetable" : "sessions")
   const teachers = state.staff.filter((person) => person.role.toLowerCase().includes("teacher"))
-  const [slotForm, setSlotForm] = useState({ day: "Monday", time: "08:00", subject: state.subjects[0]?.name ?? "Mathematics", teacher: teachers[0]?.name ?? "Hassan Ali", room: "Room 14" })
+  const [slotForm, setSlotForm] = useState({ day: "Monday", time: "08:00", periodIndex: "1", subject: state.subjects[0]?.name ?? "Mathematics", teacher: teachers[0]?.name ?? "Hassan Ali", room: "Room 14" })
   const [error, setError] = useState("")
   const visible = state.slots.filter((slot) => slot.classId === classId).sort((a, b) => a.day.localeCompare(b.day) || a.time.localeCompare(b.time))
   const currentSession = state.sessions.find((session) => session.current)
@@ -273,21 +273,29 @@ export function AcademicSetup() {
             <Field label="Grade"><Input value={classForm.grade} onChange={(event) => setClassForm({ ...classForm, grade: event.target.value })} placeholder="Grade 4" /></Field>
             <Field label="Section"><Input value={classForm.section} onChange={(event) => setClassForm({ ...classForm, section: event.target.value })} placeholder="Blue" /></Field>
             <Field label="Home room"><Input value={classForm.room} onChange={(event) => setClassForm({ ...classForm, room: event.target.value })} placeholder="Room 06" /></Field>
+            <Field label="Periods / day"><Input value={classForm.periodCount} onChange={(event) => setClassForm({ ...classForm, periodCount: event.target.value })} placeholder="8" /></Field>
           </CardContent>
           <CardFooter>
-            <Button onClick={() => { const message = addClass(classForm, "Ayesha Khan"); if (message) toast.error(message); else { toast.success("Class section added"); setClassForm({ grade: "", section: "", room: "" }) } }}>Add class</Button>
+            <Button onClick={() => { const message = addClass({ ...classForm, periodCount: Number(classForm.periodCount) || 8 }, "Ayesha Khan"); if (message) toast.error(message); else { toast.success("Class section added"); setClassForm({ grade: "", section: "", room: "", periodCount: "8" }) } }}>Add class</Button>
           </CardFooter>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <Table>
-              <TableHeader><TableRow><TableHead>Class</TableHead><TableHead>Room</TableHead><TableHead>Students</TableHead></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Class</TableHead><TableHead>Room</TableHead><TableHead>Periods</TableHead><TableHead>Students</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
                 {state.classes.map((item) => (
                   <TableRow key={item.id} className="cursor-pointer" onClick={() => selectClass(item.id)}>
                     <TableCell className="font-medium">{item.label}</TableCell>
                     <TableCell>{item.room}</TableCell>
+                    <TableCell>{item.periodCount ?? 8}</TableCell>
                     <TableCell>{state.students.filter((student) => student.classId === item.id && student.status === "Active").length}</TableCell>
+                    <TableCell onClick={(event) => event.stopPropagation()}>
+                      <Select value={String(item.periodCount ?? 8)} onValueChange={(value) => { const message = setClassPeriodCount(item.id, Number(value), "Ayesha Khan"); if (message) toast.error(message); else toast.success(`Periods set to ${value}`) }}>
+                        <SelectTrigger className="h-8 w-20"><SelectValue /></SelectTrigger>
+                        <SelectContent><SelectGroup>{[6, 7, 8, 9, 10].map((n) => <SelectItem key={n} value={String(n)}>{n}</SelectItem>)}</SelectGroup></SelectContent>
+                      </Select>
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -316,7 +324,7 @@ export function AcademicSetup() {
             <Field label="Full name"><Input value={teacherForm.name} onChange={(event) => setTeacherForm({ ...teacherForm, name: event.target.value })} placeholder="Nadia Khan" /></Field>
             <Field label="Email"><Input value={teacherForm.email} onChange={(event) => setTeacherForm({ ...teacherForm, email: event.target.value })} placeholder="nadia@cls.edu.pk" /></Field>
             <Field label="Phone"><Input value={teacherForm.phone} onChange={(event) => setTeacherForm({ ...teacherForm, phone: event.target.value })} placeholder="03xx-xxxxxxx" /></Field>
-            <Field label="Subjects"><Input value={teacherForm.subjects} onChange={(event) => setTeacherForm({ ...teacherForm, subjects: event.target.value })} placeholder="Mathematics, Science" /></Field>
+            <Field label="Primary subject (1:1, editable)"><Select value={teacherForm.primarySubject} onValueChange={(primarySubject) => setTeacherForm({ ...teacherForm, primarySubject })}><SelectTrigger><SelectValue placeholder="Choose subject" /></SelectTrigger><SelectContent><SelectGroup>{state.subjects.map((subject) => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
             <Field label="Class IDs"><Input value={teacherForm.classIds} onChange={(event) => setTeacherForm({ ...teacherForm, classIds: event.target.value })} placeholder="g4b, g5g" /></Field>
           </CardContent>
           <CardFooter>
@@ -326,13 +334,14 @@ export function AcademicSetup() {
                 role: "Teacher",
                 email: teacherForm.email,
                 phone: teacherForm.phone,
-                subjects: teacherForm.subjects.split(",").map((item) => item.trim()).filter(Boolean),
+                primarySubject: teacherForm.primarySubject,
+                subjects: teacherForm.primarySubject ? [teacherForm.primarySubject] : [],
                 classIds: teacherForm.classIds.split(",").map((item) => item.trim()).filter(Boolean),
               }, "Ayesha Khan")
               if (message) toast.error(message)
               else {
                 toast.success("Teacher assigned")
-                setTeacherForm({ name: "", email: "", phone: "", subjects: "", classIds: "" })
+                setTeacherForm({ name: "", email: "", phone: "", primarySubject: state.subjects[0]?.name ?? "Mathematics", classIds: "" })
               }
             }}>Add teacher</Button>
           </CardFooter>
@@ -352,7 +361,15 @@ export function AcademicSetup() {
                 {teachers.map((person) => (
                   <TableRow key={person.id}>
                     <TableCell className="font-medium">{person.name}</TableCell>
-                    <TableCell>{person.subjects.join(", ") || "—"}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <span>{person.primarySubject || person.subjects[0] || "—"}</span>
+                        <Select value={person.primarySubject || person.subjects[0] || ""} onValueChange={(value) => { const message = setStaffPrimarySubject(person.id, value, "Ayesha Khan"); if (message) toast.error(message); else toast.success("Primary subject updated") }}>
+                          <SelectTrigger className="h-8 w-36"><SelectValue placeholder="Edit" /></SelectTrigger>
+                          <SelectContent><SelectGroup>{state.subjects.map((subject) => <SelectItem key={subject.id} value={subject.name}>{subject.name}</SelectItem>)}</SelectGroup></SelectContent>
+                        </Select>
+                      </div>
+                    </TableCell>
                     <TableCell>{person.classIds.map((id) => state.classes.find((item) => item.id === id)?.label ?? id).join(", ") || "—"}</TableCell>
                     <TableCell className="text-muted-foreground">{person.email}</TableCell>
                   </TableRow>
@@ -406,7 +423,7 @@ export function AcademicSetup() {
               </Field>
               <Field label="Room" error={error}><Input value={slotForm.room} aria-invalid={Boolean(error)} onChange={(event) => setSlotForm({ ...slotForm, room: event.target.value })} /></Field>
             </CardContent>
-            <CardFooter><Button onClick={() => { const message = addSlot({ ...slotForm, classId }, "Ayesha Khan"); setError(message ?? ""); if (!message) toast.success("Period scheduled") }}>Schedule</Button></CardFooter>
+            <CardFooter><Button onClick={() => { const message = addSlot({ ...slotForm, classId, periodIndex: Number(slotForm.periodIndex) || 1 }, "Ayesha Khan"); setError(message ?? ""); if (!message) toast.success("Period scheduled") }}>Schedule</Button></CardFooter>
           </Card>
         </div>
       </TabsContent>
@@ -600,7 +617,7 @@ export function People({ query }: { query: string }) {
   const { state, addStaff } = useSchool()
   const [localQuery, setLocalQuery] = useState("")
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ name: "", role: "Teacher", email: "", phone: "", subjects: "English", classIds: [] as string[] })
+  const [form, setForm] = useState({ name: "", role: "Teacher", email: "", phone: "", primarySubject: "English", subjects: "English", classIds: [] as string[] })
   const search = localQuery || query
   const rows = state.staff.filter((person) => queryMatch(search, [person.name, person.role, person.email, person.subjects.join(" ")]))
   const table = useClientTable(rows, search)
@@ -620,7 +637,7 @@ export function People({ query }: { query: string }) {
                 <TableRow key={person.id}>
                   <TableCell className="font-medium">{person.name}</TableCell>
                   <TableCell>{person.role}</TableCell>
-                  <TableCell>{person.subjects.join(", ") || "—"}</TableCell>
+                  <TableCell>{person.primarySubject || person.subjects.join(", ") || "—"}</TableCell>
                   <TableCell>{person.classIds.map((id) => classLabel(state.classes, id)).join(", ") || "—"}</TableCell>
                   <TableCell>{person.email}</TableCell>
                 </TableRow>
@@ -638,9 +655,9 @@ export function People({ query }: { query: string }) {
             <Field label="Role"><Select value={form.role} onValueChange={(role) => setForm({ ...form, role })}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{["Teacher", "Accounts", "Coordinator"].map((role) => <SelectItem key={role} value={role}>{role}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
             <Field label="Email"><Input value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} placeholder="name@cls.edu.pk" /></Field>
             <Field label="Phone"><Input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></Field>
-            <Field label="Subjects"><Input value={form.subjects} onChange={(event) => setForm({ ...form, subjects: event.target.value })} placeholder="Comma separated" /></Field>
+            <Field label="Primary subject"><Input value={form.primarySubject} onChange={(event) => setForm({ ...form, primarySubject: event.target.value, subjects: event.target.value })} placeholder="One subject (editable later)" /></Field>
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => { const message = addStaff({ ...form, subjects: form.subjects.split(",").map((item) => item.trim()).filter(Boolean), classIds: [] }, "Ayesha Khan"); if (message) toast.error(message); else { toast.success("Staff member added"); setOpen(false) } }}>Save</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={() => { const primarySubject = form.primarySubject || form.subjects.split(",")[0]?.trim() || ""; const message = addStaff({ ...form, primarySubject, subjects: primarySubject ? [primarySubject] : [], classIds: [] }, "Ayesha Khan"); if (message) toast.error(message); else { toast.success("Staff member added"); setOpen(false) } }}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>

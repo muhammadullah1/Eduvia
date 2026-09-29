@@ -4,8 +4,10 @@ import {
   Bell,
   BookOpen,
   Building2,
+  Calculator,
+  CalendarClock,
   CalendarDays,
-  ClipboardCheck,
+  ClipboardList,
   FileCheck2,
   GraduationCap,
   Landmark,
@@ -13,13 +15,15 @@ import {
   LibraryBig,
   MessageSquareText,
   ReceiptText,
+  ShieldAlert,
+  ShieldCheck,
   UserCheck,
   UserRound,
   Users,
   WalletCards,
 } from "lucide-react"
 
-import type { Role } from "@/types"
+import type { Role } from "@/lib/auth"
 
 type Icon = ComponentType<{ className?: string }>
 
@@ -41,6 +45,22 @@ export const roles: Record<
     user: "Ayesha Khan",
     initials: "AK",
     icon: Building2,
+  },
+  controller: {
+    label: "Controller Portal",
+    short: "Controller",
+    description: "Management oversight and result controls",
+    user: "Imran Shah",
+    initials: "IS",
+    icon: ShieldCheck,
+  },
+  accountant: {
+    label: "Accountant Portal",
+    short: "Accountant",
+    description: "Fee portal focused on collections",
+    user: "Nadia Iqbal",
+    initials: "NI",
+    icon: Calculator,
   },
   teacher: {
     label: "Teacher Portal",
@@ -66,16 +86,31 @@ export const navigation: Record<Role, { label: string; icon: Icon }[]> = {
     { label: "Academic setup", icon: LibraryBig },
     { label: "Admissions", icon: Users },
     { label: "Examinations", icon: FileCheck2 },
+    { label: "Monthly tests", icon: ClipboardList },
+    { label: "Teacher absences", icon: CalendarClock },
+    { label: "Result fee gate", icon: ShieldAlert },
     { label: "Fees & sync", icon: WalletCards },
     { label: "Finance", icon: Landmark },
     { label: "Reports & audit", icon: BarChart3 },
-    { label: "SRS delivery map", icon: ClipboardCheck },
+  ],
+  controller: [
+    { label: "Oversight", icon: LayoutDashboard },
+    { label: "Monthly tests", icon: ClipboardList },
+    { label: "Teacher absences", icon: CalendarClock },
+    { label: "Result fee gate", icon: ShieldAlert },
+    { label: "Fees oversight", icon: WalletCards },
+  ],
+  accountant: [
+    { label: "Fee desk", icon: WalletCards },
+    { label: "Finance", icon: Landmark },
+    { label: "Collections report", icon: ReceiptText },
   ],
   teacher: [
     { label: "Today", icon: LayoutDashboard },
     { label: "My classes", icon: Users },
     { label: "Attendance", icon: UserCheck },
-    { label: "Lesson progress", icon: BookOpen },
+    { label: "Lesson / chapter", icon: BookOpen },
+    { label: "Daily test results", icon: ClipboardList },
     { label: "Daily updates", icon: MessageSquareText },
     { label: "Marks entry", icon: FileCheck2 },
   ],

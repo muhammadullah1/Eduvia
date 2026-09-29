@@ -143,6 +143,7 @@ export function ParentAttendance() {
 export function ParentResults() {
   const { state, child, childId, setChildId, options } = useChild()
   const sheets = state.sheets.filter((sheet) => sheet.classId === child.classId && sheet.status === "Published")
+  // Fee gate: parents only see rows marked visible (paid or overridden)
   const exams = [...new Set(sheets.map((sheet) => sheet.examName))]
   const [examChoice, setExam] = useState(exams[0] ?? "")
   const exam = exams.includes(examChoice) ? examChoice : exams[0] ?? ""
@@ -165,8 +166,10 @@ export function ParentResults() {
               <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Marks</TableHead><TableHead>Grade</TableHead></TableRow></TableHeader>
               <TableBody>
                 {rows.map((sheet) => {
-                  const score = sheet.rows.find((row) => row.studentId === child.id)?.score
-                  return <TableRow key={sheet.id}><TableCell className="font-medium">{sheet.subject}</TableCell><TableCell>{score ?? "—"} / {sheet.max}</TableCell><TableCell>{score === null || score === undefined ? "—" : <StatusBadge value={gradeFromScore(score, sheet.max)} />}</TableCell></TableRow>
+                  const row = sheet.rows.find((r) => r.studentId === child.id)
+                  const score = row && (row.visibleToParent !== false || row.manualOverride) && !row.blockedByFee ? row.score : (row?.manualOverride ? row.score : null)
+                  const gated = row?.blockedByFee && !row.manualOverride
+                  return <TableRow key={sheet.id}><TableCell className="font-medium">{sheet.subject}</TableCell><TableCell>{gated ? "Held — fee pending" : <>{score ?? "—"} / {sheet.max}</>}</TableCell><TableCell>{gated ? <StatusBadge value="Pending" /> : score === null || score === undefined ? "—" : <StatusBadge value={gradeFromScore(score, sheet.max)} />}</TableCell></TableRow>
                 })}
               </TableBody>
             </Table>

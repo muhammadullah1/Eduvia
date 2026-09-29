@@ -902,12 +902,12 @@ export function timetableFor(className: string) {
 export { studentBalance }
 
 const classes: ClassSection[] = [
-  { id: "g7b", label: "Grade 7 · Blue", grade: "Grade 7", section: "Blue", room: "Room 14" },
-  { id: "g7g", label: "Grade 7 · Green", grade: "Grade 7", section: "Green", room: "Room 11" },
-  { id: "g8b", label: "Grade 8 · Blue", grade: "Grade 8", section: "Blue", room: "Room 18" },
-  { id: "g6r", label: "Grade 6 · Red", grade: "Grade 6", section: "Red", room: "Lab 02" },
-  { id: "g5r", label: "Grade 5 · Red", grade: "Grade 5", section: "Red", room: "Room 08" },
-  { id: "g3y", label: "Grade 3 · Yellow", grade: "Grade 3", section: "Yellow", room: "Room 04" },
+  { id: "g7b", label: "Grade 7 · Blue", grade: "Grade 7", section: "Blue", room: "Room 14", periodCount: 8 },
+  { id: "g7g", label: "Grade 7 · Green", grade: "Grade 7", section: "Green", room: "Room 11", periodCount: 8 },
+  { id: "g8b", label: "Grade 8 · Blue", grade: "Grade 8", section: "Blue", room: "Room 18", periodCount: 9 },
+  { id: "g6r", label: "Grade 6 · Red", grade: "Grade 6", section: "Red", room: "Lab 02", periodCount: 7 },
+  { id: "g5r", label: "Grade 5 · Red", grade: "Grade 5", section: "Red", room: "Room 08", periodCount: 7 },
+  { id: "g3y", label: "Grade 3 · Yellow", grade: "Grade 3", section: "Yellow", room: "Room 04", periodCount: 6 },
 ]
 
 const roster: Array<[string, string, string, string, CatalogStudent["gender"], string]> = [
@@ -978,7 +978,7 @@ function sheet(id: string, examName: string, classId: string, subject: string, s
   const rows = students
     .filter((student) => student.classId === classId && student.status !== "Withdrawn")
     .map((student, index) => ({ studentId: student.id, score: scoreFor(student, index) }))
-  return { id, examName, classId, subject, status, max: 100, rows }
+  return { id, examName, classId, subject, status, max: 100, feePeriod: examName.includes("September") ? "September 2026" : examName.includes("August") ? "August 2026" : undefined, rows }
 }
 
 function buildSlots(): TimetableSlot[] {
@@ -1002,6 +1002,7 @@ function buildSlots(): TimetableSlot[] {
           classId: klass,
           day,
           time,
+          periodIndex: timeIndex + 1,
           subject,
           teacher,
           room,
@@ -1010,8 +1011,8 @@ function buildSlots(): TimetableSlot[] {
     })
   }
   slots.push(
-    { id: "g7g-mon-math", classId: "g7g", day: "Monday", time: "11:15", subject: "Mathematics", teacher: "Hassan Ali", room: "Room 11" },
-    { id: "g6r-mon-sci", classId: "g6r", day: "Monday", time: "12:45", subject: "General Science", teacher: "Hassan Ali", room: "Lab 02" },
+    { id: "g7g-mon-math", classId: "g7g", day: "Monday", time: "11:15", periodIndex: 4, subject: "Mathematics", teacher: "Hassan Ali", room: "Room 11" },
+    { id: "g6r-mon-sci", classId: "g6r", day: "Monday", time: "12:45", periodIndex: 5, subject: "General Science", teacher: "Hassan Ali", room: "Lab 02" },
   )
   return slots
 }
@@ -1034,11 +1035,12 @@ export function createSeed(): CatalogState {
       { id: "sst", name: "Social Studies", code: "SST" },
     ],
     staff: [
-      { id: "st-hassan", name: "Hassan Ali", role: "Teacher", email: "hassan@cls.edu.pk", phone: "0301-5550190", subjects: ["Mathematics", "General Science"], classIds: ["g7b", "g8b", "g7g", "g6r"] },
-      { id: "st-sana", name: "Sana Noor", role: "Teacher", email: "sana@cls.edu.pk", phone: "0302-5550144", subjects: ["English"], classIds: ["g7b", "g8b"] },
-      { id: "st-mariam", name: "Mariam Khan", role: "Teacher", email: "mariam@cls.edu.pk", phone: "0303-5550177", subjects: ["General Science"], classIds: ["g7b", "g6r"] },
-      { id: "st-bilal", name: "Bilal Raza", role: "Teacher", email: "bilal@cls.edu.pk", phone: "0304-5550112", subjects: ["Computer Studies"], classIds: ["g7b", "g8b"] },
-      { id: "st-nadia", name: "Nadia Iqbal", role: "Accounts", email: "fees@cls.edu.pk", phone: "0305-5550188", subjects: [], classIds: [] },
+      { id: "st-hassan", name: "Hassan Ali", role: "Teacher", email: "hassan@cls.edu.pk", phone: "0301-5550190", primarySubject: "Mathematics", subjects: ["Mathematics"], classIds: ["g7b", "g8b", "g7g", "g6r"] },
+      { id: "st-sana", name: "Sana Noor", role: "Teacher", email: "sana@cls.edu.pk", phone: "0302-5550144", primarySubject: "English", subjects: ["English"], classIds: ["g7b", "g8b"] },
+      { id: "st-mariam", name: "Mariam Khan", role: "Teacher", email: "mariam@cls.edu.pk", phone: "0303-5550177", primarySubject: "General Science", subjects: ["General Science"], classIds: ["g7b", "g6r"] },
+      { id: "st-bilal", name: "Bilal Raza", role: "Teacher", email: "bilal@cls.edu.pk", phone: "0304-5550112", primarySubject: "Computer Studies", subjects: ["Computer Studies"], classIds: ["g7b", "g8b"] },
+      { id: "st-nadia", name: "Nadia Iqbal", role: "Accountant", email: "fees@cls.edu.pk", phone: "0305-5550188", primarySubject: "", subjects: [], classIds: [] },
+      { id: "st-imran", name: "Imran Shah", role: "Controller", email: "controller@cls.edu.pk", phone: "0306-5550166", primarySubject: "", subjects: [], classIds: [] },
     ],
     students,
     applications: [
@@ -1152,12 +1154,12 @@ export function createSeed(): CatalogState {
     ],
     attendance: buildCatalogAttendance(students),
     lessons: [
-      { id: "ls-1", classId: "g7b", subject: "Mathematics", title: "Algebraic expressions", status: "Completed", target: "2026-09-17", progress: 100 },
-      { id: "ls-2", classId: "g7b", subject: "Mathematics", title: "Linear equations", status: "In progress", target: "2026-09-21", progress: 72 },
-      { id: "ls-3", classId: "g7b", subject: "Mathematics", title: "Ratio and proportion", status: "Planned", target: "2026-09-28", progress: 10 },
-      { id: "ls-4", classId: "g7b", subject: "Mathematics", title: "Geometry fundamentals", status: "Planned", target: "2026-10-05", progress: 0 },
-      { id: "ls-5", classId: "g8b", subject: "Mathematics", title: "Quadratic equations", status: "In progress", target: "2026-09-24", progress: 40 },
-      { id: "ls-6", classId: "g6r", subject: "General Science", title: "Chapter 6 lab activity", status: "Completed", target: "2026-09-16", progress: 100 },
+      { id: "ls-1", classId: "g7b", subject: "Mathematics", title: "Algebraic expressions", chapter: "Chapter 2 — Algebra", status: "Completed", target: "2026-09-17", progress: 100, date: "2026-09-17", periodIndex: 2 },
+      { id: "ls-2", classId: "g7b", subject: "Mathematics", title: "Linear equations", chapter: "Chapter 4 — Linear Equations", status: "In progress", target: "2026-09-21", progress: 72, date: "2026-09-23", periodIndex: 2 },
+      { id: "ls-3", classId: "g7b", subject: "Mathematics", title: "Ratio and proportion", chapter: "Chapter 5 — Ratio", status: "Planned", target: "2026-09-28", progress: 10, date: "2026-09-28", periodIndex: 2 },
+      { id: "ls-4", classId: "g7b", subject: "Mathematics", title: "Geometry fundamentals", chapter: "Chapter 6 — Geometry", status: "Planned", target: "2026-10-05", progress: 0, date: "2026-10-05", periodIndex: 3 },
+      { id: "ls-5", classId: "g8b", subject: "Mathematics", title: "Quadratic equations", chapter: "Chapter 3 — Quadratics", status: "In progress", target: "2026-09-24", progress: 40, date: "2026-09-23", periodIndex: 1 },
+      { id: "ls-6", classId: "g6r", subject: "General Science", title: "Living things", chapter: "Chapter 1 — Life", status: "Completed", target: "2026-09-16", progress: 100, date: "2026-09-16", periodIndex: 4 },
     ],
     updates: [
       { id: "up-1", classId: "g7b", kind: "Homework", subject: "Mathematics", text: "Practice exercise 4.2, questions 1–8.", status: "Published", due: "2026-09-23", author: "Hassan Ali" },
@@ -1169,6 +1171,31 @@ export function createSeed(): CatalogState {
       { id: "up-7", classId: "g3y", kind: "Homework", subject: "English", text: "Read the picture story on page 18 with a family member.", status: "Published", due: "2026-09-24", author: "Sana Noor" },
     ],
     slots: buildSlots(),
+    teacherAbsences: [
+      { id: "abs-1", teacherId: "st-hassan", teacherName: "Hassan Ali", classId: "g7b", date: "2026-09-23", periodIndex: 3, status: "Unmanaged", notes: "Reported sick — pending cover" },
+      { id: "abs-2", teacherId: "st-hassan", teacherName: "Hassan Ali", classId: "g7b", date: "2026-09-22", periodIndex: 2, status: "Covered", coverTeacherId: "st-mariam", coverTeacherName: "Mariam Khan", notes: "Science teacher covered Math period" },
+    ],
+    dailyTests: [
+      {
+        id: "dt-1", classId: "g7b", subject: "Mathematics", date: "2026-09-23", periodIndex: 2,
+        title: "Quick quiz — equations", max: 20,
+        results: [
+          { studentId: "CLS-24118", score: 16 },
+          { studentId: "CLS-24122", score: 11 },
+          { studentId: "CLS-24123", score: 18 },
+        ],
+      },
+    ],
+    monthlyTests: [
+      { id: "mt-1", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 1", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 48 }, { studentId: "CLS-24122", score: 30 }] },
+      { id: "mt-2", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 2", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 52 }, { studentId: "CLS-24122", score: 28 }] },
+      { id: "mt-3", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 3", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 50 }, { studentId: "CLS-24122", score: 60 }] },
+      { id: "mt-4", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 4", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 54 }, { studentId: "CLS-24122", score: 55 }] },
+    ],
+    monthlySummaries: [
+      { id: "ms-1", studentId: "CLS-24118", classId: "g7b", subject: "Mathematics", month: "2026-09", testsTaken: 4, passedCount: 4, failedCount: 0, averagePercent: 51, status: "LowMarks" },
+      { id: "ms-2", studentId: "CLS-24122", classId: "g7b", subject: "Mathematics", month: "2026-09", testsTaken: 4, passedCount: 2, failedCount: 2, averagePercent: 43.25, status: "Failed" },
+    ],
     audits: [
       { id: "au-1", actor: "Ayesha Khan", action: "Published Grade 8 Monthly Assessment", at: new Date(Date.now() - 2 * 60000).toISOString() },
       { id: "au-2", actor: "Hassan Ali", action: "Submitted Grade 7 Green Mathematics marks", at: new Date(Date.now() - 18 * 60000).toISOString() },

@@ -1,4 +1,4 @@
-export type Role = "management" | "teacher" | "parent"
+export type Role = "management" | "controller" | "accountant" | "teacher" | "parent"
 
 const AUTH_KEY = "eduvia-auth"
 
@@ -6,12 +6,14 @@ export type AuthSession = {
   role: Role
 }
 
+const ALL_ROLES: Role[] = ["management", "controller", "accountant", "teacher", "parent"]
+
 export function loadAuth(): AuthSession | null {
   try {
     const raw = localStorage.getItem(AUTH_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as AuthSession
-    if (parsed.role !== "management" && parsed.role !== "teacher" && parsed.role !== "parent") return null
+    if (!ALL_ROLES.includes(parsed.role)) return null
     return parsed
   } catch {
     return null
@@ -28,6 +30,8 @@ export function clearAuth() {
 
 export const defaultSection: Record<Role, string> = {
   management: "dashboard",
+  controller: "oversight",
+  accountant: "fees",
   teacher: "today",
   parent: "home",
 }

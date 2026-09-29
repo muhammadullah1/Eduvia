@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react"
 import {
-  Bell, BookOpen, Building2, CalendarDays, Check, ClipboardCheck, FileCheck2, GraduationCap,
-  Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, Search, ShieldCheck,
+  Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, Check, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
+  Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, Search, ShieldAlert, ShieldCheck,
   Sparkles, Sun, UserCheck, UserRound, Users, WalletCards,
 } from "lucide-react"
 import {
@@ -24,6 +24,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { useTheme } from "@/components/theme-provider"
 import { useSchool } from "@/data/store"
 import { AcademicSetup, Admissions, Examinations, Fees, Finance, ManagementDashboard, MessagesDesk, People, Reports } from "@/features/management/screens"
+import { AccountantPortal, AbsencesPanel, ControllerPortal, DailyTestsTeacherPanel, MonthlyTestsPanel, ResultsGatePanel } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
 import { clearAuth, defaultSection, loadAuth, portalPath, saveAuth, type Role } from "@/lib/auth"
@@ -33,6 +34,8 @@ type Icon = ComponentType<{ className?: string }>
 
 const roles: Record<Role, { label: string; short: string; description: string; user: string; email: string; initials: string; icon: Icon }> = {
   management: { label: "Management Portal", short: "Management", description: "Complete school operations and governance", user: "Ayesha Khan", email: "admin@cls.edu.pk", initials: "AK", icon: Building2 },
+  controller: { label: "Controller Portal", short: "Controller", description: "Management oversight, results gate and absences", user: "Imran Shah", email: "controller@cls.edu.pk", initials: "IS", icon: ShieldCheck },
+  accountant: { label: "Accountant Portal", short: "Accountant", description: "Fee desk aligned with the parent ledger", user: "Nadia Iqbal", email: "fees@cls.edu.pk", initials: "NI", icon: Calculator },
   teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", user: "Hassan Ali", email: "hassan@cls.edu.pk", initials: "HA", icon: BookOpen },
   parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", user: "Sara Ahmed", email: "parent@cls.edu.pk", initials: "SA", icon: UserRound },
 }
@@ -44,16 +47,35 @@ const navigation: Record<Role, { id: string; label: string; icon: Icon }[]> = {
     { id: "admissions", label: "Admissions", icon: Users },
     { id: "people", label: "People", icon: UserRound },
     { id: "exams", label: "Examinations", icon: FileCheck2 },
+    { id: "monthly", label: "Monthly tests", icon: ClipboardList },
+    { id: "absences", label: "Teacher absences", icon: CalendarClock },
+    { id: "results-gate", label: "Result fee gate", icon: ShieldAlert },
     { id: "fees", label: "Fees & sync", icon: WalletCards },
     { id: "finance", label: "Finance", icon: Landmark },
     { id: "messages", label: "Communication", icon: MessageSquareText },
     { id: "reports", label: "Reports & audit", icon: ClipboardCheck },
   ],
+  controller: [
+    { id: "oversight", label: "Oversight", icon: LayoutDashboard },
+    { id: "academic", label: "Academic setup", icon: LibraryBig },
+    { id: "exams", label: "Examinations", icon: FileCheck2 },
+    { id: "monthly", label: "Monthly tests", icon: ClipboardList },
+    { id: "absences", label: "Teacher absences", icon: CalendarClock },
+    { id: "results-gate", label: "Result fee gate", icon: ShieldAlert },
+    { id: "fees", label: "Fees oversight", icon: WalletCards },
+    { id: "reports", label: "Reports & audit", icon: ClipboardCheck },
+  ],
+  accountant: [
+    { id: "fees", label: "Fee desk", icon: WalletCards },
+    { id: "finance", label: "Finance", icon: Landmark },
+    { id: "reports", label: "Collections report", icon: ClipboardCheck },
+  ],
   teacher: [
     { id: "today", label: "Today", icon: LayoutDashboard },
     { id: "classes", label: "My classes", icon: Users },
     { id: "attendance", label: "Attendance", icon: UserCheck },
-    { id: "lessons", label: "Lesson progress", icon: BookOpen },
+    { id: "lessons", label: "Lesson / chapter", icon: BookOpen },
+    { id: "daily-tests", label: "Daily test results", icon: ClipboardList },
     { id: "updates", label: "Daily updates", icon: MessageSquareText },
     { id: "marks", label: "Marks entry", icon: FileCheck2 },
   ],
@@ -69,6 +91,8 @@ const navigation: Record<Role, { id: string; label: string; icon: Icon }[]> = {
 
 const sectionIds: Record<Role, Set<string>> = {
   management: new Set(navigation.management.map((item) => item.id)),
+  controller: new Set(navigation.controller.map((item) => item.id)),
+  accountant: new Set(navigation.accountant.map((item) => item.id)),
   teacher: new Set(navigation.teacher.map((item) => item.id)),
   parent: new Set(navigation.parent.map((item) => item.id)),
 }
@@ -83,6 +107,11 @@ const subtitles: Record<string, string> = {
   finance: "Income, expenses and the operating position.",
   messages: "Approve what families are allowed to see.",
   reports: "Printable insight and a traceable audit history.",
+  monthly: "Aggregate monthly tests with fail and low-marks status.",
+  absences: "Track absent teachers by timetable period and cover.",
+  "results-gate": "Fee-paid gate on published results with manual override.",
+  oversight: "Controller view of absences, monthly outcomes and fee gates.",
+  "daily-tests": "Record and update the day’s classroom test marks.",
   today: "Your assigned work for a focused, well-run day.",
   classes: "Only the classes allocated to your profile.",
   attendance: "Mark and save attendance for an assigned class.",
@@ -95,7 +124,7 @@ const subtitles: Record<string, string> = {
 }
 
 function isRole(value: string | undefined): value is Role {
-  return value === "management" || value === "teacher" || value === "parent"
+  return value === "management" || value === "controller" || value === "accountant" || value === "teacher" || value === "parent"
 }
 
 function Logo({ compact = false, inverted = false }: { compact?: boolean; inverted?: boolean }) {
@@ -141,7 +170,7 @@ function LoginScreen() {
           <div className="relative z-10 my-auto max-w-2xl py-16">
             <p className="mb-5 flex items-center gap-2 text-xs font-semibold tracking-[0.22em] text-primary-foreground/65 uppercase"><Sparkles className="size-4" /> One connected campus</p>
             <h1 className="font-heading text-5xl leading-[1.05] font-semibold tracking-[-0.045em] xl:text-7xl">Every school day,<br /><span className="text-accent">beautifully organised.</span></h1>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-primary-foreground/70">A complete operating system for management, teachers and parents—from admissions to verified receipts and published report cards.</p>
+            <p className="mt-7 max-w-xl text-lg leading-8 text-primary-foreground/70">A complete operating system for management, controllers, accountants, teachers and parents—from admissions to verified receipts and published report cards.</p>
           </div>
         </section>
         <section className="flex flex-1 items-center justify-center p-6 sm:p-10 lg:p-14">
@@ -264,12 +293,20 @@ function PortalShell() {
   }
 
   const content = (() => {
-    if (role === "teacher") return <TeacherPortal section={section} onOpen={openSection} />
+    if (role === "teacher") {
+      if (section === "daily-tests") return <DailyTestsTeacherPanel />
+      return <TeacherPortal section={section} onOpen={openSection} />
+    }
     if (role === "parent") return <ParentPortal section={section} />
+    if (role === "accountant") return <AccountantPortal section={section} />
+    if (role === "controller") return <ControllerPortal section={section} onOpen={openSection} />
     if (section === "academic") return <AcademicSetup />
     if (section === "admissions") return <Admissions query={query} />
     if (section === "people") return <People query={query} />
     if (section === "exams") return <Examinations />
+    if (section === "monthly") return <MonthlyTestsPanel />
+    if (section === "absences") return <AbsencesPanel />
+    if (section === "results-gate") return <ResultsGatePanel />
     if (section === "fees") return <Fees query={query} />
     if (section === "finance") return <Finance />
     if (section === "messages") return <MessagesDesk />

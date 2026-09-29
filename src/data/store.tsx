@@ -8,6 +8,7 @@ import type {
   AttendanceStatus,
   ClassSection,
   Expense,
+  Lesson,
   LessonStatus,
   MarkRow,
   Payment,
@@ -17,11 +18,12 @@ import type {
   Staff,
   Student,
   Subject,
+  TeacherAbsence,
   TimetableSlot,
   UpdateStatus,
 } from "@/data/types"
 
-const STORAGE_KEY = "eduvia-demo-v3"
+const STORAGE_KEY = "eduvia-demo-v4"
 
 type PaymentInput = Omit<Payment, "status" | "date"> & { date?: string }
 type ApplicationInput = Omit<Application, "id" | "status" | "submittedOn">
@@ -49,6 +51,13 @@ type SchoolContextValue = {
   setUpdateStatus: (id: string, status: UpdateStatus, actor: string) => void
   saveScores: (sheetId: string, rows: MarkRow[], actor: string) => string | null
   setSheetStatus: (sheetId: string, status: SheetStatus, actor: string) => string | null
+  setStaffPrimarySubject: (staffId: string, primarySubject: string, actor: string) => string | null
+  setClassPeriodCount: (classId: string, periodCount: number, actor: string) => string | null
+  addTeacherAbsence: (input: Omit<TeacherAbsence, "id">, actor: string) => string | null
+  updateTeacherAbsence: (id: string, patch: Partial<TeacherAbsence>, actor: string) => void
+  updateLessonChapter: (id: string, patch: Partial<Pick<Lesson, "chapter" | "title" | "progress" | "status" | "date" | "periodIndex">>, actor: string) => void
+  saveDailyTestResults: (testId: string, results: { studentId: string; score: number | null }[], actor: string) => string | null
+  overrideResultFeeGate: (sheetId: string, studentId: string, reason: string, actor: string) => string | null
   resetDemo: () => void
 }
 
@@ -60,6 +69,21 @@ function loadState(): SchoolState {
     if (!raw) return createSeed()
     const parsed = JSON.parse(raw) as SchoolState
     if (!parsed.students?.length || !parsed.sheets || !parsed.attendance || !parsed.sessions?.length) return createSeed()
+    if (!parsed.teacherAbsences || !parsed.dailyTests || !parsed.monthlyTests || !parsed.monthlySummaries) return createSeed()
+    // Migrate classes missing periodCount / staff missing primarySubject
+    parsed.classes = parsed.classes.map((c) => ({ ...c, periodCount: c.periodCount ?? 8 }))
+    parsed.staff = parsed.staff.map((s) => {
+      const primarySubject = s.primarySubject || s.subjects?.[0] || ""
+      return { ...s, primarySubject, subjects: primarySubject ? [primarySubject] : [] }
+    })
+    parsed.slots = parsed.slots.map((slot, index) => ({
+      ...slot,
+      periodIndex: slot.periodIndex ?? (index % 8) + 1,
+    }))
+    parsed.lessons = parsed.lessons.map((lesson) => ({
+      ...lesson,
+      chapter: lesson.chapter || lesson.title,
+    }))
     return parsed
   } catch {
     return createSeed()
@@ -307,7 +331,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       return {
         ...current,
-        classes: [...current.classes, { id: uid("cl"), label, grade: input.grade.trim(), section: input.section.trim(), room: input.room.trim() || "Unassigned" }],
+        classes: [...current.classes, {
+          id: uid("cl"),
+          label,
+          grade: input.grade.trim(),
+          section: input.section.trim(),
+          room: input.room.trim() || "Unassigned",
+          periodCount: Math.max(1, Number(input.periodCount) || 8),
+        }],
       }
     })
     if (!error) audit(actor, `Added class ${label}`)
@@ -349,9 +380,17 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   const addStaff = useCallback((input: Omit<Staff, "id">, actor: string) => {
     if (!input.name.trim() || !input.email.trim()) return "Name and email are required."
+    const primarySubject = (input.primarySubject || input.subjects?.[0] || "").trim()
     setState((current) => ({
       ...current,
-      staff: [...current.staff, { ...input, name: input.name.trim(), email: input.email.trim(), id: uid("st") }],
+      staff: [...current.staff, {
+        ...input,
+        name: input.name.trim(),
+        email: input.email.trim(),
+        primarySubject,
+        subjects: primarySubject ? [primarySubject] : [],
+        id: uid("st"),
+      }],
     }))
     audit(actor, `Added staff member ${input.name.trim()}`)
     return null
@@ -437,12 +476,146 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         error = `Cannot move a ${target.status.toLowerCase()} sheet to ${status.toLowerCase()}.`
         return current
       }
+      const nextRows = status === "Published"
+        ? target.rows.map((row) => {
+            if (row.manualOverride) {
+              return { ...row, blockedByFee: false, visibleToParent: true }
+            }
+            const feeOk = !target.feePeriod || current.payments.some(
+              (payment) => payment.studentId === row.studentId && payment.period === target.feePeriod && payment.status === "Paid",
+            )
+            return {
+              ...row,
+              blockedByFee: !feeOk,
+              visibleToParent: feeOk,
+            }
+          })
+        : target.rows
       return {
         ...current,
-        sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, status } : sheet)),
+        sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, status, rows: nextRows } : sheet)),
       }
     })
     if (!error) audit(actor, `Moved a mark sheet to ${status}`)
+    return error
+  }, [audit])
+
+  const setStaffPrimarySubject = useCallback((staffId: string, primarySubject: string, actor: string) => {
+    const subject = primarySubject.trim()
+    if (!subject) return "Choose a subject."
+    let error: string | null = null
+    setState((current) => {
+      if (!current.staff.some((person) => person.id === staffId)) {
+        error = "Staff member not found."
+        return current
+      }
+      return {
+        ...current,
+        staff: current.staff.map((person) =>
+          person.id === staffId
+            ? { ...person, primarySubject: subject, subjects: [subject] }
+            : person,
+        ),
+      }
+    })
+    if (!error) audit(actor, `Set primary subject for ${staffId} to ${subject}`)
+    return error
+  }, [audit])
+
+  const setClassPeriodCount = useCallback((classId: string, periodCount: number, actor: string) => {
+    if (!Number.isFinite(periodCount) || periodCount < 1 || periodCount > 16) {
+      return "Period count must be between 1 and 16."
+    }
+    setState((current) => ({
+      ...current,
+      classes: current.classes.map((klass) =>
+        klass.id === classId ? { ...klass, periodCount } : klass,
+      ),
+    }))
+    audit(actor, `Set period count for ${classId} to ${periodCount}`)
+    return null
+  }, [audit])
+
+  const addTeacherAbsence = useCallback((input: Omit<TeacherAbsence, "id">, actor: string) => {
+    if (!input.teacherId || !input.classId || !input.date) return "Teacher, class and date are required."
+    const row: TeacherAbsence = { ...input, id: uid("abs") }
+    setState((current) => ({
+      ...current,
+      teacherAbsences: [row, ...current.teacherAbsences],
+    }))
+    audit(actor, `Recorded teacher absence for period ${input.periodIndex} on ${input.date}`)
+    return null
+  }, [audit])
+
+  const updateTeacherAbsence = useCallback((id: string, patch: Partial<TeacherAbsence>, actor: string) => {
+    setState((current) => ({
+      ...current,
+      teacherAbsences: current.teacherAbsences.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    }))
+    audit(actor, `Updated teacher absence ${id}`)
+  }, [audit])
+
+  const updateLessonChapter = useCallback((id: string, patch: Partial<Pick<Lesson, "chapter" | "title" | "progress" | "status" | "date" | "periodIndex">>, actor: string) => {
+    setState((current) => ({
+      ...current,
+      lessons: current.lessons.map((lesson) => (lesson.id === id ? { ...lesson, ...patch } : lesson)),
+    }))
+    audit(actor, "Updated daily lesson chapter")
+  }, [audit])
+
+  const saveDailyTestResults = useCallback((testId: string, results: { studentId: string; score: number | null }[], actor: string) => {
+    let error: string | null = null
+    setState((current) => {
+      const test = current.dailyTests.find((item) => item.id === testId)
+      if (!test) {
+        error = "Daily test not found."
+        return current
+      }
+      return {
+        ...current,
+        dailyTests: current.dailyTests.map((item) => (item.id === testId ? { ...item, results } : item)),
+      }
+    })
+    if (!error) audit(actor, "Updated daily test results")
+    return error
+  }, [audit])
+
+  const overrideResultFeeGate = useCallback((sheetId: string, studentId: string, reason: string, actor: string) => {
+    if (!reason.trim()) return "Override reason is required."
+    let error: string | null = null
+    setState((current) => {
+      const sheet = current.sheets.find((item) => item.id === sheetId)
+      if (!sheet) {
+        error = "Mark sheet not found."
+        return current
+      }
+      if (!sheet.rows.some((row) => row.studentId === studentId)) {
+        error = "Student row not found on this sheet."
+        return current
+      }
+      return {
+        ...current,
+        sheets: current.sheets.map((item) =>
+          item.id !== sheetId
+            ? item
+            : {
+                ...item,
+                rows: item.rows.map((row) =>
+                  row.studentId === studentId
+                    ? {
+                        ...row,
+                        manualOverride: true,
+                        overrideReason: reason.trim(),
+                        blockedByFee: false,
+                        visibleToParent: item.status === "Published",
+                      }
+                    : row,
+                ),
+              },
+        ),
+      }
+    })
+    if (!error) audit(actor, `Fee-gate override for ${studentId} on ${sheetId}`)
     return error
   }, [audit])
 
@@ -474,8 +647,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     setUpdateStatus,
     saveScores,
     setSheetStatus,
+    setStaffPrimarySubject,
+    setClassPeriodCount,
+    addTeacherAbsence,
+    updateTeacherAbsence,
+    updateLessonChapter,
+    saveDailyTestResults,
+    overrideResultFeeGate,
     resetDemo,
-  }), [state, addApplication, setApplicationStatus, updateStudent, addPayment, setPaymentStatus, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff, saveAttendance, updateLesson, addUpdate, setUpdateStatus, saveScores, setSheetStatus, resetDemo])
+  }), [state, addApplication, setApplicationStatus, updateStudent, addPayment, setPaymentStatus, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff, saveAttendance, updateLesson, addUpdate, setUpdateStatus, saveScores, setSheetStatus, setStaffPrimarySubject, setClassPeriodCount, addTeacherAbsence, updateTeacherAbsence, updateLessonChapter, saveDailyTestResults, overrideResultFeeGate, resetDemo])
 
   return <SchoolContext.Provider value={value}>{children}</SchoolContext.Provider>
 }

@@ -182,12 +182,13 @@ export function TeacherAttendance() {
 }
 
 export function TeacherLessons() {
-  const { state, updateLesson } = useSchool()
+  const { state, updateLessonChapter } = useSchool()
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
   const [classId, setClassId] = useState("g7b")
   const [editing, setEditing] = useState<Lesson | null>(null)
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState<LessonStatus>("In progress")
+  const [chapter, setChapter] = useState("")
   const lessons = state.lessons.filter((lesson) => lesson.classId === classId && teacher?.subjects.includes(lesson.subject))
   return (
     <div className="grid gap-4">
@@ -195,19 +196,20 @@ export function TeacherLessons() {
       {lessons.length === 0 ? <EmptyState title="No lessons for this class" detail="Plans appear when a subject you teach has a teaching record." /> : lessons.map((lesson) => (
         <Card key={lesson.id}>
           <CardContent className="grid gap-3 p-5 md:grid-cols-[1.4fr_auto_1fr_auto] md:items-center">
-            <div><p className="font-medium">{lesson.title}</p><p className="text-xs text-muted-foreground">{lesson.subject} · target {lesson.target}</p></div>
+            <div><p className="font-medium">{lesson.title}</p><p className="text-xs text-muted-foreground">{lesson.chapter || lesson.title} · {lesson.subject} · target {lesson.target}</p></div>
             <StatusBadge value={lesson.status} />
             <Progress value={lesson.progress} />
-            <Button variant="outline" size="sm" onClick={() => { setEditing(lesson); setProgress(lesson.progress); setStatus(lesson.status) }}>Update</Button>
+            <Button variant="outline" size="sm" onClick={() => { setEditing(lesson); setProgress(lesson.progress); setStatus(lesson.status); setChapter(lesson.chapter || lesson.title) }}>Update</Button>
           </CardContent>
         </Card>
       ))}
       <Dialog open={Boolean(editing)} onOpenChange={(value) => !value && setEditing(null)}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Update lesson</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Update lesson chapter</DialogTitle></DialogHeader>
+          <Field label="Chapter"><Input value={chapter} onChange={(event) => setChapter(event.target.value)} /></Field>
           <Field label="Progress"><Input type="number" min={0} max={100} value={progress} onChange={(event) => setProgress(Number(event.target.value))} /></Field>
           <Field label="Status"><Select value={status} onValueChange={(value) => setStatus(value as LessonStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(["Planned", "In progress", "Completed"] as LessonStatus[]).map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-          <DialogFooter><Button onClick={() => { if (!editing) return; updateLesson(editing.id, { progress: Math.min(100, Math.max(0, progress)), status }, "Hassan Ali"); toast.success("Lesson updated"); setEditing(null) }}>Save</Button></DialogFooter>
+          <DialogFooter><Button onClick={() => { if (!editing) return; updateLessonChapter(editing.id, { progress: Math.min(100, Math.max(0, progress)), status, chapter: chapter.trim() || editing.chapter }, "Hassan Ali"); toast.success("Lesson chapter updated"); setEditing(null) }}>Save</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
