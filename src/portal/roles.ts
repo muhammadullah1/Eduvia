@@ -23,7 +23,7 @@ import {
   WalletCards,
 } from "lucide-react"
 
-import type { Role } from "@/lib/auth"
+import type { Role } from "@/types"
 
 type Icon = ComponentType<{ className?: string }>
 

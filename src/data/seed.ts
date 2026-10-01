@@ -27,11 +27,23 @@ import type {
   AttendanceMark as CatalogAttendanceMark,
   AttendanceStatus as CatalogAttendanceStatus,
   ClassSection,
+  DailyLesson,
+  FeeMonth,
   MarkSheet as CatalogMarkSheet,
+  Payment as CatalogPayment,
+  PlannedChapter,
   SchoolState as CatalogState,
+  Staff,
   Student as CatalogStudent,
+  Substitution,
+  TeacherAbsence,
+  TestSchedule,
   TimetableSlot,
+  WeeklyTest,
 } from "@/data/types"
+import { DEFAULT_SETTINGS, TODAY } from "@/data/types"
+import { datesOnWeekday, weekdayOf, weekOfMonth } from "@/lib/academics"
+import { allocateOldestFirst, monthRange } from "@/lib/fees"
 
 const students: Student[] = [
   {
@@ -902,12 +914,12 @@ export function timetableFor(className: string) {
 export { studentBalance }
 
 const classes: ClassSection[] = [
-  { id: "g7b", label: "Grade 7 · Blue", grade: "Grade 7", section: "Blue", room: "Room 14", periodCount: 8 },
-  { id: "g7g", label: "Grade 7 · Green", grade: "Grade 7", section: "Green", room: "Room 11", periodCount: 8 },
-  { id: "g8b", label: "Grade 8 · Blue", grade: "Grade 8", section: "Blue", room: "Room 18", periodCount: 9 },
-  { id: "g6r", label: "Grade 6 · Red", grade: "Grade 6", section: "Red", room: "Lab 02", periodCount: 7 },
-  { id: "g5r", label: "Grade 5 · Red", grade: "Grade 5", section: "Red", room: "Room 08", periodCount: 7 },
-  { id: "g3y", label: "Grade 3 · Yellow", grade: "Grade 3", section: "Yellow", room: "Room 04", periodCount: 6 },
+  { id: "g7b", label: "Grade 7 · Blue", grade: "Grade 7", section: "Blue", room: "Room 14", periodCount: 8, monthlyFee: 8500 },
+  { id: "g7g", label: "Grade 7 · Green", grade: "Grade 7", section: "Green", room: "Room 11", periodCount: 8, monthlyFee: 8500 },
+  { id: "g8b", label: "Grade 8 · Blue", grade: "Grade 8", section: "Blue", room: "Room 18", periodCount: 9, monthlyFee: 9000 },
+  { id: "g6r", label: "Grade 6 · Red", grade: "Grade 6", section: "Red", room: "Lab 02", periodCount: 7, monthlyFee: 8000 },
+  { id: "g5r", label: "Grade 5 · Red", grade: "Grade 5", section: "Red", room: "Room 08", periodCount: 7, monthlyFee: 7500 },
+  { id: "g3y", label: "Grade 3 · Yellow", grade: "Grade 3", section: "Yellow", room: "Room 04", periodCount: 6, monthlyFee: 7500 },
 ]
 
 const roster: Array<[string, string, string, string, CatalogStudent["gender"], string]> = [
@@ -949,6 +961,9 @@ const schoolDays = [
   "2026-09-21", "2026-09-22", "2026-09-23",
 ]
 
+/** Maya joined in July, so her whole ledger (Jul, Aug, Sep) is still open. */
+const ADMITTED_ON: Record<string, string> = { "CLS-24120": "2026-09-18", "CLS-23014": "2026-07-01" }
+
 function buildStudents(): CatalogStudent[] {
   return roster.map(([id, name, classId, guardian, gender, dob]) => ({
     id,
@@ -959,7 +974,7 @@ function buildStudents(): CatalogStudent[] {
     status: id === "CLS-24120" ? "Pending" : "Active",
     dob,
     gender,
-    admittedOn: id === "CLS-24120" ? "2026-09-18" : "2026-04-01",
+    admittedOn: ADMITTED_ON[id] ?? "2026-04-01",
   }))
 }
 
@@ -974,51 +989,260 @@ function buildCatalogAttendance(students: CatalogStudent[]): CatalogAttendanceMa
   )
 }
 
-function sheet(id: string, examName: string, classId: string, subject: string, status: CatalogMarkSheet["status"], scoreFor: (student: CatalogStudent, index: number) => number | null, students: CatalogStudent[]): CatalogMarkSheet {
+function sheet(id: string, exam: { id: string; name: string; feeMonth?: string }, classId: string, subject: string, status: CatalogMarkSheet["status"], scoreFor: (student: CatalogStudent, index: number) => number | null, students: CatalogStudent[]): CatalogMarkSheet {
   const rows = students
     .filter((student) => student.classId === classId && student.status !== "Withdrawn")
     .map((student, index) => ({ studentId: student.id, score: scoreFor(student, index) }))
-  return { id, examName, classId, subject, status, max: 100, feePeriod: examName.includes("September") ? "September 2026" : examName.includes("August") ? "August 2026" : undefined, rows }
+  return { id, examId: exam.id, examName: exam.name, classId, subject, status, max: 100, feeMonth: exam.feeMonth, rows }
 }
 
+// ---- staff & timetable -------------------------------------------------------
+
+const TEACHERS = [
+  { id: "st-sana", name: "Sana Noor", subject: "English", email: "sana@cls.edu.pk", phone: "0302-5550144" },
+  { id: "st-hassan", name: "Hassan Ali", subject: "Mathematics", email: "hassan@cls.edu.pk", phone: "0301-5550190" },
+  { id: "st-mariam", name: "Mariam Khan", subject: "General Science", email: "mariam@cls.edu.pk", phone: "0303-5550177" },
+  { id: "st-bilal", name: "Bilal Raza", subject: "Computer Studies", email: "bilal@cls.edu.pk", phone: "0304-5550112" },
+  { id: "st-hira", name: "Hira Qureshi", subject: "Urdu", email: "hira@cls.edu.pk", phone: "0307-5550133" },
+] as const
+
+const TIMETABLE_CLASSES = ["g7b", "g8b", "g3y"] as const
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+const TIMES = ["08:00", "08:45", "09:30", "11:15", "12:00"]
+
+/**
+ * Clash-free rotation: class c, day d, period p is taught by teacher
+ * (d + p + c) mod 5, so every period has three busy and two free teachers.
+ */
 function buildSlots(): TimetableSlot[] {
-  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
-  const times = ["08:00", "08:45", "09:30", "11:15", "12:00"]
-  const cycle = [
-    ["English", "Sana Noor"],
-    ["Mathematics", "Hassan Ali"],
-    ["General Science", "Mariam Khan"],
-    ["Computer Studies", "Bilal Raza"],
-    ["Urdu", "Hira Qureshi"],
-  ] as const
   const slots: TimetableSlot[] = []
-  for (const klass of ["g7b", "g3y", "g8b"] as const) {
-    days.forEach((day, dayIndex) => {
-      times.forEach((time, timeIndex) => {
-        const [subject, teacher] = cycle[(dayIndex + timeIndex) % cycle.length]
-        const room = classes.find((item) => item.id === klass)?.room ?? "Room 14"
-        slots.push({
-          id: `${klass}-${day}-${time}`,
-          classId: klass,
-          day,
-          time,
-          periodIndex: timeIndex + 1,
-          subject,
-          teacher,
-          room,
-        })
+  TIMETABLE_CLASSES.forEach((klass, classIndex) => {
+    const room = classes.find((item) => item.id === klass)?.room ?? "Room 14"
+    DAYS.forEach((day, dayIndex) => {
+      TIMES.forEach((time, periodIndex) => {
+        const teacher = TEACHERS[(dayIndex + periodIndex + classIndex) % TEACHERS.length]
+        slots.push({ id: `${klass}-${day}-${periodIndex + 1}`, classId: klass, day, time, periodIndex: periodIndex + 1, subject: teacher.subject, teacherId: teacher.id, teacher: teacher.name, room })
       })
     })
-  }
-  slots.push(
-    { id: "g7g-mon-math", classId: "g7g", day: "Monday", time: "11:15", periodIndex: 4, subject: "Mathematics", teacher: "Hassan Ali", room: "Room 11" },
-    { id: "g6r-mon-sci", classId: "g6r", day: "Monday", time: "12:45", periodIndex: 5, subject: "General Science", teacher: "Hassan Ali", room: "Lab 02" },
-  )
+  })
   return slots
+}
+
+function buildStaff(slots: TimetableSlot[]): Staff[] {
+  const teachers: Staff[] = TEACHERS.map((teacher) => ({
+    ...teacher,
+    role: "Teacher",
+    classIds: [...new Set(slots.filter((slot) => slot.teacherId === teacher.id).map((slot) => slot.classId))],
+    subjectHistory:
+      teacher.id === "st-hassan"
+        ? [
+            { subject: "General Science", from: "2026-04-01", to: "2026-06-30", by: "Ayesha Khan", reason: "Initial allocation" },
+            { subject: "Mathematics", from: "2026-07-01", by: "Imran Shah", reason: "Mathematics vacancy after summer break" },
+          ]
+        : [{ subject: teacher.subject, from: "2026-04-01", by: "Ayesha Khan", reason: "Initial allocation" }],
+  }))
+  const office = (id: string, name: string, role: string, email: string, phone: string): Staff => ({ id, name, role, email, phone, subject: "", subjectHistory: [], classIds: [] })
+  return [
+    ...teachers,
+    office("st-ayesha", "Ayesha Khan", "Super Admin", "admin@cls.edu.pk", "0300-5550101"),
+    office("st-imran", "Imran Shah", "Operations Manager", "operations@cls.edu.pk", "0306-5550166"),
+    office("st-nadia", "Nadia Iqbal", "Accountant", "accountant@cls.edu.pk", "0305-5550188"),
+  ]
+}
+
+// ---- fees: monthly ledger + oldest-first allocation --------------------------
+
+const LEDGER_START = "2026-04"
+const CURRENT_MONTH = "2026-09"
+
+type SeedPayment = { studentId: string; amount: number; date: string; by: "Nadia Iqbal" | "Ayesha Khan"; method?: string; status?: "Paid" | "Pending" }
+
+/** Students whose ledger is intentionally left open for the demo. */
+const PAID_UNTIL: Record<string, string | null> = {
+  "CLS-23014": null, // Maya: Jul, Aug, Sep unpaid → results withheld
+  "CLS-24122": "2026-07", // Ayaan: Aug + Sep unpaid → results withheld
+  "CLS-24124": "2026-07", // Ibrahim: Aug + Sep unpaid → released by override
+  "CLS-24119": "2026-08", // Zoya: Sep bank transfer awaiting confirmation
+  "CLS-24118": "2026-08", // Rayan: pays Sep + Oct (Advance) today
+  "CLS-24123": "2026-08", // Hania: Sep partially paid today
+  "CLS-24128": "2026-08", // Daniyal: Sep paid today
+  "CLS-24125": "2026-08", // Esha: Sep paid today
+  "CLS-24127": "2026-08", // Noor: Sep paid today by the super admin
+}
+
+function seedPayments(students: CatalogStudent[]): SeedPayment[] {
+  const rows: SeedPayment[] = []
+  students.filter((student) => student.status === "Active").forEach((student, index) => {
+    const fee = classes.find((item) => item.id === student.classId)?.monthlyFee ?? 8500
+    const until = student.id in PAID_UNTIL ? PAID_UNTIL[student.id] : CURRENT_MONTH
+    if (!until) return
+    for (const month of monthRange(ledgerStart(student), until)) {
+      rows.push({ studentId: student.id, amount: fee, date: `${month}-${String((index % 20) + 1).padStart(2, "0")}`, by: index % 4 === 0 ? "Ayesha Khan" : "Nadia Iqbal" })
+    }
+  })
+  rows.push(
+    { studentId: "CLS-24119", amount: 8000, date: "2026-09-21", by: "Nadia Iqbal", method: "Bank transfer", status: "Pending" },
+    { studentId: "CLS-24118", amount: 17000, date: "2026-09-23", by: "Nadia Iqbal" },
+    { studentId: "CLS-24123", amount: 5000, date: "2026-09-23", by: "Nadia Iqbal" },
+    { studentId: "CLS-24128", amount: 9000, date: "2026-09-23", by: "Nadia Iqbal", method: "Bank transfer" },
+    { studentId: "CLS-24125", amount: 8500, date: "2026-09-23", by: "Nadia Iqbal" },
+    { studentId: "CLS-24127", amount: 9000, date: "2026-09-23", by: "Ayesha Khan" },
+  )
+  return rows.sort((a, b) => a.date.localeCompare(b.date))
+}
+
+function ledgerStart(student: CatalogStudent) {
+  const admitted = student.admittedOn.slice(0, 7)
+  return admitted > LEDGER_START ? admitted : LEDGER_START
+}
+
+function buildCatalogFees(students: CatalogStudent[]) {
+  let feeMonths: FeeMonth[] = students
+    .filter((student) => student.status === "Active")
+    .flatMap((student) => {
+      const fee = classes.find((item) => item.id === student.classId)?.monthlyFee ?? 8500
+      return monthRange(ledgerStart(student), CURRENT_MONTH).map((month) => ({ id: `fm-${student.id}-${month}`, studentId: student.id, month, feeType: "Tuition", amountDue: fee, amountPaid: 0, dueDate: `${month}-10` }))
+    })
+  const payments: CatalogPayment[] = []
+  const perDay = new Map<string, number>()
+  for (const row of seedPayments(students)) {
+    const sequence = (perDay.get(row.date) ?? 0) + 1
+    perDay.set(row.date, sequence)
+    const ref = `RCPT-${row.date.replace(/-/g, "")}-${String(sequence).padStart(3, "0")}`
+    const base = { ref, studentId: row.studentId, amount: row.amount, method: row.method ?? "Cash", date: row.date, recordedBy: row.by, recordedByRole: row.by === "Nadia Iqbal" ? "accountant" : "super_admin", mode: "auto" as const }
+    if (row.status === "Pending") {
+      payments.push({ ...base, status: "Pending", allocations: [], unallocated: row.amount, note: "Bank transfer awaiting confirmation" })
+      continue
+    }
+    const student = students.find((item) => item.id === row.studentId) as CatalogStudent
+    const own = feeMonths.filter((month) => month.studentId === row.studentId)
+    const result = allocateOldestFirst(own, {
+      studentId: row.studentId,
+      amount: row.amount,
+      monthlyFee: classes.find((item) => item.id === student.classId)?.monthlyFee ?? 8500,
+      currentMonth: row.date.slice(0, 7),
+      newId: (month) => `fm-${row.studentId}-${month}`,
+    })
+    feeMonths = [...feeMonths.filter((month) => month.studentId !== row.studentId), ...result.months]
+    payments.push({ ...base, status: "Paid", allocations: result.lines, unallocated: result.leftover })
+  }
+  return { feeMonths, payments: payments.reverse() }
+}
+
+// ---- lessons: planned chapters + daily updates -------------------------------
+
+function buildChapters(): PlannedChapter[] {
+  const plan: Array<[string, string, string[]]> = [
+    ["g7b", "Mathematics", ["Number systems", "Algebraic expressions", "Fractions and decimals", "Linear equations", "Ratio and proportion", "Geometry fundamentals"]],
+    ["g8b", "Mathematics", ["Real numbers", "Factorisation", "Quadratic equations", "Coordinate geometry"]],
+    ["g3y", "Mathematics", ["Place value", "Addition and subtraction", "Multiplication tables", "Shapes around us"]],
+    ["g7b", "English", ["Reading for meaning", "Tenses in context", "Persuasive writing", "Poetry appreciation"]],
+    ["g3y", "English", ["Picture stories", "Naming words", "Describing words"]],
+  ]
+  return plan.flatMap(([classId, subject, titles]) =>
+    titles.map((title, index) => ({
+      id: `ch-${classId}-${subject.slice(0, 3).toLowerCase()}-${index + 1}`,
+      classId,
+      subject,
+      sequence: index + 1,
+      title: `Chapter ${index + 1} — ${title}`,
+      targetDate: `2026-${String(4 + index).padStart(2, "0")}-28`,
+      createdBy: "Imran Shah",
+    })),
+  )
+}
+
+function buildDailyLessons(): DailyLesson[] {
+  const hassan = { teacherId: "st-hassan", teacherName: "Hassan Ali", subject: "Mathematics" }
+  return [
+    { id: "dl-1", ...hassan, classId: "g7b", date: "2026-09-23", chapterId: "ch-g7b-mat-5", classwork: "Introduced ratios with classroom examples.", homework: "Exercise 5.1, questions 1–6.", remarks: "", reviewStatus: "Submitted" },
+    { id: "dl-2", ...hassan, classId: "g7b", date: "2026-09-22", chapterId: "ch-g7b-mat-4", classwork: "Solved worked examples 4.3–4.5.", homework: "Practice exercise 4.2, questions 1–8.", remarks: "Two students need extra practice.", reviewStatus: "Approved", reviewedBy: "Imran Shah" },
+    { id: "dl-3", ...hassan, classId: "g8b", date: "2026-09-22", chapterId: "ch-g8b-mat-3", classwork: "Solving quadratics by factorisation.", homework: "Exercise 3.2, odd questions.", remarks: "", reviewStatus: "Approved", reviewedBy: "Imran Shah" },
+    { id: "dl-4", ...hassan, classId: "g3y", date: "2026-09-21", chapterId: "ch-g3y-mat-4", classwork: "Shapes worksheet.", homework: "", remarks: "", reviewStatus: "Rejected", reviewedBy: "Imran Shah", reviewNote: "Class is still on Chapter 3 — please select the chapter actually taught." },
+    { id: "dl-5", teacherId: "st-sana", teacherName: "Sana Noor", subject: "English", classId: "g7b", date: "2026-09-22", chapterId: "ch-g7b-eng-3", classwork: "Drafted a persuasive paragraph on recycling.", homework: "Prepare a short talk on environmental responsibility.", remarks: "", reviewStatus: "Approved", reviewedBy: "Imran Shah" },
+    { id: "dl-6", teacherId: "st-sana", teacherName: "Sana Noor", subject: "English", classId: "g3y", date: "2026-09-22", chapterId: "ch-g3y-eng-2", classwork: "Naming words in a picture story.", homework: "Read the story on page 18 with a family member.", remarks: "", reviewStatus: "Approved", reviewedBy: "Imran Shah" },
+  ]
+}
+
+// ---- substitutes -------------------------------------------------------------
+
+/** Sana Noor is absent all of Wednesday 23 Sep; Hassan (free in period 2) covers Grade 3. */
+function buildAbsences(slots: TimetableSlot[]) {
+  const date = "2026-09-23"
+  const weekday = weekdayOf(date)
+  const absences: TeacherAbsence[] = TIMES.map((_time, index) => {
+    const periodIndex = index + 1
+    const slot = slots.find((item) => item.teacherId === "st-sana" && item.day === weekday && item.periodIndex === periodIndex)
+    return {
+      id: `abs-${periodIndex}`,
+      teacherId: "st-sana",
+      date,
+      periodIndex,
+      classId: slot?.classId,
+      subject: slot?.subject,
+      status: slot ? "Pending" : "NoClass",
+      markedBy: "Imran Shah",
+      notes: "Medical leave",
+    }
+  })
+  const covered = absences.find((row) => row.classId === "g3y") as TeacherAbsence
+  covered.status = "Covered"
+  const substitutions: Substitution[] = [
+    { id: "sub-1", absenceId: covered.id, date, periodIndex: covered.periodIndex, classId: "g3y", subject: "English", originalTeacherId: "st-sana", substituteTeacherId: "st-hassan", authorizedBy: "Imran Shah", at: "2026-09-23T07:40:00.000Z" },
+  ]
+  return { absences, substitutions }
+}
+
+// ---- weekly subject tests ----------------------------------------------------
+
+function buildWeeklyTests(): { schedules: TestSchedule[]; tests: WeeklyTest[] } {
+  const schedules: TestSchedule[] = [
+    { id: "ts-g7b-math", classId: "g7b", subject: "Mathematics", weekday: "Thursday", periodIndex: 4, max: 20, active: true },
+    { id: "ts-g7b-eng", classId: "g7b", subject: "English", weekday: "Monday", periodIndex: 1, max: 20, active: true },
+    { id: "ts-g8b-math", classId: "g8b", subject: "Mathematics", weekday: "Thursday", periodIndex: 3, max: 20, active: true },
+    { id: "ts-g3y-math", classId: "g3y", subject: "Mathematics", weekday: "Tuesday", periodIndex: 4, max: 20, active: true },
+  ]
+  /** Scores per week; Ayaan fails Maths twice (flag), Hania passes weakly (LowMarks). */
+  const scores: Record<string, Record<string, number[]>> = {
+    "ts-g7b-math": { "CLS-24118": [16, 17, 15], "CLS-24122": [6, 7, 12], "CLS-24123": [9, 10, 10], "CLS-24124": [14, 13, 15] },
+    "ts-g7b-eng": { "CLS-24118": [18, 17, 19], "CLS-24122": [12, 6, 14], "CLS-24123": [15, 14, 16], "CLS-24124": [13, 15, 12] },
+    "ts-g8b-math": { "CLS-24127": [17, 18, 16], "CLS-24128": [12, 14, 13], "CLS-24133": [15, 16, 17] },
+    "ts-g3y-math": { "CLS-23014": [15, 16, 14, 17], "CLS-24132": [12, 13, 15, 14] },
+  }
+  const tests: WeeklyTest[] = schedules.flatMap((schedule) => {
+    const byStudent = scores[schedule.id]
+    return datesOnWeekday("2026-09", schedule.weekday).map((date, index) => {
+      const done = date <= TODAY
+      const status = !done ? "Scheduled" : schedule.id === "ts-g7b-math" && index === 2 ? "MarksEntered" : "Published"
+      return {
+        id: `wt-${schedule.id.slice(3)}-${date}`,
+        scheduleId: schedule.id,
+        classId: schedule.classId,
+        subject: schedule.subject,
+        date,
+        month: "2026-09",
+        week: weekOfMonth(date),
+        max: schedule.max,
+        status,
+        results: Object.entries(byStudent).map(([studentId, list]) => ({ studentId, score: done ? list[index] ?? null : null })),
+        enteredBy: done ? "Hassan Ali" : undefined,
+        publishedBy: status === "Published" ? "Imran Shah" : undefined,
+      }
+    })
+  })
+  return { schedules, tests }
 }
 
 export function createSeed(): CatalogState {
   const students = buildStudents()
+  const slots = buildSlots()
+  const { feeMonths, payments } = buildCatalogFees(students)
+  const { absences, substitutions } = buildAbsences(slots)
+  const { schedules, tests } = buildWeeklyTests()
+  const august = { id: "ex-aug-2026", name: "Monthly Assessment · August 2026", feeMonth: "2026-08" }
+  const midTerm = { id: "ex-mid-2026", name: "Mid-term 2026", feeMonth: "2026-09" }
+  const g8bMonthly = { id: "ex-sep-g8b", name: "Monthly Assessment · September 2026", feeMonth: "2026-09" }
+  const minutesAgo = (minutes: number) => new Date(Date.now() - minutes * 60000).toISOString()
 
   return {
     sessions: [
@@ -1034,14 +1258,7 @@ export function createSeed(): CatalogState {
       { id: "cs", name: "Computer Studies", code: "CS" },
       { id: "sst", name: "Social Studies", code: "SST" },
     ],
-    staff: [
-      { id: "st-hassan", name: "Hassan Ali", role: "Teacher", email: "hassan@cls.edu.pk", phone: "0301-5550190", primarySubject: "Mathematics", subjects: ["Mathematics"], classIds: ["g7b", "g8b", "g7g", "g6r"] },
-      { id: "st-sana", name: "Sana Noor", role: "Teacher", email: "sana@cls.edu.pk", phone: "0302-5550144", primarySubject: "English", subjects: ["English"], classIds: ["g7b", "g8b"] },
-      { id: "st-mariam", name: "Mariam Khan", role: "Teacher", email: "mariam@cls.edu.pk", phone: "0303-5550177", primarySubject: "General Science", subjects: ["General Science"], classIds: ["g7b", "g6r"] },
-      { id: "st-bilal", name: "Bilal Raza", role: "Teacher", email: "bilal@cls.edu.pk", phone: "0304-5550112", primarySubject: "Computer Studies", subjects: ["Computer Studies"], classIds: ["g7b", "g8b"] },
-      { id: "st-nadia", name: "Nadia Iqbal", role: "Accountant", email: "fees@cls.edu.pk", phone: "0305-5550188", primarySubject: "", subjects: [], classIds: [] },
-      { id: "st-imran", name: "Imran Shah", role: "Controller", email: "controller@cls.edu.pk", phone: "0306-5550166", primarySubject: "", subjects: [], classIds: [] },
-    ],
+    staff: buildStaff(slots),
     students,
     applications: [
       {
@@ -1110,30 +1327,8 @@ export function createSeed(): CatalogState {
         decision: "Reject", status: "Rejected", submittedOn: "2026-08-26", notes: "Section at capacity for this intake.",
       },
     ],
-    payments: [
-      ...["04", "05", "06", "07", "08"].flatMap((month, monthIndex) =>
-        students.slice(0, 8 + monthIndex).map((student, index) => ({
-          ref: `RCPT-${month}26-${400 + index}`,
-          studentId: student.id,
-          period: `${["April", "May", "June", "July", "August"][monthIndex]} 2026`,
-          type: "Tuition",
-          amount: 8500,
-          method: "Cash" as const,
-          status: "Paid" as const,
-          date: `2026-${month}-${String((index % 27) + 1).padStart(2, "0")}`,
-        })),
-      ),
-      { ref: "RCPT-0926-482", studentId: "CLS-24118", period: "September 2026", type: "Tuition", amount: 8500, method: "Cash", status: "Paid", date: "2026-09-05" },
-      { ref: "RCPT-0926-481", studentId: "CLS-24121", period: "September 2026", type: "Transport", amount: 3000, method: "Bank transfer", status: "Paid", date: "2026-09-06" },
-      { ref: "RCPT-0926-480", studentId: "CLS-24119", period: "September 2026", type: "Tuition", amount: 8500, method: "Cash", status: "Pending", date: "2026-09-08" },
-      { ref: "RCPT-0826-377", studentId: "CLS-24118", period: "August 2026", type: "Tuition", amount: 8500, method: "Cash", status: "Paid", date: "2026-08-04" },
-      { ref: "RCPT-0726-294", studentId: "CLS-24118", period: "July 2026", type: "Tuition", amount: 8500, method: "Bank transfer", status: "Paid", date: "2026-07-07" },
-      { ref: "RCPT-0926-470", studentId: "CLS-24122", period: "September 2026", type: "Tuition", amount: 8500, method: "Cash", status: "Paid", date: "2026-09-04" },
-      { ref: "RCPT-0926-468", studentId: "CLS-24127", period: "September 2026", type: "Tuition", amount: 9000, method: "Bank transfer", status: "Paid", date: "2026-09-03" },
-      { ref: "RCPT-0626-210", studentId: "CLS-24123", period: "June 2026", type: "Tuition", amount: 8500, method: "Cash", status: "Paid", date: "2026-06-09" },
-      { ref: "RCPT-0526-188", studentId: "CLS-23014", period: "September 2026", type: "Tuition", amount: 7500, method: "Cash", status: "Paid", date: "2026-09-05" },
-      { ref: "RCPT-0926-455", studentId: "CLS-24120", period: "September 2026", type: "Admission", amount: 15000, method: "Bank transfer", status: "Pending", date: "2026-09-18" },
-    ],
+    feeMonths,
+    payments,
     expenses: [
       { id: "EX-1", title: "September payroll", category: "Payroll", amount: 186000, date: "2026-09-01" },
       { id: "EX-2", title: "Electricity bill", category: "Facilities", amount: 24500, date: "2026-09-12" },
@@ -1142,68 +1337,46 @@ export function createSeed(): CatalogState {
       { id: "EX-5", title: "Library books", category: "Academic supplies", amount: 4200, date: "2026-09-20" },
     ],
     sheets: [
-      sheet("sh-mid-g7b-math", "Mid-term 2026", "g7b", "Mathematics", "Draft", (student) => (student.id === "CLS-24124" ? null : 70 + (student.id.charCodeAt(9) % 25)), students),
-      sheet("sh-mid-g8b-math", "Monthly Assessment", "g8b", "Mathematics", "Published", (_student, index) => 74 + ((index * 5) % 18), students),
-      sheet("sh-mid-g6r-sci", "Mid-term 2026", "g6r", "General Science", "Draft", () => null, students),
-      sheet("sh-aug-g7b-eng", "Monthly Assessment · August 2026", "g7b", "English", "Published", (student) => (student.id === "CLS-24118" ? 86 : 78), students),
-      sheet("sh-aug-g7b-math", "Monthly Assessment · August 2026", "g7b", "Mathematics", "Published", (student) => (student.id === "CLS-24118" ? 94 : 76), students),
-      sheet("sh-aug-g7b-sci", "Monthly Assessment · August 2026", "g7b", "General Science", "Published", (student) => (student.id === "CLS-24118" ? 89 : 74), students),
-      sheet("sh-aug-g7b-urd", "Monthly Assessment · August 2026", "g7b", "Urdu", "Published", (student) => (student.id === "CLS-24118" ? 81 : 72), students),
-      sheet("sh-aug-g7b-cs", "Monthly Assessment · August 2026", "g7b", "Computer Studies", "Published", (student) => (student.id === "CLS-24118" ? 92 : 82), students),
-      sheet("sh-sub-g7g-math", "Mid-term 2026", "g7g", "Mathematics", "Submitted", (_student, index) => 64 + index * 4, students),
+      sheet("sh-mid-g7b-math", midTerm, "g7b", "Mathematics", "Draft", (student) => (student.id === "CLS-24124" ? null : 70 + (student.id.charCodeAt(8) % 25)), students),
+      sheet("sh-sep-g8b-math", g8bMonthly, "g8b", "Mathematics", "Published", (_student, index) => 74 + ((index * 5) % 18), students),
+      sheet("sh-mid-g6r-sci", midTerm, "g6r", "General Science", "Draft", () => null, students),
+      sheet("sh-aug-g7b-eng", august, "g7b", "English", "Published", (student) => (student.id === "CLS-24118" ? 86 : 78), students),
+      sheet("sh-aug-g7b-math", august, "g7b", "Mathematics", "Published", (student) => (student.id === "CLS-24118" ? 94 : 76), students),
+      sheet("sh-aug-g7b-sci", august, "g7b", "General Science", "Published", (student) => (student.id === "CLS-24118" ? 89 : 74), students),
+      sheet("sh-aug-g7b-urd", august, "g7b", "Urdu", "Published", (student) => (student.id === "CLS-24118" ? 81 : 72), students),
+      sheet("sh-aug-g7b-cs", august, "g7b", "Computer Studies", "Verified", (student) => (student.id === "CLS-24118" ? 92 : 82), students),
+      sheet("sh-aug-g3y-eng", august, "g3y", "English", "Published", (student) => (student.id === "CLS-23014" ? 88 : 80), students),
+      sheet("sh-aug-g3y-math", august, "g3y", "Mathematics", "Published", (student) => (student.id === "CLS-23014" ? 91 : 77), students),
+      sheet("sh-sub-g7g-math", midTerm, "g7g", "Mathematics", "Submitted", (_student, index) => 64 + index * 4, students),
+    ],
+    resultOverrides: [
+      { id: "ov-1", examId: august.id, studentId: "CLS-24124", reason: "Instalment plan agreed with the principal; release August results.", grantedBy: "Imran Shah", grantedAt: "2026-09-20T09:15:00.000Z" },
     ],
     attendance: buildCatalogAttendance(students),
-    lessons: [
-      { id: "ls-1", classId: "g7b", subject: "Mathematics", title: "Algebraic expressions", chapter: "Chapter 2 — Algebra", status: "Completed", target: "2026-09-17", progress: 100, date: "2026-09-17", periodIndex: 2 },
-      { id: "ls-2", classId: "g7b", subject: "Mathematics", title: "Linear equations", chapter: "Chapter 4 — Linear Equations", status: "In progress", target: "2026-09-21", progress: 72, date: "2026-09-23", periodIndex: 2 },
-      { id: "ls-3", classId: "g7b", subject: "Mathematics", title: "Ratio and proportion", chapter: "Chapter 5 — Ratio", status: "Planned", target: "2026-09-28", progress: 10, date: "2026-09-28", periodIndex: 2 },
-      { id: "ls-4", classId: "g7b", subject: "Mathematics", title: "Geometry fundamentals", chapter: "Chapter 6 — Geometry", status: "Planned", target: "2026-10-05", progress: 0, date: "2026-10-05", periodIndex: 3 },
-      { id: "ls-5", classId: "g8b", subject: "Mathematics", title: "Quadratic equations", chapter: "Chapter 3 — Quadratics", status: "In progress", target: "2026-09-24", progress: 40, date: "2026-09-23", periodIndex: 1 },
-      { id: "ls-6", classId: "g6r", subject: "General Science", title: "Living things", chapter: "Chapter 1 — Life", status: "Completed", target: "2026-09-16", progress: 100, date: "2026-09-16", periodIndex: 4 },
-    ],
+    plannedChapters: buildChapters(),
+    dailyLessons: buildDailyLessons(),
     updates: [
-      { id: "up-1", classId: "g7b", kind: "Homework", subject: "Mathematics", text: "Practice exercise 4.2, questions 1–8.", status: "Published", due: "2026-09-23", author: "Hassan Ali" },
       { id: "up-2", classId: "g8b", kind: "Notice", subject: "Mathematics", text: "Bring a geometry set tomorrow.", status: "Approved", due: "2026-09-24", author: "Hassan Ali" },
-      { id: "up-3", classId: "g7g", kind: "Homework", subject: "Mathematics", text: "Quiz moved to Thursday.", status: "Draft", due: "2026-09-25", author: "Hassan Ali" },
+      { id: "up-3", classId: "g7g", kind: "Notice", subject: "Mathematics", text: "Quiz moved to Thursday.", status: "Draft", due: "2026-09-25", author: "Hassan Ali" },
       { id: "up-4", classId: "g7b", kind: "Notice", subject: "School office", text: "Parent-teacher meeting is scheduled this Saturday at 10:00.", status: "Published", due: "2026-09-19", author: "Ayesha Khan" },
-      { id: "up-5", classId: "g7b", kind: "Classwork", subject: "General Science", text: "Completed chapter 6 laboratory activity.", status: "Published", due: "2026-09-23", author: "Mariam Khan" },
-      { id: "up-6", classId: "g7b", kind: "Homework", subject: "English", text: "Prepare a short talk on environmental responsibility.", status: "Published", due: "2026-09-25", author: "Sana Noor" },
-      { id: "up-7", classId: "g3y", kind: "Homework", subject: "English", text: "Read the picture story on page 18 with a family member.", status: "Published", due: "2026-09-24", author: "Sana Noor" },
+      { id: "up-7", classId: "g3y", kind: "Notice", subject: "School office", text: "Sports day practice starts next Monday.", status: "Published", due: "2026-09-28", author: "Imran Shah" },
     ],
-    slots: buildSlots(),
-    teacherAbsences: [
-      { id: "abs-1", teacherId: "st-hassan", teacherName: "Hassan Ali", classId: "g7b", date: "2026-09-23", periodIndex: 3, status: "Unmanaged", notes: "Reported sick — pending cover" },
-      { id: "abs-2", teacherId: "st-hassan", teacherName: "Hassan Ali", classId: "g7b", date: "2026-09-22", periodIndex: 2, status: "Covered", coverTeacherId: "st-mariam", coverTeacherName: "Mariam Khan", notes: "Science teacher covered Math period" },
-    ],
-    dailyTests: [
-      {
-        id: "dt-1", classId: "g7b", subject: "Mathematics", date: "2026-09-23", periodIndex: 2,
-        title: "Quick quiz — equations", max: 20,
-        results: [
-          { studentId: "CLS-24118", score: 16 },
-          { studentId: "CLS-24122", score: 11 },
-          { studentId: "CLS-24123", score: 18 },
-        ],
-      },
-    ],
-    monthlyTests: [
-      { id: "mt-1", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 1", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 48 }, { studentId: "CLS-24122", score: 30 }] },
-      { id: "mt-2", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 2", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 52 }, { studentId: "CLS-24122", score: 28 }] },
-      { id: "mt-3", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 3", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 50 }, { studentId: "CLS-24122", score: 60 }] },
-      { id: "mt-4", classId: "g7b", subject: "Mathematics", month: "2026-09", title: "Monthly Test 4", max: 100, passPercent: 40, results: [{ studentId: "CLS-24118", score: 54 }, { studentId: "CLS-24122", score: 55 }] },
-    ],
-    monthlySummaries: [
-      { id: "ms-1", studentId: "CLS-24118", classId: "g7b", subject: "Mathematics", month: "2026-09", testsTaken: 4, passedCount: 4, failedCount: 0, averagePercent: 51, status: "LowMarks" },
-      { id: "ms-2", studentId: "CLS-24122", classId: "g7b", subject: "Mathematics", month: "2026-09", testsTaken: 4, passedCount: 2, failedCount: 2, averagePercent: 43.25, status: "Failed" },
-    ],
+    slots,
+    teacherAbsences: absences,
+    substitutions,
+    testSchedules: schedules,
+    weeklyTests: tests,
+    settings: DEFAULT_SETTINGS,
     audits: [
-      { id: "au-1", actor: "Ayesha Khan", action: "Published Grade 8 Monthly Assessment", at: new Date(Date.now() - 2 * 60000).toISOString() },
-      { id: "au-2", actor: "Hassan Ali", action: "Submitted Grade 7 Green Mathematics marks", at: new Date(Date.now() - 18 * 60000).toISOString() },
-      { id: "au-3", actor: "Nadia Iqbal", action: "Imported 84 offline fee rows", at: new Date(Date.now() - 42 * 60000).toISOString() },
-      { id: "au-4", actor: "System", action: "Blocked duplicate receipt RCPT-0926-417", at: new Date(Date.now() - 43 * 60000).toISOString() },
+      { id: "au-1", actor: "Imran Shah", action: "Assigned Hassan Ali to cover Grade 3 · Yellow English (period 2, 23 Sep) for Sana Noor", at: minutesAgo(3), entity: "substitute_assignment" },
+      { id: "au-2", actor: "Nadia Iqbal", action: "Allocated receipt to Sep 2026 + Oct 2026 (oldest first) for Rayan Ahmed", at: minutesAgo(12), entity: "fee_payment" },
+      { id: "au-3", actor: "System", action: "Ayaan Malik flagged: Failed Mathematics for Sep 2026 (2 failed weekly tests)", at: minutesAgo(30), entity: "daily_test" },
+      { id: "au-4", actor: "Imran Shah", action: "Released August results for Ibrahim Shah (fee override): Instalment plan agreed with the principal", at: minutesAgo(60 * 24 * 3), entity: "result_override" },
+      { id: "au-5", actor: "Imran Shah", action: "Changed Hassan Ali's subject from General Science to Mathematics", at: minutesAgo(60 * 24 * 80), entity: "teacher_subject" },
+      { id: "au-6", actor: "System", action: "Blocked duplicate receipt submission (same idempotency key)", at: minutesAgo(43), entity: "fee_payment" },
     ],
     syncLogs: [
-      { id: "sy-1", fileName: "september-desk.xlsx", imported: 84, skipped: 2, failed: 1, notes: ["Skipped duplicate RCPT-0926-417", "Failed row 19: unknown student"], at: new Date(Date.now() - 42 * 60000).toISOString() },
+      { id: "sy-1", fileName: "september-desk.xlsx", imported: 84, skipped: 2, failed: 1, notes: ["Skipped duplicate RCPT-20260917-004", "Failed row 19: unknown student"], at: minutesAgo(42) },
     ],
   }
 }

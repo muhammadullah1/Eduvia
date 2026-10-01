@@ -7,9 +7,9 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 
-const positive = new Set(["Active", "Paid", "Published", "Present", "Completed", "Approved", "Enrolled", "Verified", "Complete", "Admit", "Excused"])
-const warning = new Set(["Pending", "Review", "Draft", "In progress", "Submitted", "Leave", "Late", "Next", "Upcoming", "New", "Planned", "Waitlist"])
-const negative = new Set(["Rejected", "Absent", "Withdrawn", "Failed", "Reject", "Archived"])
+const positive = new Set(["Active", "Paid", "Published", "Present", "Completed", "Approved", "Enrolled", "Verified", "Complete", "Admit", "Excused", "Advance", "Covered", "Passed", "Visible", "Override"])
+const warning = new Set(["Pending", "Review", "Draft", "In progress", "Submitted", "Leave", "Late", "Next", "Upcoming", "New", "Planned", "Waitlist", "Partially Paid", "Scheduled", "MarksEntered", "InProgress", "LowMarks", "Substitute"])
+const negative = new Set(["Rejected", "Absent", "Withdrawn", "Failed", "Reject", "Archived", "Unpaid", "Withheld"])
 
 export function StatusBadge({ value }: { value: string }) {
   const tone = positive.has(value) ? "good" : negative.has(value) ? "bad" : warning.has(value) ? "warn" : "neutral"

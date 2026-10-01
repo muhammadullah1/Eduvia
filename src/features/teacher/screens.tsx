@@ -9,15 +9,17 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Progress } from "@/components/ui/progress"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
+import { MarksDialog } from "@/features/ops/screens"
 import { studentName, useSchool } from "@/data/store"
-import { TEACHER_ID, TODAY, type AttendanceStatus, type Lesson, type LessonStatus } from "@/data/types"
-import { classLabel } from "@/lib/format"
+import { TEACHER_ID, TODAY, type AttendanceStatus, type WeeklyTest } from "@/data/types"
+import { teacherDuties, weekdayOf } from "@/lib/academics"
+import { useActor } from "@/lib/actor"
+import { monthLabel } from "@/lib/fees"
+import { classLabel, formatDate } from "@/lib/format"
 
 const attendanceConfig = { value: { label: "Attendance", color: "var(--chart-1)" } } satisfies ChartConfig
 const week = [
@@ -28,15 +30,14 @@ const week = [
   ["2026-09-25", "Fri"],
 ] as const
 
-function weekdayName(date: string) {
-  return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(`${date}T12:00:00`).getDay()]
-}
-
 export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) {
   const { state } = useSchool()
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
-  const day = weekdayName(TODAY)
-  const periods = state.slots.filter((slot) => slot.teacher === teacher?.name && slot.day === day).sort((a, b) => a.time.localeCompare(b.time))
+  const day = weekdayOf(TODAY)
+  // Own timetable plus any class assigned to this teacher as a substitute today (UR-03).
+  const periods = teacherDuties(TEACHER_ID, TODAY, state.slots, state.substitutions)
+  const timeOf = (classId: string, periodIndex: number) => state.slots.find((slot) => slot.classId === classId && slot.day === day && slot.periodIndex === periodIndex)
+  const covering = periods.filter((duty) => duty.substitute).length
   const classIds = teacher?.classIds ?? []
   const weekly = week.map(([date, label]) => {
     const marks = state.attendance.filter((mark) => classIds.includes(mark.classId) && mark.date === date)
@@ -48,24 +49,27 @@ export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) 
       <div className="relative overflow-hidden rounded-3xl bg-primary p-7 text-primary-foreground md:p-9">
         <div className="school-grid absolute inset-0 opacity-10" />
         <div className="relative z-10 max-w-xl">
-          <p className="text-xs font-semibold tracking-[0.18em] text-primary-foreground/60 uppercase">{day} · 23 September</p>
+          <p className="text-xs font-semibold tracking-[0.18em] text-primary-foreground/60 uppercase">{day} · {formatDate(TODAY)}</p>
           <h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight">Good morning, Hassan.</h2>
-          <p className="mt-2 text-sm text-primary-foreground/70">You have {periods.length} assigned periods today across {classIds.length} classes.</p>
+          <p className="mt-2 text-sm text-primary-foreground/70">You have {periods.length} periods today{covering ? `, including ${covering} substitute ${covering === 1 ? "class" : "classes"}` : ""}. You teach {teacher?.subject}.</p>
           <Button variant="secondary" className="mt-6" onClick={() => onOpen("attendance")}><UserCheck data-icon="inline-start" />Start attendance</Button>
         </div>
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.3fr_1fr]">
         <Card>
-          <CardHeader><CardTitle>Today’s timetable</CardTitle><CardDescription>Only periods assigned to you</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Today’s timetable</CardTitle><CardDescription>Your periods and any substitute duty assigned by the operations manager</CardDescription></CardHeader>
           <CardContent className="grid gap-2">
-            {periods.length === 0 ? <EmptyState title="No periods today" detail="Your assigned classes do not meet on this weekday." /> : periods.map((slot) => (
-              <div key={slot.id} className="flex items-center gap-4 rounded-xl border p-3">
-                <p className="w-12 text-xs font-semibold">{slot.time}</p>
-                <Separator orientation="vertical" className="h-9" />
-                <div className="flex-1"><p className="text-sm font-semibold">{classLabel(state.classes, slot.classId)}</p><p className="text-xs text-muted-foreground">{slot.subject} · {slot.room}</p></div>
-                <StatusBadge value={slot.time < "09:30" ? "Complete" : slot.time < "11:15" ? "Next" : "Upcoming"} />
-              </div>
-            ))}
+            {periods.length === 0 ? <EmptyState title="No periods today" detail="Your assigned classes do not meet on this weekday." /> : periods.map((duty) => {
+              const slot = timeOf(duty.classId, duty.periodIndex)
+              return (
+                <div key={`${duty.classId}-${duty.periodIndex}`} className={`flex items-center gap-4 rounded-xl border p-3 ${duty.substitute ? "border-[var(--warning)]/40 bg-[var(--warning-light)]/40" : ""}`}>
+                  <p className="w-14 text-xs font-semibold">P{duty.periodIndex}<span className="block font-normal text-muted-foreground">{slot?.time}</span></p>
+                  <Separator orientation="vertical" className="h-9" />
+                  <div className="flex-1"><p className="text-sm font-semibold">{classLabel(state.classes, duty.classId)}</p><p className="text-xs text-muted-foreground">{duty.subject} · {slot?.room}</p></div>
+                  {duty.substitute ? <StatusBadge value="Substitute" /> : null}
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
         <Card>
@@ -104,12 +108,13 @@ export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(teacher?.classIds ?? []).map((id) => {
           const count = state.students.filter((student) => student.classId === id && student.status === "Active").length
-          const lesson = state.lessons.find((item) => item.classId === id)
+          const planned = state.plannedChapters.filter((item) => item.classId === id && item.subject === teacher?.subject)
+          const covered = new Set(state.dailyLessons.filter((item) => item.classId === id && item.subject === teacher?.subject && item.reviewStatus === "Approved").map((item) => item.chapterId))
           return (
             <button key={id} onClick={() => selectClass(id)} className={`rounded-xl border bg-card p-4 text-left ${classId === id ? "ring-2 ring-primary/30" : ""}`}>
               <Users className="size-4 text-muted-foreground" />
               <p className="mt-3 font-medium">{classLabel(state.classes, id)}</p>
-              <p className="text-xs text-muted-foreground">{count} students · {lesson ? `${lesson.progress}% syllabus` : "No plan yet"}</p>
+              <p className="text-xs text-muted-foreground">{count} students · {planned.length ? `${covered.size}/${planned.length} chapters approved` : "No chapter plan yet"}</p>
             </button>
           )
         })}
@@ -129,6 +134,7 @@ export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }
 
 export function TeacherAttendance() {
   const { state, saveAttendance } = useSchool()
+  const actor = useActor()
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
   const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
   const [date, setDate] = useState(TODAY)
@@ -175,57 +181,113 @@ export function TeacherAttendance() {
             )
           })}
         </CardContent>
-        <CardFooter><Button onClick={() => { saveAttendance(classId, date, students.map((student) => ({ studentId: student.id, status: marks[student.id] ?? initial[student.id] ?? "Present" })), "Hassan Ali"); toast.success("Attendance saved") }}>Save attendance</Button></CardFooter>
+        <CardFooter><Button onClick={() => { saveAttendance(classId, date, students.map((student) => ({ studentId: student.id, status: marks[student.id] ?? initial[student.id] ?? "Present" })), actor.name); toast.success("Attendance saved") }}>Save attendance</Button></CardFooter>
       </Card>
     </div>
   )
 }
 
-export function TeacherLessons() {
-  const { state, updateLessonChapter } = useSchool()
+/** Daily update: pick one of the planned chapters, add classwork/homework/remarks, send for review (UR-04). */
+export function TeacherDailyUpdate() {
+  const { state, submitDailyLesson } = useSchool()
+  const actor = useActor()
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
-  const [classId, setClassId] = useState("g7b")
-  const [editing, setEditing] = useState<Lesson | null>(null)
-  const [progress, setProgress] = useState(0)
-  const [status, setStatus] = useState<LessonStatus>("In progress")
-  const [chapter, setChapter] = useState("")
-  const lessons = state.lessons.filter((lesson) => lesson.classId === classId && teacher?.subjects.includes(lesson.subject))
+  const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
+  const [chapterId, setChapterId] = useState("")
+  const [form, setForm] = useState({ classwork: "", homework: "", remarks: "" })
+  const chapters = state.plannedChapters.filter((row) => row.classId === classId && row.subject === teacher?.subject).sort((a, b) => a.sequence - b.sequence)
+  const mine = state.dailyLessons.filter((row) => row.teacherId === TEACHER_ID).sort((a, b) => b.date.localeCompare(a.date))
+  const today = mine.find((row) => row.classId === classId && row.date === TODAY)
+
+  function submit() {
+    const message = submitDailyLesson({ classId, date: TODAY, chapterId, ...form }, actor)
+    if (message) toast.error(message)
+    else {
+      toast.success("Sent to management for review")
+      setForm({ classwork: "", homework: "", remarks: "" })
+      setChapterId("")
+    }
+  }
+
   return (
-    <div className="grid gap-4">
-      <div className="w-full sm:w-64"><Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(teacher?.classIds ?? []).map((id) => <SelectItem key={id} value={id}>{classLabel(state.classes, id)}</SelectItem>)}</SelectGroup></SelectContent></Select></div>
-      {lessons.length === 0 ? <EmptyState title="No lessons for this class" detail="Plans appear when a subject you teach has a teaching record." /> : lessons.map((lesson) => (
-        <Card key={lesson.id}>
-          <CardContent className="grid gap-3 p-5 md:grid-cols-[1.4fr_auto_1fr_auto] md:items-center">
-            <div><p className="font-medium">{lesson.title}</p><p className="text-xs text-muted-foreground">{lesson.chapter || lesson.title} · {lesson.subject} · target {lesson.target}</p></div>
-            <StatusBadge value={lesson.status} />
-            <Progress value={lesson.progress} />
-            <Button variant="outline" size="sm" onClick={() => { setEditing(lesson); setProgress(lesson.progress); setStatus(lesson.status); setChapter(lesson.chapter || lesson.title) }}>Update</Button>
-          </CardContent>
-        </Card>
-      ))}
-      <Dialog open={Boolean(editing)} onOpenChange={(value) => !value && setEditing(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Update lesson chapter</DialogTitle></DialogHeader>
-          <Field label="Chapter"><Input value={chapter} onChange={(event) => setChapter(event.target.value)} /></Field>
-          <Field label="Progress"><Input type="number" min={0} max={100} value={progress} onChange={(event) => setProgress(Number(event.target.value))} /></Field>
-          <Field label="Status"><Select value={status} onValueChange={(value) => setStatus(value as LessonStatus)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(["Planned", "In progress", "Completed"] as LessonStatus[]).map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
-          <DialogFooter><Button onClick={() => { if (!editing) return; updateLessonChapter(editing.id, { progress: Math.min(100, Math.max(0, progress)), status, chapter: chapter.trim() || editing.chapter }, "Hassan Ali"); toast.success("Lesson chapter updated"); setEditing(null) }}>Save</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
+    <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
+      <Card>
+        <CardHeader><CardTitle>Today’s update · {formatDate(TODAY)}</CardTitle><CardDescription>{teacher?.subject}. Parents see it once management approves it.</CardDescription></CardHeader>
+        <CardContent className="grid gap-4">
+          <Field label="Class"><Select value={classId} onValueChange={(value) => { setClassId(value); setChapterId("") }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(teacher?.classIds ?? []).map((id) => <SelectItem key={id} value={id}>{classLabel(state.classes, id)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
+          <Field label="Chapter taught" hint={chapters.length ? undefined : "No chapters are planned for this class yet — ask the operations manager."}>
+            <Select value={chapterId} onValueChange={setChapterId}><SelectTrigger><SelectValue placeholder="Choose planned chapter" /></SelectTrigger><SelectContent><SelectGroup>{chapters.map((row) => <SelectItem key={row.id} value={row.id}>{row.title}</SelectItem>)}</SelectGroup></SelectContent></Select>
+          </Field>
+          <Field label="Classwork (optional)"><Textarea value={form.classwork} onChange={(event) => setForm({ ...form, classwork: event.target.value })} /></Field>
+          <Field label="Homework (optional)"><Textarea value={form.homework} onChange={(event) => setForm({ ...form, homework: event.target.value })} /></Field>
+          <Field label="Remarks (optional)"><Input value={form.remarks} onChange={(event) => setForm({ ...form, remarks: event.target.value })} /></Field>
+          {today ? <p className="text-xs text-muted-foreground">Today’s update for this class is {today.reviewStatus.toLowerCase()}{today.reviewStatus === "Approved" ? "." : "; submitting again replaces it."}</p> : null}
+        </CardContent>
+        <CardFooter><Button disabled={!chapterId || today?.reviewStatus === "Approved"} onClick={submit}>Submit for review</Button></CardFooter>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Your daily updates</CardTitle></CardHeader>
+        <CardContent className="grid gap-3">
+          {mine.length === 0 ? <EmptyState title="Nothing sent yet" detail="Your submitted updates appear here with their review status." /> : mine.map((row) => (
+            <div key={row.id} className="rounded-xl border p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div><p className="text-sm font-medium">{state.plannedChapters.find((item) => item.id === row.chapterId)?.title}</p><p className="mt-1 text-xs text-muted-foreground">{classLabel(state.classes, row.classId)} · {row.subject} · {formatDate(row.date)}</p></div>
+                <StatusBadge value={row.reviewStatus} />
+              </div>
+              {row.homework ? <p className="mt-2 text-sm">Homework: {row.homework}</p> : null}
+              {row.reviewNote ? <p className="mt-2 text-xs text-destructive">{row.reviewedBy}: {row.reviewNote}</p> : null}
+            </div>
+          ))}
+        </CardContent>
+      </Card>
     </div>
+  )
+}
+
+/** Scheduled weekly tests for the teacher's own subject and classes (UR-05). */
+export function TeacherWeeklyTests() {
+  const { state } = useSchool()
+  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
+  const [marking, setMarking] = useState<WeeklyTest | null>(null)
+  const month = TODAY.slice(0, 7)
+  const tests = state.weeklyTests
+    .filter((test) => test.month === month && test.subject === teacher?.subject && teacher.classIds.includes(test.classId))
+    .sort((a, b) => a.date.localeCompare(b.date) || a.classId.localeCompare(b.classId))
+
+  return (
+    <Card>
+      <CardHeader><CardTitle>Weekly tests · {monthLabel(month)}</CardTitle><CardDescription>Enter marks on or after the test day. Management publishes them to parents.</CardDescription></CardHeader>
+      <CardContent className="grid gap-2">
+        {tests.length === 0 ? <EmptyState title="No tests scheduled" detail="The operations manager sets one test day per subject." /> : tests.map((test) => {
+          const entered = test.results.filter((row) => row.score !== null).length
+          const due = test.date <= TODAY
+          return (
+            <div key={test.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
+              <div><p className="text-sm font-medium">{classLabel(state.classes, test.classId)} · week {test.week}</p><p className="text-xs text-muted-foreground">{weekdayOf(test.date)} {formatDate(test.date)} · out of {test.max} · {entered}/{test.results.length} marks</p></div>
+              <div className="flex items-center gap-2">
+                <StatusBadge value={test.status === "Scheduled" && !due ? "Upcoming" : test.status} />
+                {test.status !== "Published" && due ? <Button size="sm" variant="outline" onClick={() => setMarking(test)}>{entered ? "Edit marks" : "Enter marks"}</Button> : null}
+              </div>
+            </div>
+          )
+        })}
+      </CardContent>
+      <MarksDialog test={marking} onClose={() => setMarking(null)} />
+    </Card>
   )
 }
 
 export function TeacherUpdates() {
   const { state, addUpdate, setUpdateStatus } = useSchool()
+  const actor = useActor()
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
   const [classId, setClassId] = useState("g7b")
-  const [kind, setKind] = useState<"Homework" | "Classwork" | "Notice">("Homework")
-  const [subject, setSubject] = useState("Mathematics")
+  const [kind, setKind] = useState<"Homework" | "Classwork" | "Notice">("Notice")
+  const [subject, setSubject] = useState(teacher?.subject ?? "")
   const [text, setText] = useState("")
   const [due, setDue] = useState("2026-09-25")
   const [error, setError] = useState("")
-  const mine = state.updates.filter((item) => item.author === "Hassan Ali")
+  const mine = state.updates.filter((item) => item.author === actor.name)
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
       <Card>
@@ -238,7 +300,7 @@ export function TeacherUpdates() {
           <Field label="Message" error={error}><Textarea aria-invalid={Boolean(error)} value={text} onChange={(event) => setText(event.target.value)} placeholder="Write today’s update" /></Field>
         </CardContent>
         <CardFooter>
-          <Button onClick={() => { const message = addUpdate({ classId, kind, subject, text, due, author: "Hassan Ali" }); if (message) setError(message); else { setError(""); setText(""); toast.success("Draft saved for management review") } }}>Save draft</Button>
+          <Button onClick={() => { const message = addUpdate({ classId, kind, subject, text, due, author: actor.name }); if (message) setError(message); else { setError(""); setText(""); toast.success("Draft saved for management review") } }}>Save draft</Button>
         </CardFooter>
       </Card>
       <Card>
@@ -247,7 +309,7 @@ export function TeacherUpdates() {
           {mine.length === 0 ? <EmptyState title="Nothing sent yet" detail="Drafts and published notes from your classes appear here." /> : mine.map((item) => (
             <div key={item.id} className="rounded-xl border p-4">
               <div className="flex items-start justify-between gap-3"><div><p className="text-sm font-medium">{item.text}</p><p className="mt-1 text-xs text-muted-foreground">{classLabel(state.classes, item.classId)} · {item.subject}</p></div><StatusBadge value={item.status} /></div>
-              {item.status === "Draft" ? <Button className="mt-3" size="sm" variant="outline" onClick={() => { setUpdateStatus(item.id, "Approved", "Hassan Ali"); toast.success("Sent for publishing") }}>Send for approval</Button> : null}
+              {item.status === "Draft" ? <Button className="mt-3" size="sm" variant="outline" onClick={() => { setUpdateStatus(item.id, "Approved", actor.name); toast.success("Sent for publishing") }}>Send for approval</Button> : null}
             </div>
           ))}
         </CardContent>
@@ -258,8 +320,9 @@ export function TeacherUpdates() {
 
 export function TeacherMarks() {
   const { state, saveScores, setSheetStatus } = useSchool()
+  const actor = useActor()
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
-  const sheets = state.sheets.filter((sheet) => teacher?.classIds.includes(sheet.classId) && teacher.subjects.includes(sheet.subject) && !sheet.examName.includes("August"))
+  const sheets = state.sheets.filter((sheet) => teacher?.classIds.includes(sheet.classId) && teacher.subject === sheet.subject && !sheet.examName.includes("August"))
   const [sheetId, setSheetId] = useState(sheets[0]?.id ?? "")
   const sheet = state.sheets.find((item) => item.id === sheetId) ?? sheets[0]
   const [scores, setScores] = useState<Record<string, string>>({})
@@ -287,8 +350,8 @@ export function TeacherMarks() {
           ))}
         </CardContent>
         <CardFooter className="gap-2">
-          <Button variant="outline" disabled={locked} onClick={() => { const message = saveScores(sheet.id, sheet.rows.map((row) => ({ studentId: row.studentId, score: (scores[row.studentId] ?? (row.score ?? "")) === "" ? null : Number(scores[row.studentId] ?? row.score) })), "Hassan Ali"); if (message) { setError(message); toast.error(message) } else { setError(""); toast.success("Draft saved") } }}>Save draft</Button>
-          <Button disabled={locked} onClick={() => { const saved = saveScores(sheet.id, sheet.rows.map((row) => ({ studentId: row.studentId, score: (scores[row.studentId] ?? (row.score ?? "")) === "" ? null : Number(scores[row.studentId] ?? row.score) })), "Hassan Ali"); if (saved) { setError(saved); toast.error(saved); return } const message = setSheetStatus(sheet.id, "Submitted", "Hassan Ali"); if (message) { setError(message); toast.error(message) } else toast.success("Sheet submitted and locked") }}>Submit sheet</Button>
+          <Button variant="outline" disabled={locked} onClick={() => { const message = saveScores(sheet.id, sheet.rows.map((row) => ({ studentId: row.studentId, score: (scores[row.studentId] ?? (row.score ?? "")) === "" ? null : Number(scores[row.studentId] ?? row.score) })), actor.name); if (message) { setError(message); toast.error(message) } else { setError(""); toast.success("Draft saved") } }}>Save draft</Button>
+          <Button disabled={locked} onClick={() => { const saved = saveScores(sheet.id, sheet.rows.map((row) => ({ studentId: row.studentId, score: (scores[row.studentId] ?? (row.score ?? "")) === "" ? null : Number(scores[row.studentId] ?? row.score) })), actor.name); if (saved) { setError(saved); toast.error(saved); return } const message = setSheetStatus(sheet.id, "Submitted", actor.name); if (message) { setError(message); toast.error(message) } else toast.success("Sheet submitted and locked") }}>Submit sheet</Button>
         </CardFooter>
       </Card>
     </div>
@@ -298,8 +361,9 @@ export function TeacherMarks() {
 export function TeacherPortal({ section, onOpen }: { section: string; onOpen: (section: string) => void }) {
   if (section === "classes") return <TeacherClasses onOpen={onOpen} />
   if (section === "attendance") return <TeacherAttendance />
-  if (section === "lessons") return <TeacherLessons />
-  if (section === "updates") return <TeacherUpdates />
+  if (section === "daily-update") return <TeacherDailyUpdate />
+  if (section === "weekly-tests") return <TeacherWeeklyTests />
+  if (section === "notices") return <TeacherUpdates />
   if (section === "marks") return <TeacherMarks />
   return <TeacherToday onOpen={onOpen} />
 }

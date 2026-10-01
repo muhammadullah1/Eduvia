@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Textarea } from "@/components/ui/textarea"
 import { useSchool } from "@/data/store"
 import type { AdmissionDocument, Application } from "@/data/types"
+import { useActor } from "@/lib/actor"
 import { cn } from "@/lib/utils"
 
 const STEPS = [
@@ -59,6 +60,7 @@ type Props = {
 
 export function AdmissionWizard({ open, onOpenChange }: Props) {
   const { state, addApplication, setApplicationStatus } = useSchool()
+  const actor = useActor()
   const [step, setStep] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [form, setForm] = useState(() => emptyForm(state.classes[0]?.id ?? ""))
@@ -130,13 +132,13 @@ export function AdmissionWizard({ open, onOpenChange }: Props) {
       interviewResult: form.interviewResult,
       decision: form.decision,
       notes: form.notes,
-    }, "Ayesha Khan")
+    }, actor.name)
     if ("error" in result) {
       toast.error(result.error)
       return
     }
     const status = form.decision === "Admit" ? "Enrolled" : form.decision === "Waitlist" ? "Waitlist" : form.decision === "Reject" ? "Rejected" : "Review"
-    const statusError = setApplicationStatus(result.id, status, "Ayesha Khan")
+    const statusError = setApplicationStatus(result.id, status, actor.name)
     if (statusError) toast.error(statusError)
     else toast.success(status === "Enrolled" ? "Applicant enrolled into the register" : `Application saved as ${status}`)
     close()
