@@ -1,65 +1,113 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { createSeed } from "@/data/seed"
-import type {
-  AcademicSession,
-  Application,
-  AttendanceStatus,
-  ClassSection,
-  Expense,
-  LessonStatus,
-  MarkRow,
-  Payment,
-  SchoolState,
-  SchoolUpdate,
-  SheetStatus,
-  Staff,
-  Student,
-  Subject,
-  TimetableSlot,
-  UpdateStatus,
+import {
+  TEACHER_ID,
+  TODAY,
+  type AcademicSession,
+  type Application,
+  type AttendanceStatus,
+  type ClassSection,
+  type Expense,
+  type FeeMonth,
+  type MarkRow,
+  type Payment,
+  type PlannedChapter,
+  type ReviewStatus,
+  type SchoolSettings,
+  type SchoolState,
+  type SchoolUpdate,
+  type SheetStatus,
+  type Staff,
+  type Student,
+  type Subject,
+  type TeacherAbsence,
+  type TestSchedule,
+  type TimetableSlot,
+  type UpdateStatus,
 } from "@/data/types"
+import { busyReason, datesOnWeekday, monthlySummaries, weekdayOf, weekOfMonth } from "@/lib/academics"
+import type { Actor } from "@/lib/actor"
+import { allocateOldestFirst, applyLines, monthLabel, validateManualPlan } from "@/lib/fees"
+import { can, ROLE_LABELS, type Permission } from "@/lib/permissions"
 
-const STORAGE_KEY = "eduvia-demo-v3"
+const STORAGE_KEY = "eduvia-demo-v5"
+const LEGACY_KEYS = ["eduvia-demo-v4"]
 
-type PaymentInput = Omit<Payment, "status" | "date"> & { date?: string }
 type ApplicationInput = Omit<Application, "id" | "status" | "submittedOn">
 type SyncReport = { imported: number; skipped: number; failed: number; notes: string[] }
+type Result = string | null
+
+export type RecordPaymentInput = {
+  studentId: string
+  amount: number
+  method: string
+  date?: string
+  note?: string
+  /** Generated once per form; a re-submit with the same key returns the original receipt. */
+  idempotencyKey: string
+  /** Explicit allocation (super admin only). Omit for oldest-unpaid-first. */
+  allocations?: { feeMonthId: string; amount: number }[]
+}
 
 type SchoolContextValue = {
   state: SchoolState
   addApplication: (input: ApplicationInput, actor: string) => { id: string } | { error: string }
-  setApplicationStatus: (id: string, status: Application["status"], actor: string) => string | null
+  setApplicationStatus: (id: string, status: Application["status"], actor: string) => Result
   updateStudent: (id: string, patch: Partial<Pick<Student, "status" | "classId" | "phone" | "guardian">>, actor: string) => void
-  addPayment: (input: PaymentInput, actor: string) => string | null
-  setPaymentStatus: (ref: string, status: Payment["status"], actor: string) => void
-  importWorkbook: (fileName: string, actor: string) => SyncReport | string
-  addExpense: (input: Omit<Expense, "id">, actor: string) => string | null
-  addSession: (input: Omit<AcademicSession, "id" | "current">, actor: string) => string | null
-  activateSession: (id: string, actor: string) => string | null
-  addClass: (input: Omit<ClassSection, "id" | "label">, actor: string) => string | null
-  addSubject: (input: Omit<Subject, "id">, actor: string) => string | null
-  addSlot: (input: Omit<TimetableSlot, "id">, actor: string) => string | null
+  importWorkbook: (fileName: string, actor: Actor) => SyncReport | string
+  addExpense: (input: Omit<Expense, "id">, actor: Actor) => Result
+  addSession: (input: Omit<AcademicSession, "id" | "current">, actor: string) => Result
+  activateSession: (id: string, actor: string) => Result
+  addClass: (input: Omit<ClassSection, "id" | "label">, actor: string) => Result
+  addSubject: (input: Omit<Subject, "id">, actor: string) => Result
+  addSlot: (input: Omit<TimetableSlot, "id" | "teacher" | "subject"> & { subject?: string }, actor: string) => Result
   removeSlot: (id: string, actor: string) => void
-  addStaff: (input: Omit<Staff, "id">, actor: string) => string | null
+  addStaff: (input: Pick<Staff, "name" | "role" | "email" | "phone" | "subject" | "classIds">, actor: Actor) => Result
   saveAttendance: (classId: string, date: string, rows: { studentId: string; status: AttendanceStatus }[], actor: string) => void
-  updateLesson: (id: string, patch: { progress: number; status: LessonStatus }, actor: string) => void
-  addUpdate: (input: Omit<SchoolUpdate, "id" | "status" | "author"> & { author: string }) => string | null
+  addUpdate: (input: Omit<SchoolUpdate, "id" | "status" | "author"> & { author: string }) => Result
   setUpdateStatus: (id: string, status: UpdateStatus, actor: string) => void
-  saveScores: (sheetId: string, rows: MarkRow[], actor: string) => string | null
-  setSheetStatus: (sheetId: string, status: SheetStatus, actor: string) => string | null
+  saveScores: (sheetId: string, rows: MarkRow[], actor: string) => Result
+  setSheetStatus: (sheetId: string, status: SheetStatus, actor: string) => Result
+  setClassPeriodCount: (classId: string, periodCount: number, actor: string) => Result
+  // fees (UR-08 / UR-09)
+  recordPayment: (input: RecordPaymentInput, actor: Actor) => { payment: Payment; duplicate: boolean } | { error: string }
+  confirmPayment: (ref: string, actor: Actor) => Result
+  // teachers (UR-02) and substitutes (UR-03)
+  changeTeacherSubject: (staffId: string, subject: string, reason: string, actor: Actor) => Result
+  markTeacherAbsent: (input: { teacherId: string; date: string; periods: number[]; notes: string }, actor: Actor) => Result
+  assignSubstitute: (absenceId: string, substituteId: string, actor: Actor) => Result
+  removeSubstitute: (absenceId: string, actor: Actor) => Result
+  cancelAbsence: (absenceId: string, actor: Actor) => Result
+  // planned chapters + daily updates (UR-04)
+  addPlannedChapter: (input: Pick<PlannedChapter, "classId" | "subject" | "title" | "description" | "targetDate">, actor: Actor) => Result
+  removePlannedChapter: (id: string, actor: Actor) => Result
+  submitDailyLesson: (input: { classId: string; date: string; chapterId: string; classwork: string; homework: string; remarks: string }, actor: Actor) => Result
+  reviewDailyLesson: (id: string, decision: Exclude<ReviewStatus, "Submitted">, note: string, actor: Actor) => Result
+  // weekly tests (UR-05 / UR-06)
+  saveTestSchedule: (input: Omit<TestSchedule, "id" | "active">, actor: Actor) => Result
+  generateMonthTests: (month: string, actor: Actor) => Result
+  saveWeeklyMarks: (testId: string, results: { studentId: string; score: number | null }[], actor: Actor) => Result
+  publishWeeklyTest: (testId: string, actor: Actor) => Result
+  // results (UR-07) and settings
+  grantResultOverride: (examId: string, studentId: string, reason: string, actor: Actor) => Result
+  revokeResultOverride: (overrideId: string, actor: Actor) => Result
+  updateSettings: (patch: Partial<SchoolSettings>, actor: Actor) => Result
   resetDemo: () => void
 }
 
 const SchoolContext = createContext<SchoolContextValue | null>(null)
 
+const REQUIRED_KEYS: Array<keyof SchoolState> = ["feeMonths", "payments", "plannedChapters", "dailyLessons", "substitutions", "testSchedules", "weeklyTests", "resultOverrides", "settings"]
+
 function loadState(): SchoolState {
+  LEGACY_KEYS.forEach((key) => localStorage.removeItem(key))
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return createSeed()
     const parsed = JSON.parse(raw) as SchoolState
-    if (!parsed.students?.length || !parsed.sheets || !parsed.attendance || !parsed.sessions?.length) return createSeed()
+    if (!parsed.students?.length || REQUIRED_KEYS.some((key) => !parsed[key])) return createSeed()
     return parsed
   } catch {
     return createSeed()
@@ -70,19 +118,89 @@ function uid(prefix: string) {
   return `${prefix}-${Math.random().toString(36).slice(2, 7)}`
 }
 
+function withAudit(state: SchoolState, actor: string, action: string, entity?: string): SchoolState {
+  return { ...state, audits: [{ id: uid("au"), actor, action, at: new Date().toISOString(), entity }, ...state.audits].slice(0, 60) }
+}
+
+/** Server-side style guard: the demo store refuses what the API would refuse (BR-14). */
+function denied(actor: Actor, permission: Permission) {
+  return can(actor.role, permission) ? null : `${ROLE_LABELS[actor.role]} is not allowed to do this.`
+}
+
+function staffName(state: SchoolState, id: string) {
+  return state.staff.find((person) => person.id === id)?.name ?? id
+}
+
+function studentLabel(state: SchoolState, id: string) {
+  return state.students.find((student) => student.id === id)?.name ?? id
+}
+
+function classFee(state: SchoolState, classId: string) {
+  return state.classes.find((klass) => klass.id === classId)?.monthlyFee ?? 8500
+}
+
+function receiptNo(state: SchoolState, date: string) {
+  const prefix = `RCPT-${date.replace(/-/g, "")}-`
+  const used = state.payments.filter((payment) => payment.ref.startsWith(prefix)).length
+  return `${prefix}${String(used + 1).padStart(3, "0")}`
+}
+
+/** Allocates a confirmed payment to the student's ledger (oldest first, or explicit lines). */
+function allocate(state: SchoolState, payment: Payment, manual?: { feeMonthId: string; amount: number }[]) {
+  const student = state.students.find((item) => item.id === payment.studentId) as Student
+  const ledger = state.feeMonths.filter((month) => month.studentId === student.id)
+  let months: FeeMonth[]
+  let lines
+  let leftover
+  if (manual?.length) {
+    const plan = validateManualPlan(ledger, payment.amount, manual)
+    if ("error" in plan) return { error: plan.error as string }
+    months = applyLines(ledger, plan.lines)
+    lines = plan.lines
+    leftover = plan.leftover
+  } else {
+    const plan = allocateOldestFirst(ledger, { studentId: student.id, amount: payment.amount, monthlyFee: classFee(state, student.classId), currentMonth: payment.date.slice(0, 7), newId: (month) => `fm-${student.id}-${month}` })
+    months = plan.months
+    lines = plan.lines
+    leftover = plan.leftover
+  }
+  const allocated: Payment = { ...payment, status: "Paid", allocations: lines, unallocated: leftover, mode: manual?.length ? "manual" : "auto" }
+  const next: SchoolState = {
+    ...state,
+    feeMonths: [...state.feeMonths.filter((month) => month.studentId !== student.id), ...months],
+    payments: [allocated, ...state.payments.filter((item) => item.ref !== payment.ref)],
+  }
+  const covered = lines.map((line) => monthLabel(line.month)).join(", ") || "no month"
+  return { next: withAudit(next, payment.recordedBy, `Allocated ${payment.ref} for ${student.name} (${manual?.length ? "manual" : "oldest first"}) to ${covered}`, "fee_payment"), payment: allocated }
+}
+
+/** Recomputes the month for one class + subject and audits every Failed outcome (BR-08). */
+function auditOutcomes(state: SchoolState, classId: string, subject: string, month: string) {
+  const rows = monthlySummaries(state.weeklyTests.filter((test) => test.subject === subject), month, state.settings.dailyTestRules, { classId })
+  return rows
+    .filter((row) => row.flaggedForFollowUp)
+    .reduce((next, row) => withAudit(next, "System", `${studentLabel(state, row.studentId)} flagged: Failed ${subject} for ${monthLabel(month)} (${row.failedCount} failed weekly tests)`, "daily_test"), state)
+}
+
 export function SchoolProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SchoolState>(loadState)
+  const stateRef = useRef(state)
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])
 
-  const audit = useCallback((actor: string, action: string) => {
-    setState((current) => ({
-      ...current,
-      audits: [{ id: uid("au"), actor, action, at: new Date().toISOString() }, ...current.audits].slice(0, 40),
-    }))
+  /** Runs a pure transition against the latest state and commits it synchronously. */
+  const commit = useCallback(<T,>(run: (current: SchoolState) => { next?: SchoolState; error?: string; value?: T }) => {
+    const outcome = run(stateRef.current)
+    if (outcome.next && !outcome.error) {
+      stateRef.current = outcome.next
+      setState(outcome.next)
+    }
+    return outcome
   }, [])
+
+  const simple = useCallback((run: (current: SchoolState) => { next?: SchoolState; error?: string }): Result => commit(run).error ?? null, [commit])
 
   const addApplication = useCallback((input: ApplicationInput, actor: string) => {
     if (!input.name.trim() || !input.guardian.trim() || !input.dob || !input.phone.trim()) {
@@ -111,371 +229,475 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       decision: input.decision || "",
       id: `APP-${1045 + Math.floor(Math.random() * 400)}`,
       status: "New",
-      submittedOn: new Date().toISOString().slice(0, 10),
+      submittedOn: TODAY,
     }
-    setState((current) => ({ ...current, applications: [application, ...current.applications] }))
-    audit(actor, `Created admission application for ${application.name}`)
+    commit((current) => ({ next: withAudit({ ...current, applications: [application, ...current.applications] }, actor, `Created admission application for ${application.name}`) }))
     return { id: application.id }
-  }, [audit])
+  }, [commit])
 
-  const setApplicationStatus = useCallback((id: string, status: Application["status"], actor: string) => {
-    let error: string | null = null
-    setState((current) => {
-      const application = current.applications.find((item) => item.id === id)
-      if (!application) {
-        error = "Application was not found."
-        return current
+  const setApplicationStatus = useCallback((id: string, status: Application["status"], actor: string) => simple((current) => {
+    const application = current.applications.find((item) => item.id === id)
+    if (!application) return { error: "Application was not found." }
+    let { students, feeMonths } = current
+    if (status === "Enrolled" && !students.some((student) => student.name.toLowerCase() === application.name.toLowerCase() && student.classId === application.classId)) {
+      const student: Student = {
+        id: `CLS-${24000 + students.length + 1}`,
+        name: application.name,
+        classId: application.classId,
+        guardian: application.guardian,
+        phone: application.phone,
+        status: "Active",
+        dob: application.dob,
+        gender: application.gender || "Female",
+        admittedOn: TODAY,
       }
-      let students = current.students
-      if (status === "Enrolled") {
-        const exists = students.some((student) => student.name.toLowerCase() === application.name.toLowerCase() && student.classId === application.classId)
-        if (!exists) {
-          const student: Student = {
-            id: `CLS-${24000 + students.length + 1}`,
-            name: application.name,
-            classId: application.classId,
-            guardian: application.guardian,
-            phone: application.phone,
-            status: "Active",
-            dob: application.dob,
-            gender: application.gender || "Female",
-            admittedOn: new Date().toISOString().slice(0, 10),
-          }
-          students = [student, ...students]
-        }
-      }
-      return {
-        ...current,
-        students,
-        applications: current.applications.map((item) => (item.id === id ? { ...item, status } : item)),
-      }
-    })
-    if (!error) audit(actor, `Marked application ${id} as ${status}`)
-    return error
-  }, [audit])
+      const month = TODAY.slice(0, 7)
+      students = [student, ...students]
+      feeMonths = [...feeMonths, { id: `fm-${student.id}-${month}`, studentId: student.id, month, feeType: "Tuition", amountDue: classFee(current, student.classId), amountPaid: 0, dueDate: `${month}-10` }]
+    }
+    const next = { ...current, students, feeMonths, applications: current.applications.map((item) => (item.id === id ? { ...item, status } : item)) }
+    return { next: withAudit(next, actor, `Marked application ${id} as ${status}`) }
+  }), [simple])
 
   const updateStudent = useCallback((id: string, patch: Partial<Pick<Student, "status" | "classId" | "phone" | "guardian">>, actor: string) => {
-    setState((current) => ({
-      ...current,
-      students: current.students.map((student) => (student.id === id ? { ...student, ...patch } : student)),
+    simple((current) => ({
+      next: withAudit({ ...current, students: current.students.map((student) => (student.id === id ? { ...student, ...patch } : student)) }, actor, `Updated student ${id} ${patch.status ? `status to ${patch.status}` : "record"}`),
     }))
-    const detail = patch.status ? `status to ${patch.status}` : "record"
-    audit(actor, `Updated student ${id} ${detail}`)
-  }, [audit])
+  }, [simple])
 
-  const addPayment = useCallback((input: PaymentInput, actor: string) => {
-    if (!input.studentId) return "Choose a student."
-    if (!input.ref.trim()) return "Receipt reference is required."
-    if (!Number.isFinite(input.amount) || input.amount <= 0) return "Amount must be greater than zero."
-    let error: string | null = null
-    setState((current) => {
-      if (current.payments.some((payment) => payment.ref.toLowerCase() === input.ref.trim().toLowerCase())) {
-        error = "That receipt reference already exists. Duplicate payments are blocked."
-        return current
+  // ---- fees ------------------------------------------------------------------
+
+  const recordPayment = useCallback((input: RecordPaymentInput, actor: Actor) => {
+    const outcome = commit<{ payment: Payment; duplicate: boolean }>((current) => {
+      const blocked = denied(actor, "fees.payments.record")
+      if (blocked) return { error: blocked }
+      const existing = current.payments.find((payment) => payment.idempotencyKey === input.idempotencyKey)
+      if (existing) {
+        return { next: withAudit(current, "System", `Blocked duplicate submission of ${existing.ref}`, "fee_payment"), value: { payment: existing, duplicate: true } }
       }
+      if (input.allocations?.length) {
+        const manual = denied(actor, "fees.payments.allocate_manual")
+        if (manual) return { error: "Only the super admin can record an explicit allocation." }
+      }
+      const student = current.students.find((item) => item.id === input.studentId)
+      if (!student) return { error: "Choose a student." }
+      if (!Number.isFinite(input.amount) || input.amount <= 0) return { error: "Amount must be greater than zero." }
+      const date = input.date || TODAY
       const payment: Payment = {
-        ...input,
-        ref: input.ref.trim(),
+        ref: receiptNo(current, date),
+        studentId: student.id,
+        amount: Math.round(input.amount),
+        method: input.method || "Cash",
         status: "Paid",
-        date: input.date ?? new Date().toISOString().slice(0, 10),
+        date,
+        recordedBy: actor.name,
+        recordedByRole: actor.role,
+        allocations: [],
+        unallocated: 0,
+        mode: "auto",
+        idempotencyKey: input.idempotencyKey,
+        note: input.note?.trim() || undefined,
       }
-      return { ...current, payments: [payment, ...current.payments] }
+      const result = allocate(current, payment, input.allocations)
+      if ("error" in result) return { error: result.error }
+      return { next: result.next, value: { payment: result.payment, duplicate: false } }
     })
-    if (!error) audit(actor, `Recorded payment ${input.ref.trim()}`)
-    return error
-  }, [audit])
+    return outcome.error ? { error: outcome.error } : (outcome.value as { payment: Payment; duplicate: boolean })
+  }, [commit])
 
-  const setPaymentStatus = useCallback((ref: string, status: Payment["status"], actor: string) => {
-    setState((current) => ({
-      ...current,
-      payments: current.payments.map((payment) => (payment.ref === ref ? { ...payment, status } : payment)),
-    }))
-    audit(actor, `Marked ${ref} as ${status}`)
-  }, [audit])
+  const confirmPayment = useCallback((ref: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "fees.payments.confirm")
+    if (blocked) return { error: blocked }
+    const payment = current.payments.find((item) => item.ref === ref)
+    if (!payment) return { error: "Payment not found." }
+    if (payment.status === "Paid") return { error: "Payment is already confirmed." }
+    const result = allocate(current, { ...payment, recordedBy: actor.name, recordedByRole: actor.role }, undefined)
+    if ("error" in result) return { error: result.error }
+    return { next: result.next }
+  }), [simple])
 
-  const importWorkbook = useCallback((fileName: string, actor: string) => {
+  const importWorkbook = useCallback((fileName: string, actor: Actor) => {
     if (!fileName) return "Choose the controlled .xlsx template first."
-    let report: SyncReport = { imported: 0, skipped: 0, failed: 0, notes: [] }
-    setState((current) => {
-      const duplicate = current.payments[0]
-      const candidates = current.students.filter((student) => student.status === "Active").slice(0, 3)
-      const notes: string[] = []
-      let imported = 0
-      let skipped = 0
-      let failed = 0
-      const next = [...current.payments]
-      if (duplicate) {
+    const blocked = denied(actor, "fees.payments.record")
+    if (blocked) return blocked
+    const notes: string[] = []
+    let imported = 0
+    let skipped = 0
+    let failed = 0
+    const batch = fileName.toLowerCase().replace(/[^a-z0-9]/g, "")
+    const candidates = stateRef.current.students.filter((student) => student.status === "Active").slice(0, 3)
+    candidates.forEach((student, index) => {
+      if (fileName.toLowerCase().includes("bad") && index === 0) {
+        failed += 1
+        notes.push(`Failed ${student.id}: amount missing`)
+        return
+      }
+      const result = recordPayment({ studentId: student.id, amount: classFee(stateRef.current, student.classId), method: "Offline import", idempotencyKey: `sync:${batch}:${student.id}`, note: `Imported from ${fileName}` }, actor)
+      if ("error" in result) {
+        failed += 1
+        notes.push(`Failed ${student.id}: ${result.error}`)
+      } else if (result.duplicate) {
         skipped += 1
-        notes.push(`Skipped duplicate ${duplicate.ref}`)
-      }
-      candidates.forEach((student, index) => {
-        if (fileName.toLowerCase().includes("bad") && index === 0) {
-          failed += 1
-          notes.push(`Failed ${student.id}: amount missing`)
-          return
-        }
-        const ref = `RCPT-SYNC-${Date.now().toString().slice(-6)}-${index + 1}`
-        next.unshift({
-          ref,
-          studentId: student.id,
-          period: "September 2026",
-          type: "Tuition",
-          amount: 8500,
-          method: "Offline import",
-          status: "Paid",
-          date: new Date().toISOString().slice(0, 10),
-        })
+        notes.push(`Skipped duplicate row for ${student.id} (already ${result.payment.ref})`)
+      } else {
         imported += 1
-      })
-      failed += 1
-      notes.push("Failed row 19: unknown student CLS-00000")
-      report = { imported, skipped, failed, notes }
-      return {
-        ...current,
-        payments: next,
-        syncLogs: [{ id: uid("sy"), fileName, ...report, at: new Date().toISOString() }, ...current.syncLogs],
       }
     })
-    audit(actor, `Imported ${report.imported} offline fee rows from ${fileName}`)
+    const report: SyncReport = { imported, skipped, failed, notes }
+    commit((current) => ({ next: withAudit({ ...current, syncLogs: [{ id: uid("sy"), fileName, ...report, at: new Date().toISOString() }, ...current.syncLogs] }, actor.name, `Imported ${imported} offline fee rows from ${fileName}`, "fee_payment") }))
     return report
-  }, [audit])
+  }, [commit, recordPayment])
 
-  const addExpense = useCallback((input: Omit<Expense, "id">, actor: string) => {
-    if (!input.title.trim() || input.amount <= 0) return "Title and a positive amount are required."
-    setState((current) => ({
-      ...current,
-      expenses: [{ ...input, title: input.title.trim(), id: uid("EX") }, ...current.expenses],
-    }))
-    audit(actor, `Posted expense ${input.title.trim()}`)
-    return null
-  }, [audit])
+  const addExpense = useCallback((input: Omit<Expense, "id">, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "finance.manage")
+    if (blocked) return { error: blocked }
+    if (!input.title.trim() || input.amount <= 0) return { error: "Title and a positive amount are required." }
+    return { next: withAudit({ ...current, expenses: [{ ...input, title: input.title.trim(), id: uid("EX") }, ...current.expenses] }, actor.name, `Posted expense ${input.title.trim()}`) }
+  }), [simple])
 
-  const addSession = useCallback((input: Omit<AcademicSession, "id" | "current">, actor: string) => {
-    if (!input.name.trim() || !input.start || !input.end) return "Session name, start date and end date are required."
-    if (input.end < input.start) return "End date must be after the start date."
-    let error: string | null = null
-    setState((current) => {
-      if (current.sessions.some((item) => item.name.toLowerCase() === input.name.trim().toLowerCase())) {
-        error = "A session with that name already exists."
-        return current
-      }
-      return {
-        ...current,
-        sessions: [
-          ...current.sessions.map((item) => ({ ...item, current: false })),
-          {
-            id: uid("ses"),
-            name: input.name.trim(),
-            start: input.start,
-            end: input.end,
-            current: true,
-          },
-        ],
-      }
-    })
-    if (!error) audit(actor, `Created and activated session ${input.name.trim()}`)
-    return error
-  }, [audit])
+  // ---- academic setup ----------------------------------------------------------
 
-  const activateSession = useCallback((id: string, actor: string) => {
-    let error: string | null = null
-    let name = id
-    setState((current) => {
-      const target = current.sessions.find((item) => item.id === id)
-      if (!target) {
-        error = "Session not found."
-        return current
-      }
-      name = target.name
-      return {
-        ...current,
-        sessions: current.sessions.map((item) => ({ ...item, current: item.id === id })),
-      }
-    })
-    if (!error) audit(actor, `Activated academic session ${name}`)
-    return error
-  }, [audit])
+  const addSession = useCallback((input: Omit<AcademicSession, "id" | "current">, actor: string) => simple((current) => {
+    if (!input.name.trim() || !input.start || !input.end) return { error: "Session name, start date and end date are required." }
+    if (input.end < input.start) return { error: "End date must be after the start date." }
+    if (current.sessions.some((item) => item.name.toLowerCase() === input.name.trim().toLowerCase())) return { error: "A session with that name already exists." }
+    const sessions = [...current.sessions.map((item) => ({ ...item, current: false })), { id: uid("ses"), name: input.name.trim(), start: input.start, end: input.end, current: true }]
+    return { next: withAudit({ ...current, sessions }, actor, `Created and activated session ${input.name.trim()}`) }
+  }), [simple])
 
-  const addClass = useCallback((input: Omit<ClassSection, "id" | "label">, actor: string) => {
-    if (!input.grade.trim() || !input.section.trim()) return "Grade and section are required."
+  const activateSession = useCallback((id: string, actor: string) => simple((current) => {
+    const target = current.sessions.find((item) => item.id === id)
+    if (!target) return { error: "Session not found." }
+    return { next: withAudit({ ...current, sessions: current.sessions.map((item) => ({ ...item, current: item.id === id })) }, actor, `Activated academic session ${target.name}`) }
+  }), [simple])
+
+  const addClass = useCallback((input: Omit<ClassSection, "id" | "label">, actor: string) => simple((current) => {
+    if (!input.grade.trim() || !input.section.trim()) return { error: "Grade and section are required." }
     const label = `${input.grade.trim()} · ${input.section.trim()}`
-    let error: string | null = null
-    setState((current) => {
-      if (current.classes.some((item) => item.label.toLowerCase() === label.toLowerCase())) {
-        error = "That class section already exists."
-        return current
-      }
-      return {
-        ...current,
-        classes: [...current.classes, { id: uid("cl"), label, grade: input.grade.trim(), section: input.section.trim(), room: input.room.trim() || "Unassigned" }],
-      }
-    })
-    if (!error) audit(actor, `Added class ${label}`)
-    return error
-  }, [audit])
+    if (current.classes.some((item) => item.label.toLowerCase() === label.toLowerCase())) return { error: "That class section already exists." }
+    const klass: ClassSection = { id: uid("cl"), label, grade: input.grade.trim(), section: input.section.trim(), room: input.room.trim() || "Unassigned", periodCount: Math.max(1, Number(input.periodCount) || 8), monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500) }
+    return { next: withAudit({ ...current, classes: [...current.classes, klass] }, actor, `Added class ${label}`) }
+  }), [simple])
 
-  const addSubject = useCallback((input: Omit<Subject, "id">, actor: string) => {
-    if (!input.name.trim() || !input.code.trim()) return "Subject name and code are required."
-    let error: string | null = null
-    setState((current) => {
-      if (current.subjects.some((item) => item.code.toLowerCase() === input.code.trim().toLowerCase())) {
-        error = "Subject code must be unique."
-        return current
-      }
-      return { ...current, subjects: [...current.subjects, { id: uid("sub"), name: input.name.trim(), code: input.code.trim().toUpperCase() }] }
-    })
-    if (!error) audit(actor, `Added subject ${input.name.trim()}`)
-    return error
-  }, [audit])
+  const addSubject = useCallback((input: Omit<Subject, "id">, actor: string) => simple((current) => {
+    if (!input.name.trim() || !input.code.trim()) return { error: "Subject name and code are required." }
+    if (current.subjects.some((item) => item.code.toLowerCase() === input.code.trim().toLowerCase())) return { error: "Subject code must be unique." }
+    return { next: withAudit({ ...current, subjects: [...current.subjects, { id: uid("sub"), name: input.name.trim(), code: input.code.trim().toUpperCase() }] }, actor, `Added subject ${input.name.trim()}`) }
+  }), [simple])
 
-  const addSlot = useCallback((input: Omit<TimetableSlot, "id">, actor: string) => {
-    let error: string | null = null
-    setState((current) => {
-      const clash = current.slots.find((slot) => slot.day === input.day && slot.time === input.time && (slot.classId === input.classId || slot.teacher === input.teacher || slot.room === input.room))
-      if (clash) {
-        error = "That period clashes with an existing class, teacher or room."
-        return current
-      }
-      return { ...current, slots: [...current.slots, { ...input, id: uid("tt") }] }
-    })
-    if (!error) audit(actor, `Scheduled ${input.subject} on ${input.day} ${input.time}`)
-    return error
-  }, [audit])
+  const addSlot = useCallback((input: Omit<TimetableSlot, "id" | "teacher" | "subject"> & { subject?: string }, actor: string) => simple((current) => {
+    const teacher = current.staff.find((person) => person.id === input.teacherId && person.role === "Teacher")
+    if (!teacher) return { error: "Choose a teacher." }
+    const klass = current.classes.find((item) => item.id === input.classId)
+    if (!klass) return { error: "Choose a class." }
+    if (input.periodIndex < 1 || input.periodIndex > klass.periodCount) return { error: `${klass.label} has ${klass.periodCount} periods per day.` }
+    const same = current.slots.filter((slot) => slot.day === input.day && slot.periodIndex === input.periodIndex)
+    if (same.some((slot) => slot.classId === input.classId)) return { error: "That class already has a lesson in this period." }
+    if (same.some((slot) => slot.teacherId === input.teacherId)) return { error: `${teacher.name} already teaches another class in this period.` }
+    const slot: TimetableSlot = { ...input, id: uid("tt"), subject: input.subject || teacher.subject, teacher: teacher.name }
+    const staff = current.staff.map((person) => (person.id === teacher.id && !person.classIds.includes(klass.id) ? { ...person, classIds: [...person.classIds, klass.id] } : person))
+    return { next: withAudit({ ...current, staff, slots: [...current.slots, slot] }, actor, `Scheduled ${slot.subject} for ${klass.label} on ${input.day} period ${input.periodIndex}`) }
+  }), [simple])
 
   const removeSlot = useCallback((id: string, actor: string) => {
-    setState((current) => ({ ...current, slots: current.slots.filter((slot) => slot.id !== id) }))
-    audit(actor, "Removed a timetable period")
-  }, [audit])
+    simple((current) => ({ next: withAudit({ ...current, slots: current.slots.filter((slot) => slot.id !== id) }, actor, "Removed a timetable period") }))
+  }, [simple])
 
-  const addStaff = useCallback((input: Omit<Staff, "id">, actor: string) => {
-    if (!input.name.trim() || !input.email.trim()) return "Name and email are required."
-    setState((current) => ({
+  const addStaff = useCallback((input: Pick<Staff, "name" | "role" | "email" | "phone" | "subject" | "classIds">, actor: Actor) => simple((current) => {
+    const isTeacher = input.role === "Teacher"
+    const blocked = denied(actor, isTeacher ? "staff.create.teacher" : "staff.create.any")
+    if (blocked) return { error: isTeacher ? blocked : "Only the super admin can create office accounts." }
+    if (!input.name.trim() || !input.email.trim()) return { error: "Name and email are required." }
+    if (isTeacher && !current.subjects.some((subject) => subject.name === input.subject)) return { error: "A teacher cannot be created without a subject." }
+    if (current.staff.some((person) => person.email.toLowerCase() === input.email.trim().toLowerCase())) return { error: "That email is already in use." }
+    const person: Staff = {
+      ...input,
+      id: uid("st"),
+      name: input.name.trim(),
+      email: input.email.trim(),
+      subject: isTeacher ? input.subject : "",
+      subjectHistory: isTeacher ? [{ subject: input.subject, from: TODAY, by: actor.name, reason: "Initial allocation" }] : [],
+    }
+    return { next: withAudit({ ...current, staff: [...current.staff, person] }, actor.name, `Added ${input.role.toLowerCase()} ${person.name}${isTeacher ? ` (${input.subject})` : ""}`, isTeacher ? "teacher_subject" : undefined) }
+  }), [simple])
+
+  const setClassPeriodCount = useCallback((classId: string, periodCount: number, actor: string) => simple((current) => {
+    if (!Number.isFinite(periodCount) || periodCount < 1 || periodCount > 16) return { error: "Period count must be between 1 and 16." }
+    if (current.slots.some((slot) => slot.classId === classId && slot.periodIndex > periodCount)) return { error: "Remove timetable periods beyond the new count first." }
+    return { next: withAudit({ ...current, classes: current.classes.map((klass) => (klass.id === classId ? { ...klass, periodCount } : klass)) }, actor, `Set period count for ${classId} to ${periodCount}`) }
+  }), [simple])
+
+  // ---- teachers & substitutes --------------------------------------------------
+
+  const changeTeacherSubject = useCallback((staffId: string, subject: string, reason: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "teachers.subject.change")
+    if (blocked) return { error: blocked }
+    const teacher = current.staff.find((person) => person.id === staffId && person.role === "Teacher")
+    if (!teacher) return { error: "Teacher not found." }
+    if (!current.subjects.some((item) => item.name === subject)) return { error: "Choose a subject." }
+    if (teacher.subject === subject) return { error: `${teacher.name} already teaches ${subject}.` }
+    // Close the active assignment, open the new one; lessons, tests and marks keep their own subject.
+    const history = [...teacher.subjectHistory.map((row) => (row.to ? row : { ...row, to: TODAY })), { subject, from: TODAY, by: actor.name, reason: reason.trim() || undefined }]
+    const staff = current.staff.map((person) => (person.id === staffId ? { ...person, subject, subjectHistory: history } : person))
+    return { next: withAudit({ ...current, staff }, actor.name, `Changed ${teacher.name}'s subject from ${teacher.subject} to ${subject}${reason.trim() ? `: ${reason.trim()}` : ""}`, "teacher_subject") }
+  }), [simple])
+
+  const markTeacherAbsent = useCallback((input: { teacherId: string; date: string; periods: number[]; notes: string }, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "absences.manage")
+    if (blocked) return { error: blocked }
+    const teacher = current.staff.find((person) => person.id === input.teacherId && person.role === "Teacher")
+    if (!teacher) return { error: "Choose a teacher." }
+    if (!input.date) return { error: "Choose a date." }
+    if (!input.periods.length) return { error: "Choose at least one period." }
+    const weekday = weekdayOf(input.date)
+    const open = (period: number) => current.teacherAbsences.some((row) => row.teacherId === teacher.id && row.date === input.date && row.periodIndex === period && row.status !== "Cancelled")
+    const fresh = input.periods.filter((period) => !open(period))
+    if (!fresh.length) return { error: `${teacher.name} is already marked absent for those periods.` }
+    const rows: TeacherAbsence[] = fresh.map((periodIndex) => {
+      const slot = current.slots.find((item) => item.teacherId === teacher.id && item.day === weekday && item.periodIndex === periodIndex)
+      return { id: uid("abs"), teacherId: teacher.id, date: input.date, periodIndex, classId: slot?.classId, subject: slot?.subject, status: slot ? "Pending" : "NoClass", markedBy: actor.name, notes: input.notes.trim() }
+    })
+    return { next: withAudit({ ...current, teacherAbsences: [...rows, ...current.teacherAbsences] }, actor.name, `Marked ${teacher.name} absent on ${input.date} (periods ${fresh.join(", ")})`, "teacher_absence") }
+  }), [simple])
+
+  const assignSubstitute = useCallback((absenceId: string, substituteId: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "absences.manage")
+    if (blocked) return { error: blocked }
+    const absence = current.teacherAbsences.find((row) => row.id === absenceId)
+    if (!absence) return { error: "Absence not found." }
+    if (absence.status === "Cancelled" || absence.status === "NoClass" || !absence.classId) return { error: "This period has no class to cover." }
+    const substitute = current.staff.find((person) => person.id === substituteId && person.role === "Teacher")
+    if (!substitute || substitute.id === absence.teacherId) return { error: "Choose another teacher." }
+    const others = current.substitutions.filter((row) => row.absenceId !== absence.id)
+    const busy = busyReason(substitute.id, absence.date, absence.periodIndex, current.slots, others, current.teacherAbsences)
+    if (busy) return { error: `${substitute.name} ${busy} — choose a free teacher.` }
+    const substitution = {
+      id: uid("sub"), absenceId: absence.id, date: absence.date, periodIndex: absence.periodIndex, classId: absence.classId, subject: absence.subject ?? "",
+      originalTeacherId: absence.teacherId, substituteTeacherId: substitute.id, authorizedBy: actor.name, at: new Date().toISOString(),
+    }
+    const next: SchoolState = {
       ...current,
-      staff: [...current.staff, { ...input, name: input.name.trim(), email: input.email.trim(), id: uid("st") }],
-    }))
-    audit(actor, `Added staff member ${input.name.trim()}`)
-    return null
-  }, [audit])
+      substitutions: [substitution, ...others],
+      teacherAbsences: current.teacherAbsences.map((row) => (row.id === absence.id ? { ...row, status: "Covered" } : row)),
+    }
+    const klass = current.classes.find((item) => item.id === absence.classId)?.label ?? absence.classId
+    return { next: withAudit(next, actor.name, `Assigned ${substitute.name} to cover ${klass} ${absence.subject} (period ${absence.periodIndex}, ${absence.date}) for ${staffName(current, absence.teacherId)}`, "substitute_assignment") }
+  }), [simple])
+
+  const removeSubstitute = useCallback((absenceId: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "absences.manage")
+    if (blocked) return { error: blocked }
+    const substitution = current.substitutions.find((row) => row.absenceId === absenceId)
+    if (!substitution) return { error: "No substitute is assigned." }
+    const next: SchoolState = {
+      ...current,
+      substitutions: current.substitutions.filter((row) => row.absenceId !== absenceId),
+      teacherAbsences: current.teacherAbsences.map((row) => (row.id === absenceId ? { ...row, status: "Pending" } : row)),
+    }
+    return { next: withAudit(next, actor.name, `Removed ${staffName(current, substitution.substituteTeacherId)} as substitute (period ${substitution.periodIndex}, ${substitution.date})`, "substitute_assignment") }
+  }), [simple])
+
+  const cancelAbsence = useCallback((absenceId: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "absences.manage")
+    if (blocked) return { error: blocked }
+    const absence = current.teacherAbsences.find((row) => row.id === absenceId)
+    if (!absence) return { error: "Absence not found." }
+    const next: SchoolState = {
+      ...current,
+      substitutions: current.substitutions.filter((row) => row.absenceId !== absenceId),
+      teacherAbsences: current.teacherAbsences.map((row) => (row.id === absenceId ? { ...row, status: "Cancelled" } : row)),
+    }
+    return { next: withAudit(next, actor.name, `Cancelled ${staffName(current, absence.teacherId)}'s absence (period ${absence.periodIndex}, ${absence.date})`, "teacher_absence") }
+  }), [simple])
+
+  // ---- planned chapters & daily updates ----------------------------------------
+
+  const addPlannedChapter = useCallback((input: Pick<PlannedChapter, "classId" | "subject" | "title" | "description" | "targetDate">, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "chapters.manage")
+    if (blocked) return { error: blocked }
+    if (!input.classId || !input.subject || !input.title.trim()) return { error: "Class, subject and chapter title are required." }
+    const siblings = current.plannedChapters.filter((row) => row.classId === input.classId && row.subject === input.subject)
+    const chapter: PlannedChapter = { ...input, id: uid("ch"), title: input.title.trim(), sequence: siblings.length + 1, createdBy: actor.name }
+    return { next: withAudit({ ...current, plannedChapters: [...current.plannedChapters, chapter] }, actor.name, `Planned ${chapter.title} for ${input.subject}`) }
+  }), [simple])
+
+  const removePlannedChapter = useCallback((id: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "chapters.manage")
+    if (blocked) return { error: blocked }
+    if (current.dailyLessons.some((lesson) => lesson.chapterId === id)) return { error: "This chapter already has daily updates and cannot be removed." }
+    return { next: withAudit({ ...current, plannedChapters: current.plannedChapters.filter((row) => row.id !== id) }, actor.name, "Removed a planned chapter") }
+  }), [simple])
+
+  const submitDailyLesson = useCallback((input: { classId: string; date: string; chapterId: string; classwork: string; homework: string; remarks: string }, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "lessons.submit")
+    if (blocked) return { error: blocked }
+    const teacher = current.staff.find((person) => person.id === TEACHER_ID) as Staff
+    if (!teacher.classIds.includes(input.classId)) return { error: "You can only post updates for your own classes." }
+    const chapter = current.plannedChapters.find((row) => row.id === input.chapterId)
+    if (!chapter || chapter.classId !== input.classId || chapter.subject !== teacher.subject) return { error: "Choose one of the planned chapters for this class and your subject." }
+    const existing = current.dailyLessons.find((row) => row.teacherId === teacher.id && row.classId === input.classId && row.date === input.date)
+    if (existing?.reviewStatus === "Approved") return { error: "Today's update is already approved." }
+    const lesson = {
+      id: existing?.id ?? uid("dl"), classId: input.classId, subject: teacher.subject, teacherId: teacher.id, teacherName: teacher.name, date: input.date, chapterId: chapter.id,
+      classwork: input.classwork.trim(), homework: input.homework.trim(), remarks: input.remarks.trim(), reviewStatus: "Submitted" as const,
+    }
+    return { next: withAudit({ ...current, dailyLessons: [lesson, ...current.dailyLessons.filter((row) => row.id !== lesson.id)] }, actor.name, `Submitted daily update: ${chapter.title}`) }
+  }), [simple])
+
+  const reviewDailyLesson = useCallback((id: string, decision: Exclude<ReviewStatus, "Submitted">, note: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "lessons.review")
+    if (blocked) return { error: blocked }
+    const lesson = current.dailyLessons.find((row) => row.id === id)
+    if (!lesson) return { error: "Update not found." }
+    if (decision === "Rejected" && !note.trim()) return { error: "Tell the teacher why the update is rejected." }
+    const next = { ...current, dailyLessons: current.dailyLessons.map((row) => (row.id === id ? { ...row, reviewStatus: decision, reviewedBy: actor.name, reviewNote: note.trim() || undefined } : row)) }
+    return { next: withAudit(next, actor.name, `${decision} ${lesson.teacherName}'s daily update for ${lesson.date}`) }
+  }), [simple])
+
+  // ---- weekly tests --------------------------------------------------------------
+
+  const saveTestSchedule = useCallback((input: Omit<TestSchedule, "id" | "active">, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "tests.schedule")
+    if (blocked) return { error: blocked }
+    if (!input.classId || !input.subject || !input.weekday) return { error: "Class, subject and test day are required." }
+    if (input.max <= 0) return { error: "Maximum marks must be positive." }
+    const existing = current.testSchedules.find((row) => row.classId === input.classId && row.subject === input.subject)
+    const schedule: TestSchedule = { ...input, id: existing?.id ?? uid("ts"), active: true }
+    return { next: withAudit({ ...current, testSchedules: [schedule, ...current.testSchedules.filter((row) => row.id !== schedule.id)] }, actor.name, `Set ${input.subject} weekly test for ${input.classId} to ${input.weekday}`) }
+  }), [simple])
+
+  const generateMonthTests = useCallback((month: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "tests.schedule")
+    if (blocked) return { error: blocked }
+    const created = current.testSchedules.filter((schedule) => schedule.active).flatMap((schedule) => {
+      const roster = current.students.filter((student) => student.classId === schedule.classId && student.status === "Active")
+      return datesOnWeekday(month, schedule.weekday)
+        .filter((date) => !current.weeklyTests.some((test) => test.scheduleId === schedule.id && test.date === date))
+        .map((date) => ({
+          id: uid("wt"), scheduleId: schedule.id, classId: schedule.classId, subject: schedule.subject, date, month, week: weekOfMonth(date), max: schedule.max,
+          status: "Scheduled" as const, results: roster.map((student) => ({ studentId: student.id, score: null })),
+        }))
+    })
+    if (!created.length) return { error: `Every scheduled test for ${monthLabel(month)} already exists.` }
+    return { next: withAudit({ ...current, weeklyTests: [...current.weeklyTests, ...created] }, actor.name, `Generated ${created.length} weekly tests for ${monthLabel(month)}`, "daily_test") }
+  }), [simple])
+
+  const saveWeeklyMarks = useCallback((testId: string, results: { studentId: string; score: number | null }[], actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "tests.marks")
+    if (blocked) return { error: blocked }
+    const test = current.weeklyTests.find((row) => row.id === testId)
+    if (!test) return { error: "Test not found." }
+    if (actor.role === "teacher") {
+      const teacher = current.staff.find((person) => person.id === TEACHER_ID) as Staff
+      if (teacher.subject !== test.subject || !teacher.classIds.includes(test.classId)) return { error: "You can only enter marks for your own subject and classes." }
+    }
+    if (test.status === "Published") return { error: "Published marks are locked." }
+    if (test.date > TODAY) return { error: "Marks can be entered on or after the test date." }
+    if (results.some((row) => row.score !== null && (row.score < 0 || row.score > test.max))) return { error: `Scores must be between 0 and ${test.max}.` }
+    const next = { ...current, weeklyTests: current.weeklyTests.map((row) => (row.id === testId ? { ...row, results, status: "MarksEntered" as const, enteredBy: actor.name } : row)) }
+    return { next: withAudit(next, actor.name, `Entered ${test.subject} weekly test marks for ${test.date}`, "daily_test") }
+  }), [simple])
+
+  const publishWeeklyTest = useCallback((testId: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "tests.publish")
+    if (blocked) return { error: blocked }
+    const test = current.weeklyTests.find((row) => row.id === testId)
+    if (!test) return { error: "Test not found." }
+    if (test.status !== "MarksEntered") return { error: "Only tests with entered marks can be published." }
+    const published = withAudit({ ...current, weeklyTests: current.weeklyTests.map((row) => (row.id === testId ? { ...row, status: "Published" as const, publishedBy: actor.name } : row)) }, actor.name, `Published ${test.subject} weekly test (${test.date})`, "daily_test")
+    return { next: auditOutcomes(published, test.classId, test.subject, test.month) }
+  }), [simple])
+
+  // ---- marks sheets ----------------------------------------------------------------
+
+  const saveScores = useCallback((sheetId: string, rows: MarkRow[], actor: string) => simple((current) => {
+    const target = current.sheets.find((sheet) => sheet.id === sheetId)
+    if (!target) return { error: "Mark sheet was not found." }
+    if (target.status !== "Draft") return { error: "This sheet is locked. Ask management to reopen it." }
+    if (rows.some((row) => row.score !== null && (row.score < 0 || row.score > target.max))) return { error: `Scores must be between 0 and ${target.max}.` }
+    return { next: withAudit({ ...current, sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, rows } : sheet)) }, actor, "Saved draft marks") }
+  }), [simple])
+
+  const setSheetStatus = useCallback((sheetId: string, status: SheetStatus, actor: string) => simple((current) => {
+    const target = current.sheets.find((sheet) => sheet.id === sheetId)
+    if (!target) return { error: "Mark sheet was not found." }
+    if (status !== "Draft" && target.rows.some((row) => row.score === null)) return { error: "Enter every score before moving this sheet forward." }
+    const allowed: Record<SheetStatus, SheetStatus[]> = { Draft: ["Submitted"], Submitted: ["Verified", "Draft"], Verified: ["Published", "Draft"], Published: ["Draft"] }
+    if (!allowed[target.status].includes(status) && status !== target.status) return { error: `Cannot move a ${target.status.toLowerCase()} sheet to ${status.toLowerCase()}.` }
+    // Publishing never looks at fees: parent visibility is evaluated at view time (UR-07).
+    return { next: withAudit({ ...current, sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, status } : sheet)) }, actor, `Moved ${target.subject} (${target.examName}) to ${status}`) }
+  }), [simple])
+
+  // ---- results & settings -----------------------------------------------------------
+
+  const grantResultOverride = useCallback((examId: string, studentId: string, reason: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "results.override")
+    if (blocked) return { error: blocked }
+    if (current.settings.resultVisibility.requireOverrideReason && !reason.trim()) return { error: "An override reason is required." }
+    if (!current.sheets.some((sheet) => sheet.examId === examId && sheet.rows.some((row) => row.studentId === studentId))) return { error: "This student has no result in that exam." }
+    if (current.resultOverrides.some((row) => row.examId === examId && row.studentId === studentId && !row.revokedAt)) return { error: "An override is already active." }
+    const override = { id: uid("ov"), examId, studentId, reason: reason.trim(), grantedBy: actor.name, grantedAt: new Date().toISOString() }
+    const exam = current.sheets.find((sheet) => sheet.examId === examId)?.examName ?? examId
+    return { next: withAudit({ ...current, resultOverrides: [override, ...current.resultOverrides] }, actor.name, `Released ${exam} for ${studentLabel(current, studentId)} (fee override): ${reason.trim()}`, "result_override") }
+  }), [simple])
+
+  const revokeResultOverride = useCallback((overrideId: string, actor: Actor) => simple((current) => {
+    const blocked = denied(actor, "results.override")
+    if (blocked) return { error: blocked }
+    const override = current.resultOverrides.find((row) => row.id === overrideId && !row.revokedAt)
+    if (!override) return { error: "Override not found." }
+    const next = { ...current, resultOverrides: current.resultOverrides.map((row) => (row.id === overrideId ? { ...row, revokedAt: new Date().toISOString(), revokedBy: actor.name } : row)) }
+    return { next: withAudit(next, actor.name, `Revoked result override for ${studentLabel(current, override.studentId)}`, "result_override") }
+  }), [simple])
+
+  const updateSettings = useCallback((patch: Partial<SchoolSettings>, actor: Actor) => simple((current) => {
+    if (patch.resultVisibility && !can(actor.role, "settings.results")) return { error: "Only the super admin can change the result fee rule." }
+    if (patch.dailyTestRules) {
+      const blocked = denied(actor, "settings.academic")
+      if (blocked) return { error: blocked }
+      const rules = patch.dailyTestRules
+      if (rules.passPercent <= 0 || rules.passPercent > 100 || rules.lowMarksBelowPercent <= 0 || rules.lowMarksBelowPercent > 100) return { error: "Percentages must be between 1 and 100." }
+      if (rules.maxFailsPerMonth < 0 || rules.lowMarksMinPassed < 0) return { error: "Counts cannot be negative." }
+    }
+    const settings = { ...current.settings, ...patch }
+    return { next: withAudit({ ...current, settings }, actor.name, `Updated ${Object.keys(patch).join(", ")} settings`, "school_setting") }
+  }), [simple])
+
+  // ---- attendance & communication ----------------------------------------------------
 
   const saveAttendance = useCallback((classId: string, date: string, rows: { studentId: string; status: AttendanceStatus }[], actor: string) => {
-    setState((current) => {
+    simple((current) => {
       const rest = current.attendance.filter((mark) => !(mark.classId === classId && mark.date === date && rows.some((row) => row.studentId === mark.studentId)))
-      const next = rows.map((row) => ({ ...row, classId, date }))
-      return { ...current, attendance: [...next, ...rest] }
+      return { next: withAudit({ ...current, attendance: [...rows.map((row) => ({ ...row, classId, date })), ...rest] }, actor, `Saved attendance for ${date}`) }
     })
-    audit(actor, `Saved attendance for ${date}`)
-  }, [audit])
+  }, [simple])
 
-  const updateLesson = useCallback((id: string, patch: { progress: number; status: LessonStatus }, actor: string) => {
-    setState((current) => ({
-      ...current,
-      lessons: current.lessons.map((lesson) => (lesson.id === id ? { ...lesson, progress: patch.progress, status: patch.status } : lesson)),
-    }))
-    audit(actor, "Updated lesson progress")
-  }, [audit])
-
-  const addUpdate = useCallback((input: Omit<SchoolUpdate, "id" | "status" | "author"> & { author: string }) => {
-    if (!input.text.trim()) return "Write the update before submitting."
+  const addUpdate = useCallback((input: Omit<SchoolUpdate, "id" | "status" | "author"> & { author: string }) => simple((current) => {
+    if (!input.text.trim()) return { error: "Write the update before submitting." }
     const item: SchoolUpdate = { ...input, text: input.text.trim(), id: uid("up"), status: "Draft" }
-    setState((current) => ({ ...current, updates: [item, ...current.updates] }))
-    audit(input.author, `Drafted a ${input.kind.toLowerCase()} update`)
-    return null
-  }, [audit])
+    return { next: withAudit({ ...current, updates: [item, ...current.updates] }, input.author, `Drafted a ${input.kind.toLowerCase()} update`) }
+  }), [simple])
 
   const setUpdateStatus = useCallback((id: string, status: UpdateStatus, actor: string) => {
-    setState((current) => ({
-      ...current,
-      updates: current.updates.map((item) => (item.id === id ? { ...item, status } : item)),
-    }))
-    audit(actor, `Marked an update as ${status}`)
-  }, [audit])
-
-  const saveScores = useCallback((sheetId: string, rows: MarkRow[], actor: string) => {
-    let error: string | null = null
-    setState((current) => {
-      const target = current.sheets.find((sheet) => sheet.id === sheetId)
-      if (!target) {
-        error = "Mark sheet was not found."
-        return current
-      }
-      if (target.status !== "Draft") {
-        error = "This sheet is locked. Ask management to reopen it."
-        return current
-      }
-      if (rows.some((row) => row.score !== null && (row.score < 0 || row.score > target.max))) {
-        error = `Scores must be between 0 and ${target.max}.`
-        return current
-      }
-      return {
-        ...current,
-        sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, rows } : sheet)),
-      }
-    })
-    if (!error) audit(actor, "Saved draft marks")
-    return error
-  }, [audit])
-
-  const setSheetStatus = useCallback((sheetId: string, status: SheetStatus, actor: string) => {
-    let error: string | null = null
-    setState((current) => {
-      const target = current.sheets.find((sheet) => sheet.id === sheetId)
-      if (!target) {
-        error = "Mark sheet was not found."
-        return current
-      }
-      if ((status === "Submitted" || status === "Verified" || status === "Published") && target.rows.some((row) => row.score === null)) {
-        error = "Enter every score before moving this sheet forward."
-        return current
-      }
-      const allowed: Record<SheetStatus, SheetStatus[]> = {
-        Draft: ["Submitted"],
-        Submitted: ["Verified", "Draft"],
-        Verified: ["Published", "Draft"],
-        Published: ["Draft"],
-      }
-      if (!allowed[target.status].includes(status) && status !== target.status) {
-        error = `Cannot move a ${target.status.toLowerCase()} sheet to ${status.toLowerCase()}.`
-        return current
-      }
-      return {
-        ...current,
-        sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, status } : sheet)),
-      }
-    })
-    if (!error) audit(actor, `Moved a mark sheet to ${status}`)
-    return error
-  }, [audit])
+    simple((current) => ({ next: withAudit({ ...current, updates: current.updates.map((item) => (item.id === id ? { ...item, status } : item)) }, actor, `Marked an update as ${status}`) }))
+  }, [simple])
 
   const resetDemo = useCallback(() => {
     const fresh = createSeed()
     localStorage.removeItem(STORAGE_KEY)
+    stateRef.current = fresh
     setState(fresh)
   }, [])
 
   const value = useMemo<SchoolContextValue>(() => ({
-    state,
-    addApplication,
-    setApplicationStatus,
-    updateStudent,
-    addPayment,
-    setPaymentStatus,
-    importWorkbook,
-    addExpense,
-    addSession,
-    activateSession,
-    addClass,
-    addSubject,
-    addSlot,
-    removeSlot,
-    addStaff,
-    saveAttendance,
-    updateLesson,
-    addUpdate,
-    setUpdateStatus,
-    saveScores,
-    setSheetStatus,
-    resetDemo,
-  }), [state, addApplication, setApplicationStatus, updateStudent, addPayment, setPaymentStatus, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff, saveAttendance, updateLesson, addUpdate, setUpdateStatus, saveScores, setSheetStatus, resetDemo])
+    state, addApplication, setApplicationStatus, updateStudent, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff,
+    saveAttendance, addUpdate, setUpdateStatus, saveScores, setSheetStatus, setClassPeriodCount, recordPayment, confirmPayment, changeTeacherSubject, markTeacherAbsent,
+    assignSubstitute, removeSubstitute, cancelAbsence, addPlannedChapter, removePlannedChapter, submitDailyLesson, reviewDailyLesson, saveTestSchedule, generateMonthTests,
+    saveWeeklyMarks, publishWeeklyTest, grantResultOverride, revokeResultOverride, updateSettings, resetDemo,
+  }), [state, addApplication, setApplicationStatus, updateStudent, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff,
+    saveAttendance, addUpdate, setUpdateStatus, saveScores, setSheetStatus, setClassPeriodCount, recordPayment, confirmPayment, changeTeacherSubject, markTeacherAbsent,
+    assignSubstitute, removeSubstitute, cancelAbsence, addPlannedChapter, removePlannedChapter, submitDailyLesson, reviewDailyLesson, saveTestSchedule, generateMonthTests,
+    saveWeeklyMarks, publishWeeklyTest, grantResultOverride, revokeResultOverride, updateSettings, resetDemo])
 
   return <SchoolContext.Provider value={value}>{children}</SchoolContext.Provider>
 }

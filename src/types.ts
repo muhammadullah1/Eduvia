@@ -1,6 +1,6 @@
 import type { ComponentType } from "react"
 
-export type Role = "management" | "teacher" | "parent"
+export type Role = "management" | "controller" | "accountant" | "teacher" | "parent"
 export type IconType = ComponentType<{ className?: string }>
 export type RecordValue = string | number | boolean
 export type DataRecord = Record<string, RecordValue>

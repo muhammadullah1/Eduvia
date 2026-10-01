@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react"
 import {
-  Bell, BookOpen, Building2, CalendarDays, Check, ClipboardCheck, FileCheck2, GraduationCap,
-  Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, Search, ShieldCheck,
+  Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, Check, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
+  Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, ReceiptText, Search, Settings2, ShieldAlert, ShieldCheck,
   Sparkles, Sun, UserCheck, UserRound, Users, WalletCards,
 } from "lucide-react"
 import {
@@ -24,78 +24,109 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTr
 import { useTheme } from "@/components/theme-provider"
 import { useSchool } from "@/data/store"
 import { AcademicSetup, Admissions, Examinations, Fees, Finance, ManagementDashboard, MessagesDesk, People, Reports } from "@/features/management/screens"
+import { AccountantPortal, AbsencesPanel, CurriculumPanel, LessonReviewPanel, OperationsOverview, ResultsGatePanel, SettingsPanel, WeeklyTestsPanel } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
-import { clearAuth, defaultSection, loadAuth, portalPath, saveAuth, type Role } from "@/lib/auth"
+import { DEMO_USERS } from "@/lib/actor"
+import { ALL_ROLES, clearAuth, defaultSection, loadAuth, portalPath, roleFromSlug, saveAuth, type Role } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
+import { can } from "@/lib/permissions"
 
 type Icon = ComponentType<{ className?: string }>
 
 const roles: Record<Role, { label: string; short: string; description: string; user: string; email: string; initials: string; icon: Icon }> = {
-  management: { label: "Management Portal", short: "Management", description: "Complete school operations and governance", user: "Ayesha Khan", email: "admin@cls.edu.pk", initials: "AK", icon: Building2 },
-  teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", user: "Hassan Ali", email: "hassan@cls.edu.pk", initials: "HA", icon: BookOpen },
-  parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", user: "Sara Ahmed", email: "parent@cls.edu.pk", initials: "SA", icon: UserRound },
+  super_admin: { label: "Super Admin Portal", short: "Super Admin", description: "Full control, including overall fee totals", user: DEMO_USERS.super_admin, email: "admin@cls.edu.pk", initials: "AK", icon: Building2 },
+  operations_manager: { label: "Operations Portal", short: "Operations Manager", description: "Academics, people, absences and results — no fee totals", user: DEMO_USERS.operations_manager, email: "operations@cls.edu.pk", initials: "IS", icon: ShieldCheck },
+  accountant: { label: "Accountant Portal", short: "Accountant", description: "Record payments and print your daily receipts", user: DEMO_USERS.accountant, email: "accountant@cls.edu.pk", initials: "NI", icon: Calculator },
+  teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", user: DEMO_USERS.teacher, email: "hassan@cls.edu.pk", initials: "HA", icon: BookOpen },
+  parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", user: DEMO_USERS.parent, email: "parent@cls.edu.pk", initials: "SA", icon: UserRound },
 }
 
+/** Shared by the super admin and the operations manager; fee sections are super-admin only. */
+const managementNav: { id: string; label: string; icon: Icon }[] = [
+  { id: "academic", label: "Academic setup", icon: LibraryBig },
+  { id: "curriculum", label: "Planned chapters", icon: BookOpen },
+  { id: "lesson-review", label: "Lesson review", icon: ClipboardCheck },
+  { id: "admissions", label: "Admissions", icon: Users },
+  { id: "people", label: "People", icon: UserRound },
+  { id: "absences", label: "Absences & cover", icon: CalendarClock },
+  { id: "weekly-tests", label: "Weekly tests", icon: ClipboardList },
+  { id: "exams", label: "Examinations", icon: FileCheck2 },
+  { id: "results-gate", label: "Result visibility", icon: ShieldAlert },
+  { id: "messages", label: "Communication", icon: MessageSquareText },
+]
+
 const navigation: Record<Role, { id: string; label: string; icon: Icon }[]> = {
-  management: [
+  super_admin: [
     { id: "dashboard", label: "Command center", icon: LayoutDashboard },
-    { id: "academic", label: "Academic setup", icon: LibraryBig },
-    { id: "admissions", label: "Admissions", icon: Users },
-    { id: "people", label: "People", icon: UserRound },
-    { id: "exams", label: "Examinations", icon: FileCheck2 },
+    ...managementNav,
     { id: "fees", label: "Fees & sync", icon: WalletCards },
     { id: "finance", label: "Finance", icon: Landmark },
-    { id: "messages", label: "Communication", icon: MessageSquareText },
+    { id: "settings", label: "Settings", icon: Settings2 },
     { id: "reports", label: "Reports & audit", icon: ClipboardCheck },
+  ],
+  operations_manager: [
+    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    ...managementNav,
+    { id: "settings", label: "Academic rules", icon: Settings2 },
+    { id: "reports", label: "Reports & audit", icon: ClipboardCheck },
+  ],
+  accountant: [
+    { id: "collect", label: "Record payment", icon: WalletCards },
+    { id: "collections", label: "My daily receipts", icon: ReceiptText },
   ],
   teacher: [
     { id: "today", label: "Today", icon: LayoutDashboard },
     { id: "classes", label: "My classes", icon: Users },
     { id: "attendance", label: "Attendance", icon: UserCheck },
-    { id: "lessons", label: "Lesson progress", icon: BookOpen },
-    { id: "updates", label: "Daily updates", icon: MessageSquareText },
+    { id: "daily-update", label: "Daily update", icon: BookOpen },
+    { id: "weekly-tests", label: "Weekly tests", icon: ClipboardList },
+    { id: "notices", label: "Class notices", icon: MessageSquareText },
     { id: "marks", label: "Marks entry", icon: FileCheck2 },
   ],
   parent: [
     { id: "home", label: "My child", icon: LayoutDashboard },
     { id: "attendance", label: "Attendance", icon: UserCheck },
     { id: "results", label: "Results & DMC", icon: GraduationCap },
+    { id: "tests", label: "Weekly tests", icon: ClipboardList },
     { id: "fees", label: "Fees & receipts", icon: WalletCards },
     { id: "timetable", label: "Timetable", icon: CalendarDays },
     { id: "updates", label: "Updates", icon: Bell },
   ],
 }
 
-const sectionIds: Record<Role, Set<string>> = {
-  management: new Set(navigation.management.map((item) => item.id)),
-  teacher: new Set(navigation.teacher.map((item) => item.id)),
-  parent: new Set(navigation.parent.map((item) => item.id)),
-}
+const sectionIds = Object.fromEntries(ALL_ROLES.map((role) => [role, new Set(navigation[role].map((item) => item.id))])) as Record<Role, Set<string>>
 
 const subtitles: Record<string, string> = {
-  dashboard: "A live view of people, learning and school operations.",
+  dashboard: "A live view of people, learning, fees and school operations.",
+  overview: "Today’s academic operations — cover, reviews, tests and results.",
   academic: "Sessions, classes, subjects and a conflict-aware timetable.",
+  curriculum: "Plan the chapters teachers select in their daily updates.",
+  "lesson-review": "Approve daily updates before parents can see them.",
   admissions: "Applications, enrollment and the student register.",
-  people: "Teachers and office staff behind the school day.",
+  people: "Teachers and office staff; one active subject per teacher.",
+  absences: "Mark teachers absent by period and assign a free substitute.",
+  "weekly-tests": "One test day per subject, marks, publishing and monthly outcomes.",
   exams: "Controlled marks, verification and publishing.",
-  fees: "Receipts, outstanding balances and offline synchronisation.",
+  "results-gate": "Published results, the fee rule at view time and audited overrides.",
+  fees: "Receipts, monthly fee status and offline synchronisation.",
   finance: "Income, expenses and the operating position.",
   messages: "Approve what families are allowed to see.",
+  settings: "Configurable pass criteria and the result fee rule.",
   reports: "Printable insight and a traceable audit history.",
-  today: "Your assigned work for a focused, well-run day.",
+  collect: "Record a payment; it clears the oldest unpaid month first.",
+  collections: "Only the receipts you recorded, day by day.",
+  today: "Your timetable for today, including substitute duties.",
   classes: "Only the classes allocated to your profile.",
   attendance: "Mark and save attendance for an assigned class.",
-  lessons: "What was planned, taught and carried forward.",
-  updates: "Draft learning notes for approval and parent visibility.",
+  "daily-update": "Pick today’s planned chapter and send it for review.",
+  notices: "Draft class notices for approval and parent visibility.",
   marks: "Enter draft marks, then submit the locked sheet.",
   home: "Everything important about your child, in one place.",
   results: "Published examinations and downloadable report cards.",
+  tests: "Published weekly test marks and the monthly outcome.",
   timetable: "The weekly timetable for the selected child.",
-}
-
-function isRole(value: string | undefined): value is Role {
-  return value === "management" || value === "teacher" || value === "parent"
+  updates: "Approved lesson updates and school notices.",
 }
 
 function Logo({ compact = false, inverted = false }: { compact?: boolean; inverted?: boolean }) {
@@ -111,8 +142,8 @@ function LoginScreen() {
   const navigate = useNavigate()
   const location = useLocation()
   const redirectTo = (location.state as { from?: string } | null)?.from
-  const [role, setRole] = useState<Role>("management")
-  const [email, setEmail] = useState(roles.management.email)
+  const [role, setRole] = useState<Role>("super_admin")
+  const [email, setEmail] = useState(roles.super_admin.email)
   const [password, setPassword] = useState("password")
   const [error, setError] = useState("")
   const [forgot, setForgot] = useState(false)
@@ -141,7 +172,7 @@ function LoginScreen() {
           <div className="relative z-10 my-auto max-w-2xl py-16">
             <p className="mb-5 flex items-center gap-2 text-xs font-semibold tracking-[0.22em] text-primary-foreground/65 uppercase"><Sparkles className="size-4" /> One connected campus</p>
             <h1 className="font-heading text-5xl leading-[1.05] font-semibold tracking-[-0.045em] xl:text-7xl">Every school day,<br /><span className="text-accent">beautifully organised.</span></h1>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-primary-foreground/70">A complete operating system for management, teachers and parents—from admissions to verified receipts and published report cards.</p>
+            <p className="mt-7 max-w-xl text-lg leading-8 text-primary-foreground/70">A complete operating system for super admins, operations managers, accountants, teachers and parents—from admissions to verified receipts and published report cards.</p>
           </div>
         </section>
         <section className="flex flex-1 items-center justify-center p-6 sm:p-10 lg:p-14">
@@ -151,7 +182,7 @@ function LoginScreen() {
             <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">Welcome back</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose a portal. Demo password is <span className="font-medium text-foreground">password</span>.</p>
             <div className="mt-7 grid gap-2">
-              {(Object.keys(roles) as Role[]).map((roleKey) => {
+              {ALL_ROLES.map((roleKey) => {
                 const item = roles[roleKey]
                 const Icon = item.icon
                 const selected = role === roleKey
@@ -218,8 +249,9 @@ function PortalShell() {
   const [query, setQuery] = useState("")
   const [notesOpen, setNotesOpen] = useState(false)
 
-  const roleOk = isRole(roleParam)
-  const role: Role = roleOk ? roleParam : "management"
+  const parsedRole = roleFromSlug(roleParam)
+  const roleOk = parsedRole !== null
+  const role: Role = parsedRole ?? "super_admin"
   const sectionValid = Boolean(sectionParam && sectionIds[role].has(sectionParam))
   const section = sectionValid && sectionParam ? sectionParam : defaultSection[role]
   const current = navigation[role].find((item) => item.id === section) ?? navigation[role][0]
@@ -233,14 +265,14 @@ function PortalShell() {
     const needle = query.trim().toLowerCase()
     if (needle.length < 2 || role === "parent") return []
     const students = state.students.filter((student) => `${student.name} ${student.id}`.toLowerCase().includes(needle)).slice(0, 4).map((student) => ({ id: student.id, label: student.name, hint: student.id, section: role === "teacher" ? "classes" : "admissions" }))
-    const payments = role === "management" ? state.payments.filter((payment) => payment.ref.toLowerCase().includes(needle)).slice(0, 3).map((payment) => ({ id: payment.ref, label: payment.ref, hint: "Fee receipt", section: "fees" })) : []
+    const payments = can(role, "fees.totals") ? state.payments.filter((payment) => payment.ref.toLowerCase().includes(needle)).slice(0, 3).map((payment) => ({ id: payment.ref, label: payment.ref, hint: "Fee receipt", section: "fees" })) : []
     return [...students, ...payments]
   }, [query, role, state.payments, state.students])
 
   if (!roleOk) {
     return <Navigate to="/login" replace />
   }
-  if (!sectionValid) {
+  if (!sectionValid || roleParam !== portalPath(role).split("/")[1]) {
     return <Navigate to={portalPath(role, section)} replace />
   }
 
@@ -266,13 +298,21 @@ function PortalShell() {
   const content = (() => {
     if (role === "teacher") return <TeacherPortal section={section} onOpen={openSection} />
     if (role === "parent") return <ParentPortal section={section} />
+    if (role === "accountant") return <AccountantPortal section={section} />
+    if (section === "overview") return <OperationsOverview onOpen={openSection} />
     if (section === "academic") return <AcademicSetup />
+    if (section === "curriculum") return <CurriculumPanel />
+    if (section === "lesson-review") return <LessonReviewPanel />
     if (section === "admissions") return <Admissions query={query} />
     if (section === "people") return <People query={query} />
+    if (section === "absences") return <AbsencesPanel />
+    if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
+    if (section === "results-gate") return <ResultsGatePanel />
     if (section === "fees") return <Fees query={query} />
     if (section === "finance") return <Finance />
     if (section === "messages") return <MessagesDesk />
+    if (section === "settings") return <SettingsPanel />
     if (section === "reports") return <Reports onReset={() => { resetDemo(); toast.success("Demo data restored") }} />
     return <ManagementDashboard onOpen={openSection} />
   })()
@@ -356,7 +396,7 @@ function Sidebar({ role, active, onNavigate, onRole, onLogout }: { role: Role; a
         </div>
         <Select value={role} onValueChange={(value) => onRole(value as Role)}>
           <SelectTrigger className="mt-3 h-10 w-full border-white/20 bg-white/10 text-xs text-white"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectGroup>{(Object.keys(roles) as Role[]).map((item) => <SelectItem key={item} value={item}>{roles[item].short} demo</SelectItem>)}</SelectGroup></SelectContent>
+          <SelectContent><SelectGroup>{ALL_ROLES.map((item) => <SelectItem key={item} value={item}>{roles[item].short} demo</SelectItem>)}</SelectGroup></SelectContent>
         </Select>
         <Button variant="ghost" size="sm" className="mt-2 w-full text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? "Light theme" : "Dark theme"}</Button>
       </div>

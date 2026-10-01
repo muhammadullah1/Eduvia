@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react"
 import { Cell, Pie, PieChart } from "recharts"
-import { BadgeCheck, BookOpen, Download, GraduationCap, ReceiptText, UserCheck, WalletCards } from "lucide-react"
+import { BadgeCheck, BookOpen, ClipboardList, Download, GraduationCap, Lock, Printer, ReceiptText, UserCheck, WalletCards } from "lucide-react"
 import { toast } from "sonner"
 
 import { EmptyState, MetricCard, SectionHeading, StatusBadge } from "@/components/app/kit"
@@ -11,9 +11,24 @@ import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } f
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { FeeMonthTable } from "@/features/fees/components"
+import { feeMonthsLabel, printReceipt } from "@/features/fees/receipts"
 import { useSchool } from "@/data/store"
-import { PARENT_CHILDREN, TODAY } from "@/data/types"
+import { PARENT_CHILDREN, TODAY, type MarkSheet, type SchoolState } from "@/data/types"
+import { monthlySummaries, resultVisibility, weekdayOf } from "@/lib/academics"
+import { feeMonthStatus, monthLabel, outstanding } from "@/lib/fees"
 import { classLabel, formatDate, gradeFromScore, pkr } from "@/lib/format"
+
+const CURRENT_MONTH = TODAY.slice(0, 7)
+
+/** Parent visibility for one sheet, evaluated now against the fee rule and overrides (UR-07). */
+function visibilityFor(state: SchoolState, sheet: MarkSheet, studentId: string) {
+  return resultVisibility(sheet, studentId, { feeMonths: state.feeMonths, overrides: state.resultOverrides, rule: state.settings.resultVisibility.feeRule, today: TODAY })
+}
+
+function unpaidMonths(state: SchoolState, studentId: string) {
+  return state.feeMonths.filter((month) => month.studentId === studentId && month.month <= CURRENT_MONTH && outstanding(month) > 0).sort((a, b) => a.month.localeCompare(b.month))
+}
 
 const attendanceConfig = {
   present: { label: "Present", color: "var(--chart-1)" },
@@ -21,14 +36,18 @@ const attendanceConfig = {
   leave: { label: "Leave", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
+/** Parents only ever read their linked children (§12 / §16); anything else falls back to the first child. */
 function useChild() {
   const { state } = useSchool()
-  const [childId, setChildId] = useState(() => localStorage.getItem("eduvia-child") || PARENT_CHILDREN[0])
+  const stored = localStorage.getItem("eduvia-child")
+  const [selected, setChildId] = useState(() => (stored && PARENT_CHILDREN.includes(stored) ? stored : PARENT_CHILDREN[0]))
+  const childId = PARENT_CHILDREN.includes(selected) ? selected : PARENT_CHILDREN[0]
   useEffect(() => {
     localStorage.setItem("eduvia-child", childId)
   }, [childId])
-  const child = state.students.find((student) => student.id === childId) ?? state.students[0]
-  return { state, child, childId, setChildId, options: state.students.filter((student) => PARENT_CHILDREN.includes(student.id)) }
+  const options = state.students.filter((student) => PARENT_CHILDREN.includes(student.id))
+  const child = options.find((student) => student.id === childId) ?? options[0]
+  return { state, child, childId, setChildId, options }
 }
 
 function ChildSwitcher({ childId, onChange, options }: { childId: string; onChange: (id: string) => void; options: { id: string; name: string; classId: string }[] }) {
@@ -46,14 +65,16 @@ export function ParentHome() {
   const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith("2026-09"))
   const present = marks.filter((mark) => mark.status === "Present").length
   const rate = marks.length ? `${Math.round((present / marks.length) * 1000) / 10}%` : "—"
-  const published = state.sheets.filter((sheet) => sheet.status === "Published" && sheet.classId === child.classId && sheet.examName.includes("August"))
-  const scores = published.flatMap((sheet) => sheet.rows.filter((row) => row.studentId === child.id && row.score !== null).map((row) => row.score as number))
-  const average = scores.length ? `${Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10}%` : "—"
-  const pending = state.payments.filter((payment) => payment.studentId === child.id && payment.status === "Pending")
-  const homework = state.updates.filter((item) => item.classId === child.classId && item.status === "Published" && item.kind === "Homework")
-  const day = "Wednesday"
-  const periods = state.slots.filter((slot) => slot.classId === child.classId && slot.day === day).sort((a, b) => a.time.localeCompare(b.time))
-  const updates = state.updates.filter((item) => item.classId === child.classId && item.status === "Published").slice(0, 3)
+  const visible = state.sheets.filter((sheet) => sheet.classId === child.classId && visibilityFor(state, sheet, child.id).visible)
+  const withheld = state.sheets.some((sheet) => sheet.classId === child.classId && sheet.status === "Published" && !visibilityFor(state, sheet, child.id).visible)
+  const scores = visible.flatMap((sheet) => sheet.rows.filter((row) => row.studentId === child.id && row.score !== null).map((row) => ((row.score as number) / sheet.max) * 100))
+  const average = scores.length ? `${Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10}%` : withheld ? "Withheld" : "—"
+  const unpaid = unpaidMonths(state, child.id)
+  const lessons = state.dailyLessons.filter((row) => row.classId === child.classId && row.reviewStatus === "Approved").sort((a, b) => b.date.localeCompare(a.date))
+  const homework = lessons.filter((row) => row.homework)
+  const day = weekdayOf(TODAY)
+  const periods = state.slots.filter((slot) => slot.classId === child.classId && slot.day === day).sort((a, b) => a.periodIndex - b.periodIndex)
+  const updates = lessons.slice(0, 3)
 
   return (
     <div className="grid gap-6">
@@ -66,9 +87,9 @@ export function ParentHome() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={UserCheck} label="September attendance" value={rate} note={`${present} of ${marks.length} days`} tone="accent" />
-        <MetricCard icon={GraduationCap} label="Latest published result" value={average} note="August assessment" />
-        <MetricCard icon={WalletCards} label="Fee status" value={pending.length ? "Due" : "Paid"} note={pending.length ? `${pending.length} receipt pending` : "No outstanding receipt"} />
-        <MetricCard icon={BookOpen} label="Homework" value={String(homework.length).padStart(2, "0")} note="Published this week" />
+        <MetricCard icon={GraduationCap} label="Published results" value={average} note={withheld ? "Held until fees are cleared" : "Average of visible results"} />
+        <MetricCard icon={WalletCards} label="Fee status" value={unpaid.length ? `${unpaid.length} unpaid` : "Paid"} note={unpaid.length ? unpaid.map((month) => monthLabel(month.month)).join(", ") : "No month outstanding"} />
+        <MetricCard icon={BookOpen} label="Homework" value={String(homework.length).padStart(2, "0")} note="From approved daily updates" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
         <Card>
@@ -80,7 +101,7 @@ export function ParentHome() {
                 <div key={slot.id} className="flex items-center gap-4 rounded-xl border p-3">
                   <p className="w-12 text-xs font-semibold">{slot.time}</p>
                   <Separator orientation="vertical" className="h-8" />
-                  <div className="flex-1"><p className="text-sm font-medium">{slot.subject}</p><p className="text-xs text-muted-foreground">{slot.room}</p></div>
+                  <div className="flex-1"><p className="text-sm font-medium">{slot.subject}</p><p className="text-xs text-muted-foreground">{substituteFor(state, slot.classId, slot.periodIndex) ?? slot.teacher} · {slot.room}</p></div>
                   <StatusBadge value={slot.time < "11:00" ? attendance?.status ?? "Present" : "Upcoming"} />
                 </div>
               )
@@ -90,10 +111,11 @@ export function ParentHome() {
         <Card>
           <CardHeader><CardTitle>Latest updates</CardTitle><CardDescription>Approved by the school</CardDescription></CardHeader>
           <CardContent className="grid gap-4">
-            {updates.length === 0 ? <EmptyState title="No updates" detail="Published homework and notices for this class will appear here." /> : updates.map((item) => (
+            {updates.length === 0 ? <EmptyState title="No updates" detail="Approved lesson updates for this class will appear here." /> : updates.map((item) => (
               <div key={item.id} className="border-b pb-4 last:border-0 last:pb-0">
-                <div className="flex items-center gap-2"><StatusBadge value={item.kind} /><span className="text-xs text-muted-foreground">{item.subject}</span></div>
-                <p className="mt-2 text-sm leading-6">{item.text}</p>
+                <div className="flex items-center gap-2"><StatusBadge value={item.subject} /><span className="text-xs text-muted-foreground">{formatDate(item.date)}</span></div>
+                <p className="mt-2 text-sm font-medium">{state.plannedChapters.find((chapter) => chapter.id === item.chapterId)?.title}</p>
+                {item.homework ? <p className="text-sm leading-6 text-muted-foreground">Homework: {item.homework}</p> : null}
               </div>
             ))}
           </CardContent>
@@ -143,20 +165,29 @@ export function ParentAttendance() {
 export function ParentResults() {
   const { state, child, childId, setChildId, options } = useChild()
   const sheets = state.sheets.filter((sheet) => sheet.classId === child.classId && sheet.status === "Published")
-  const exams = [...new Set(sheets.map((sheet) => sheet.examName))]
-  const [examChoice, setExam] = useState(exams[0] ?? "")
-  const exam = exams.includes(examChoice) ? examChoice : exams[0] ?? ""
-  const rows = sheets.filter((sheet) => sheet.examName === exam)
-  const scores = rows.flatMap((sheet) => sheet.rows.filter((row) => row.studentId === child.id && row.score !== null).map((row) => row.score as number))
+  const exams = [...new Map(sheets.map((sheet) => [sheet.examId, sheet.examName])).entries()]
+  const [examChoice, setExam] = useState(exams[0]?.[0] ?? "")
+  const examId = exams.some(([id]) => id === examChoice) ? examChoice : exams[0]?.[0] ?? ""
+  const rows = sheets.filter((sheet) => sheet.examId === examId)
+  const gate = rows[0] ? visibilityFor(state, rows[0], child.id) : null
+  const visible = Boolean(gate?.visible)
+  const scores = visible ? rows.flatMap((sheet) => sheet.rows.filter((row) => row.studentId === child.id && row.score !== null).map((row) => ((row.score as number) / sheet.max) * 100)) : []
   const overall = scores.length ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10 : 0
+  const unpaid = unpaidMonths(state, child.id)
   return (
     <div className="grid gap-5">
-      <SectionHeading title="Results & DMC" detail="Only published examinations are visible." action={<div className="flex flex-col gap-2 sm:flex-row"><ChildSwitcher childId={childId} onChange={setChildId} options={options} />{exams.length ? <div className="w-full sm:w-72"><Select value={exam} onValueChange={setExam}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{exams.map((name) => <SelectItem key={name} value={name}>{name}</SelectItem>)}</SelectGroup></SelectContent></Select></div> : null}</div>} />
-      {rows.length === 0 ? <EmptyState title="No published results" detail="When the school publishes an exam for this class, the DMC will show here." /> : (
+      <SectionHeading title="Results & DMC" detail="Only published examinations are visible." action={<div className="flex flex-col gap-2 sm:flex-row"><ChildSwitcher childId={childId} onChange={setChildId} options={options} />{exams.length ? <div className="w-full sm:w-72"><Select value={examId} onValueChange={setExam}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{exams.map(([id, name]) => <SelectItem key={id} value={id}>{name}</SelectItem>)}</SelectGroup></SelectContent></Select></div> : null}</div>} />
+      {rows.length === 0 ? <EmptyState title="No published results" detail="When the school publishes an exam for this class, the DMC will show here." /> : !visible ? (
+        <Alert>
+          <Lock className="size-4" />
+          <AlertTitle>Result withheld</AlertTitle>
+          <AlertDescription>{rows[0].examName} is published, but it is held until fees are cleared{unpaid.length ? ` (${unpaid.map((month) => monthLabel(month.month)).join(", ")})` : ""}. Please contact the school office.</AlertDescription>
+        </Alert>
+      ) : (
         <Card className="overflow-hidden">
           <div className="bg-primary p-6 text-primary-foreground">
             <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-              <div><StatusBadge value="Published" /><h2 className="mt-4 font-heading text-2xl font-semibold">{exam}</h2><p className="mt-1 text-sm text-primary-foreground/70">{classLabel(state.classes, child.classId)}</p></div>
+              <div><StatusBadge value="Published" /><h2 className="mt-4 font-heading text-2xl font-semibold">{rows[0].examName}</h2><p className="mt-1 text-sm text-primary-foreground/70">{classLabel(state.classes, child.classId)}</p></div>
               <div><p className="text-xs text-primary-foreground/60">Overall</p><p className="font-heading text-3xl font-semibold">{overall}%</p></div>
             </div>
           </div>
@@ -165,8 +196,8 @@ export function ParentResults() {
               <TableHeader><TableRow><TableHead>Subject</TableHead><TableHead>Marks</TableHead><TableHead>Grade</TableHead></TableRow></TableHeader>
               <TableBody>
                 {rows.map((sheet) => {
-                  const score = sheet.rows.find((row) => row.studentId === child.id)?.score
-                  return <TableRow key={sheet.id}><TableCell className="font-medium">{sheet.subject}</TableCell><TableCell>{score ?? "—"} / {sheet.max}</TableCell><TableCell>{score === null || score === undefined ? "—" : <StatusBadge value={gradeFromScore(score, sheet.max)} />}</TableCell></TableRow>
+                  const score = sheet.rows.find((row) => row.studentId === child.id)?.score ?? null
+                  return <TableRow key={sheet.id}><TableCell className="font-medium">{sheet.subject}</TableCell><TableCell>{score ?? "—"} / {sheet.max}</TableCell><TableCell>{score === null ? "—" : <StatusBadge value={gradeFromScore(score, sheet.max)} />}</TableCell></TableRow>
                 })}
               </TableBody>
             </Table>
@@ -178,34 +209,82 @@ export function ParentResults() {
   )
 }
 
+/** Published weekly test marks and the month's outcome per subject (UR-05 / UR-06). */
+export function ParentTests() {
+  const { state, child, childId, setChildId, options } = useChild()
+  const rows = monthlySummaries(state.weeklyTests, CURRENT_MONTH, state.settings.dailyTestRules, { classId: child.classId, studentIds: [child.id], publishedOnly: true })
+  return (
+    <div className="grid gap-5">
+      <SectionHeading title={`Weekly tests · ${monthLabel(CURRENT_MONTH)}`} detail="Marks appear once the school publishes them." action={<ChildSwitcher childId={childId} onChange={setChildId} options={options} />} />
+      {rows.length === 0 ? <EmptyState title="No weekly tests" detail="Weekly subject tests for this class will appear here." /> : (
+        <div className="grid gap-4 md:grid-cols-2">
+          {rows.map((row) => (
+            <Card key={row.subject}>
+              <CardHeader>
+                <div className="flex items-center justify-between"><CardTitle className="text-base">{row.subject}</CardTitle><StatusBadge value={row.status} /></div>
+                <CardDescription>{row.passedCount} passed · {row.failedCount} failed{row.averagePercent === null ? "" : ` · average ${row.averagePercent}%`}</CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-2">
+                {row.tests.map((test) => {
+                  const score = test.results.find((result) => result.studentId === child.id)?.score ?? null
+                  return (
+                    <div key={test.id} className="flex items-center justify-between rounded-lg border px-3 py-2 text-sm">
+                      <span>Week {test.week} · {formatDate(test.date)}</span>
+                      {test.status === "Published" ? <span className="font-medium">{score ?? "Absent"}{score === null ? "" : ` / ${test.max}`}</span> : <span className="text-xs text-muted-foreground">{test.status === "Scheduled" ? "Upcoming" : "Awaiting publication"}</span>}
+                    </div>
+                  )
+                })}
+                {row.flaggedForFollowUp ? <p className="text-xs text-destructive"><ClipboardList className="mr-1 inline size-3.5" />Flagged for follow-up by the school this month.</p> : null}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ParentFees() {
   const { state, child, childId, setChildId, options } = useChild()
   const payments = state.payments.filter((payment) => payment.studentId === child.id)
-  const outstanding = payments.filter((payment) => payment.status === "Pending").reduce((sum, payment) => sum + payment.amount, 0)
-  const paid = payments.filter((payment) => payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0)
+  const unpaid = unpaidMonths(state, child.id)
+  const balance = unpaid.reduce((sum, month) => sum + outstanding(month), 0)
+  const paidMonths = state.feeMonths.filter((month) => month.studentId === child.id && ["Paid", "Advance"].includes(feeMonthStatus(month, CURRENT_MONTH))).length
   return (
     <div className="grid gap-5">
       <div className="flex justify-end"><ChildSwitcher childId={childId} onChange={setChildId} options={options} /></div>
-      {outstanding === 0 ? <Alert className="border-success/20 bg-success/5"><BadgeCheck className="size-4 text-success" /><AlertTitle>All clear</AlertTitle><AlertDescription>There is no pending receipt for {child.name}.</AlertDescription></Alert> : <Alert><AlertTitle>Payment pending</AlertTitle><AlertDescription>{pkr(outstanding)} is still marked pending by the fee desk.</AlertDescription></Alert>}
+      {unpaid.length === 0 ? <Alert className="border-success/20 bg-success/5"><BadgeCheck className="size-4 text-success" /><AlertTitle>All clear</AlertTitle><AlertDescription>No month is outstanding for {child.name}.</AlertDescription></Alert> : (
+        <Alert>
+          <AlertTitle>{unpaid.length} {unpaid.length === 1 ? "month" : "months"} unpaid</AlertTitle>
+          <AlertDescription>
+            <ul className="mt-2 grid gap-1">{unpaid.map((month) => <li key={month.id} className="flex items-center gap-2">{monthLabel(month.month)} · {pkr(outstanding(month))} <StatusBadge value={feeMonthStatus(month, CURRENT_MONTH)} /></li>)}</ul>
+            <p className="mt-2 text-xs">Payments are always applied to the oldest unpaid month first.</p>
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid gap-4 lg:grid-cols-2">
-        <MetricCard icon={WalletCards} label="Outstanding" value={pkr(outstanding)} note="Pending receipts" tone="accent" />
-        <MetricCard icon={ReceiptText} label="Paid on record" value={pkr(paid)} note={`${payments.filter((payment) => payment.status === "Paid").length} verified receipts`} />
+        <MetricCard icon={WalletCards} label="Balance due" value={pkr(balance)} note={unpaid.map((month) => monthLabel(month.month)).join(", ") || "Nothing due"} tone="accent" />
+        <MetricCard icon={ReceiptText} label="Months paid" value={String(paidMonths)} note={`${payments.filter((payment) => payment.status === "Paid").length} receipts on record`} />
       </div>
       <Card>
-        <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><CardTitle>Receipt history</CardTitle><CardDescription>Read-only family view</CardDescription></div><Button variant="outline" onClick={() => toast.success("Fee statement prepared")}>Download statement</Button></CardHeader>
+        <CardHeader><CardTitle>Monthly fee status</CardTitle><CardDescription>Paid, partially paid, unpaid or paid in advance</CardDescription></CardHeader>
+        <CardContent><FeeMonthTable studentId={child.id} /></CardContent>
+      </Card>
+      <Card>
+        <CardHeader><CardTitle>Receipt history</CardTitle><CardDescription>Read-only family view</CardDescription></CardHeader>
         <CardContent>
           {payments.length === 0 ? <EmptyState title="No receipts" detail="Payments recorded for this child will be listed here." /> : (
             <Table>
-              <TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Period</TableHead><TableHead>Paid on</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
+              <TableHeader><TableRow><TableHead>Receipt</TableHead><TableHead>Fee months</TableHead><TableHead>Paid on</TableHead><TableHead>Amount</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader>
               <TableBody>
                 {payments.map((payment) => (
                   <TableRow key={payment.ref}>
                     <TableCell className="font-mono text-xs">{payment.ref}</TableCell>
-                    <TableCell>{payment.type} · {payment.period}</TableCell>
+                    <TableCell>{feeMonthsLabel(payment)}</TableCell>
                     <TableCell>{formatDate(payment.date)}</TableCell>
                     <TableCell>{pkr(payment.amount)}</TableCell>
                     <TableCell><StatusBadge value={payment.status} /></TableCell>
-                    <TableCell><Button variant="ghost" size="icon-sm" onClick={() => toast.success(`Receipt ${payment.ref} downloaded`)}><Download /></Button></TableCell>
+                    <TableCell>{payment.status === "Paid" ? <Button variant="ghost" size="icon-sm" aria-label="Print receipt" onClick={() => printReceipt(state, payment)}><Printer /></Button> : null}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -247,24 +326,35 @@ export function ParentTimetable() {
 
 export function ParentUpdates() {
   const { state, child, childId, setChildId, options } = useChild()
-  const [kind, setKind] = useState("all")
-  const updates = state.updates.filter((item) => item.classId === child.classId && item.status === "Published" && (kind === "all" || item.kind === kind))
+  // Only management-approved lesson updates and published notices reach parents (UR-04).
+  const lessons = state.dailyLessons.filter((row) => row.classId === child.classId && row.reviewStatus === "Approved").sort((a, b) => b.date.localeCompare(a.date))
+  const notices = state.updates.filter((item) => item.classId === child.classId && item.status === "Published")
   return (
     <div className="grid gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-        <div className="w-full sm:w-40"><Select value={kind} onValueChange={setKind}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">All types</SelectItem><SelectItem value="Homework">Homework</SelectItem><SelectItem value="Classwork">Classwork</SelectItem><SelectItem value="Notice">Notice</SelectItem></SelectGroup></SelectContent></Select></div>
-        <ChildSwitcher childId={childId} onChange={setChildId} options={options} />
-      </div>
-      {updates.length === 0 ? <EmptyState title="No published updates" detail="Homework and notices appear after the school publishes them." /> : (
+      <div className="flex justify-end"><ChildSwitcher childId={childId} onChange={setChildId} options={options} /></div>
+      {lessons.length === 0 && notices.length === 0 ? <EmptyState title="No updates yet" detail="Lesson updates appear after the school approves them." /> : (
         <div className="grid gap-4 md:grid-cols-2">
-          {updates.map((item) => (
+          {lessons.map((item) => (
+            <Card key={item.id}>
+              <CardHeader>
+                <div className="flex items-center justify-between"><StatusBadge value={item.subject} /><span className="text-xs text-muted-foreground">{formatDate(item.date)}</span></div>
+                <CardTitle className="mt-3 text-base">{state.plannedChapters.find((chapter) => chapter.id === item.chapterId)?.title}</CardTitle>
+                <CardDescription className="grid gap-1 text-sm leading-6 text-foreground/80">
+                  {item.classwork ? <span>Classwork: {item.classwork}</span> : null}
+                  {item.homework ? <span>Homework: {item.homework}</span> : null}
+                  {item.remarks ? <span>Remarks: {item.remarks}</span> : null}
+                </CardDescription>
+              </CardHeader>
+              <CardFooter className="text-xs text-muted-foreground"><BadgeCheck className="mr-2 size-4 text-success" />{item.teacherName} · approved by the school</CardFooter>
+            </Card>
+          ))}
+          {notices.map((item) => (
             <Card key={item.id}>
               <CardHeader>
                 <div className="flex items-center justify-between"><StatusBadge value={item.kind} /><span className="text-xs text-muted-foreground">{formatDate(item.due)}</span></div>
                 <CardTitle className="mt-3 text-base">{item.subject}</CardTitle>
                 <CardDescription className="text-sm leading-6 text-foreground/80">{item.text}</CardDescription>
               </CardHeader>
-              <CardFooter className="text-xs text-muted-foreground"><BadgeCheck className="mr-2 size-4 text-success" />Approved and visible to parents</CardFooter>
             </Card>
           ))}
         </div>
@@ -273,9 +363,16 @@ export function ParentUpdates() {
   )
 }
 
+/** The teacher actually covering a period today (substitute when one is assigned). */
+function substituteFor(state: SchoolState, classId: string, periodIndex: number) {
+  const row = state.substitutions.find((item) => item.classId === classId && item.date === TODAY && item.periodIndex === periodIndex)
+  return row ? `${state.staff.find((person) => person.id === row.substituteTeacherId)?.name} (substitute)` : null
+}
+
 export function ParentPortal({ section }: { section: string }) {
   if (section === "attendance") return <ParentAttendance />
   if (section === "results") return <ParentResults />
+  if (section === "tests") return <ParentTests />
   if (section === "fees") return <ParentFees />
   if (section === "timetable") return <ParentTimetable />
   if (section === "updates") return <ParentUpdates />
