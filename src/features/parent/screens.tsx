@@ -36,16 +36,19 @@ const attendanceConfig = {
   leave: { label: "Leave", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
-/** Parents only ever read their linked children (§12 / §16); anything else falls back to the first child. */
 function useChild() {
   const { state } = useSchool()
   const stored = localStorage.getItem("eduvia-child")
-  const [selected, setChildId] = useState(() => (stored && PARENT_CHILDREN.includes(stored) ? stored : PARENT_CHILDREN[0]))
-  const childId = PARENT_CHILDREN.includes(selected) ? selected : PARENT_CHILDREN[0]
+  const options =
+    state.students.length > 0 && state.students.length <= 10
+      ? state.students
+      : state.students.filter((student) => PARENT_CHILDREN.includes(student.id) || (student.admissionNo && PARENT_CHILDREN.includes(student.admissionNo)))
+  const defaultId = options[0]?.id ?? PARENT_CHILDREN[0]
+  const [selected, setChildId] = useState(() => (stored && options.some((s) => s.id === stored) ? stored : defaultId))
+  const childId = options.some((s) => s.id === selected) ? selected : defaultId
   useEffect(() => {
-    localStorage.setItem("eduvia-child", childId)
+    if (childId) localStorage.setItem("eduvia-child", childId)
   }, [childId])
-  const options = state.students.filter((student) => PARENT_CHILDREN.includes(student.id))
   const child = options.find((student) => student.id === childId) ?? options[0]
   return { state, child, childId, setChildId, options }
 }

@@ -1,6 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
+import { fetchBackendState } from "@/data/backend-sync"
 import { createSeed } from "@/data/seed"
 import {
   TEACHER_ID,
@@ -29,6 +30,8 @@ import {
 } from "@/data/types"
 import { busyReason, datesOnWeekday, monthlySummaries, weekdayOf, weekOfMonth } from "@/lib/academics"
 import type { Actor } from "@/lib/actor"
+import { api } from "@/lib/api"
+import { loadAuth } from "@/lib/auth"
 import { allocateOldestFirst, applyLines, monthLabel, validateManualPlan } from "@/lib/fees"
 import { can, ROLE_LABELS, type Permission } from "@/lib/permissions"
 
@@ -154,7 +157,7 @@ function allocate(state: SchoolState, payment: Payment, manual?: { feeMonthId: s
   let leftover
   if (manual?.length) {
     const plan = validateManualPlan(ledger, payment.amount, manual)
-    if ("error" in plan) return { error: plan.error as string }
+    if ("error" in plan) return { error: plan.error }
     months = applyLines(ledger, plan.lines)
     lines = plan.lines
     leftover = plan.leftover
@@ -186,9 +189,31 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<SchoolState>(loadState)
   const stateRef = useRef(state)
 
+  const syncBackend = useCallback(async () => {
+    try {
+      const auth = loadAuth()
+      if (auth?.token) {
+        const fresh = await fetchBackendState(stateRef.current)
+        stateRef.current = fresh
+        setState(fresh)
+      }
+    } catch (err) {
+      console.warn("Backend sync failed:", err)
+    }
+  }, [])
+
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
   }, [state])
+
+  useEffect(() => {
+    syncBackend()
+    const onAuth = () => {
+      syncBackend()
+    }
+    window.addEventListener("eduvia:auth-changed", onAuth)
+    return () => window.removeEventListener("eduvia:auth-changed", onAuth)
+  }, [syncBackend])
 
   /** Runs a pure transition against the latest state and commits it synchronously. */
   const commit = useCallback(<T,>(run: (current: SchoolState) => { next?: SchoolState; error?: string; value?: T }) => {
@@ -232,8 +257,23 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       submittedOn: TODAY,
     }
     commit((current) => ({ next: withAudit({ ...current, applications: [application, ...current.applications] }, actor, `Created admission application for ${application.name}`) }))
+
+    const rawClassId = Number(input.classId)
+    api.post("/applications", {
+      name: application.name,
+      fkClassId: Number.isFinite(rawClassId) && rawClassId > 0 ? rawClassId : null,
+      guardian: application.guardian,
+      phone: application.phone,
+      dob: application.dob || null,
+      gender: application.gender || null,
+      address: application.address || null,
+      previousSchool: application.previousSchool || null,
+      previousClass: application.previousClass || null,
+      notes: application.notes || null,
+    }).then(syncBackend).catch(console.error)
+
     return { id: application.id }
-  }, [commit])
+  }, [commit, syncBackend])
 
   const setApplicationStatus = useCallback((id: string, status: Application["status"], actor: string) => simple((current) => {
     const application = current.applications.find((item) => item.id === id)
@@ -256,14 +296,26 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       feeMonths = [...feeMonths, { id: `fm-${student.id}-${month}`, studentId: student.id, month, feeType: "Tuition", amountDue: classFee(current, student.classId), amountPaid: 0, dueDate: `${month}-10` }]
     }
     const next = { ...current, students, feeMonths, applications: current.applications.map((item) => (item.id === id ? { ...item, status } : item)) }
+
+    const numId = Number(id.replace(/^APP-/, ""))
+    if (Number.isFinite(numId)) {
+      api.patch(`/applications/${numId}`, { status }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit(next, actor, `Marked application ${id} as ${status}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const updateStudent = useCallback((id: string, patch: Partial<Pick<Student, "status" | "classId" | "phone" | "guardian">>, actor: string) => {
-    simple((current) => ({
-      next: withAudit({ ...current, students: current.students.map((student) => (student.id === id ? { ...student, ...patch } : student)) }, actor, `Updated student ${id} ${patch.status ? `status to ${patch.status}` : "record"}`),
-    }))
-  }, [simple])
+    simple((current) => {
+      const numId = Number(id.replace(/^CLS-/, ""))
+      if (Number.isFinite(numId)) {
+        api.patch(`/students/${numId}`, patch).then(syncBackend).catch(console.error)
+      }
+      return {
+        next: withAudit({ ...current, students: current.students.map((student) => (student.id === id ? { ...student, ...patch } : student)) }, actor, `Updated student ${id} ${patch.status ? `status to ${patch.status}` : "record"}`),
+      }
+    })
+  }, [simple, syncBackend])
 
   // ---- fees ------------------------------------------------------------------
 
@@ -279,7 +331,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const manual = denied(actor, "fees.payments.allocate_manual")
         if (manual) return { error: "Only the super admin can record an explicit allocation." }
       }
-      const student = current.students.find((item) => item.id === input.studentId)
+      const student = current.students.find((item) => item.id === input.studentId || item.admissionNo === input.studentId)
       if (!student) return { error: "Choose a student." }
       if (!Number.isFinite(input.amount) || input.amount <= 0) return { error: "Amount must be greater than zero." }
       const date = input.date || TODAY
@@ -300,10 +352,28 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       }
       const result = allocate(current, payment, input.allocations)
       if ("error" in result) return { error: result.error }
+
+      const rawStudentId = Number(student.id)
+      if (Number.isFinite(rawStudentId)) {
+        api.post("/fees/payments", {
+          studentId: rawStudentId,
+          amount: Math.round(input.amount),
+          paidOn: date,
+          method: input.method || "Cash",
+          feeType: "Tuition",
+          notes: input.note?.trim() || null,
+          idempotencyKey: input.idempotencyKey,
+          allocations: input.allocations?.map((a) => ({
+            feeMonthId: Number(a.feeMonthId.replace(/^fm-/, "").split("-").pop() || a.feeMonthId),
+            amount: a.amount,
+          })),
+        }).then(syncBackend).catch(console.error)
+      }
+
       return { next: result.next, value: { payment: result.payment, duplicate: false } }
     })
     return outcome.error ? { error: outcome.error } : (outcome.value as { payment: Payment; duplicate: boolean })
-  }, [commit])
+  }, [commit, syncBackend])
 
   const confirmPayment = useCallback((ref: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "fees.payments.confirm")
@@ -352,8 +422,16 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const blocked = denied(actor, "finance.manage")
     if (blocked) return { error: blocked }
     if (!input.title.trim() || input.amount <= 0) return { error: "Title and a positive amount are required." }
+
+    api.post("/expenses", {
+      title: input.title.trim(),
+      category: input.category,
+      amount: input.amount,
+      date: input.date,
+    }).then(syncBackend).catch(console.error)
+
     return { next: withAudit({ ...current, expenses: [{ ...input, title: input.title.trim(), id: uid("EX") }, ...current.expenses] }, actor.name, `Posted expense ${input.title.trim()}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   // ---- academic setup ----------------------------------------------------------
 
@@ -361,29 +439,57 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (!input.name.trim() || !input.start || !input.end) return { error: "Session name, start date and end date are required." }
     if (input.end < input.start) return { error: "End date must be after the start date." }
     if (current.sessions.some((item) => item.name.toLowerCase() === input.name.trim().toLowerCase())) return { error: "A session with that name already exists." }
+
+    api.post("/sessions", {
+      name: input.name.trim(),
+      startDate: input.start,
+      endDate: input.end,
+    }).then(syncBackend).catch(console.error)
+
     const sessions = [...current.sessions.map((item) => ({ ...item, current: false })), { id: uid("ses"), name: input.name.trim(), start: input.start, end: input.end, current: true }]
     return { next: withAudit({ ...current, sessions }, actor, `Created and activated session ${input.name.trim()}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const activateSession = useCallback((id: string, actor: string) => simple((current) => {
     const target = current.sessions.find((item) => item.id === id)
     if (!target) return { error: "Session not found." }
+
+    const numId = Number(id.replace(/^ses-/, ""))
+    if (Number.isFinite(numId)) {
+      api.post(`/sessions/${numId}/activate`).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, sessions: current.sessions.map((item) => ({ ...item, current: item.id === id })) }, actor, `Activated academic session ${target.name}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const addClass = useCallback((input: Omit<ClassSection, "id" | "label">, actor: string) => simple((current) => {
     if (!input.grade.trim() || !input.section.trim()) return { error: "Grade and section are required." }
     const label = `${input.grade.trim()} · ${input.section.trim()}`
     if (current.classes.some((item) => item.label.toLowerCase() === label.toLowerCase())) return { error: "That class section already exists." }
     const klass: ClassSection = { id: uid("cl"), label, grade: input.grade.trim(), section: input.section.trim(), room: input.room.trim() || "Unassigned", periodCount: Math.max(1, Number(input.periodCount) || 8), monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500) }
+
+    api.post("/classes", {
+      grade: input.grade.trim(),
+      section: input.section.trim(),
+      room: input.room.trim() || "Unassigned",
+      periodCount: Math.max(1, Number(input.periodCount) || 8),
+      monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500),
+    }).then(syncBackend).catch(console.error)
+
     return { next: withAudit({ ...current, classes: [...current.classes, klass] }, actor, `Added class ${label}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const addSubject = useCallback((input: Omit<Subject, "id">, actor: string) => simple((current) => {
     if (!input.name.trim() || !input.code.trim()) return { error: "Subject name and code are required." }
     if (current.subjects.some((item) => item.code.toLowerCase() === input.code.trim().toLowerCase())) return { error: "Subject code must be unique." }
+
+    api.post("/subjects", {
+      name: input.name.trim(),
+      code: input.code.trim().toUpperCase(),
+    }).then(syncBackend).catch(console.error)
+
     return { next: withAudit({ ...current, subjects: [...current.subjects, { id: uid("sub"), name: input.name.trim(), code: input.code.trim().toUpperCase() }] }, actor, `Added subject ${input.name.trim()}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const addSlot = useCallback((input: Omit<TimetableSlot, "id" | "teacher" | "subject"> & { subject?: string }, actor: string) => simple((current) => {
     const teacher = current.staff.find((person) => person.id === input.teacherId && person.role === "Teacher")
@@ -396,12 +502,35 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (same.some((slot) => slot.teacherId === input.teacherId)) return { error: `${teacher.name} already teaches another class in this period.` }
     const slot: TimetableSlot = { ...input, id: uid("tt"), subject: input.subject || teacher.subject, teacher: teacher.name }
     const staff = current.staff.map((person) => (person.id === teacher.id && !person.classIds.includes(klass.id) ? { ...person, classIds: [...person.classIds, klass.id] } : person))
+
+    const classIdNum = Number(klass.id)
+    const teacherIdNum = teacher.id === "st-hassan" ? 46 : Number(teacher.id.replace(/^st-/, ""))
+    const subObj = current.subjects.find((s) => s.name === slot.subject)
+    const subIdNum = Number(subObj?.id ?? 1)
+    if (Number.isFinite(classIdNum) && Number.isFinite(teacherIdNum)) {
+      api.post("/timetable", {
+        fkClassId: classIdNum,
+        day: input.day,
+        time: input.time,
+        periodIndex: input.periodIndex,
+        fkSubjectId: subIdNum,
+        fkTeacherId: teacherIdNum,
+        room: input.room,
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, staff, slots: [...current.slots, slot] }, actor, `Scheduled ${slot.subject} for ${klass.label} on ${input.day} period ${input.periodIndex}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const removeSlot = useCallback((id: string, actor: string) => {
-    simple((current) => ({ next: withAudit({ ...current, slots: current.slots.filter((slot) => slot.id !== id) }, actor, "Removed a timetable period") }))
-  }, [simple])
+    simple((current) => {
+      const numId = Number(id.replace(/^tt-/, ""))
+      if (Number.isFinite(numId)) {
+        api.delete(`/timetable/${numId}`).then(syncBackend).catch(console.error)
+      }
+      return { next: withAudit({ ...current, slots: current.slots.filter((slot) => slot.id !== id) }, actor, "Removed a timetable period") }
+    })
+  }, [simple, syncBackend])
 
   const addStaff = useCallback((input: Pick<Staff, "name" | "role" | "email" | "phone" | "subject" | "classIds">, actor: Actor) => simple((current) => {
     const isTeacher = input.role === "Teacher"
@@ -418,14 +547,31 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       subject: isTeacher ? input.subject : "",
       subjectHistory: isTeacher ? [{ subject: input.subject, from: TODAY, by: actor.name, reason: "Initial allocation" }] : [],
     }
+
+    const sub = current.subjects.find((s) => s.name === input.subject)
+    const nameParts = input.name.trim().split(" ")
+    api.post("/users", {
+      firstName: nameParts[0] || input.name.trim(),
+      lastName: nameParts.slice(1).join(" ") || "Staff",
+      email: input.email.trim(),
+      phone: input.phone || null,
+      role: isTeacher ? "teacher" : input.role === "Accountant" ? "accountant" : input.role === "Operations Manager" ? "operations_manager" : "super_admin",
+      subjectId: isTeacher && sub ? Number(sub.id) : undefined,
+      password: "password",
+    }).then(syncBackend).catch(console.error)
+
     return { next: withAudit({ ...current, staff: [...current.staff, person] }, actor.name, `Added ${input.role.toLowerCase()} ${person.name}${isTeacher ? ` (${input.subject})` : ""}`, isTeacher ? "teacher_subject" : undefined) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const setClassPeriodCount = useCallback((classId: string, periodCount: number, actor: string) => simple((current) => {
     if (!Number.isFinite(periodCount) || periodCount < 1 || periodCount > 16) return { error: "Period count must be between 1 and 16." }
     if (current.slots.some((slot) => slot.classId === classId && slot.periodIndex > periodCount)) return { error: "Remove timetable periods beyond the new count first." }
+    const numId = Number(classId)
+    if (Number.isFinite(numId)) {
+      api.put(`/classes/${numId}`, { periodCount }).then(syncBackend).catch(console.error)
+    }
     return { next: withAudit({ ...current, classes: current.classes.map((klass) => (klass.id === classId ? { ...klass, periodCount } : klass)) }, actor, `Set period count for ${classId} to ${periodCount}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   // ---- teachers & substitutes --------------------------------------------------
 
@@ -434,13 +580,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (blocked) return { error: blocked }
     const teacher = current.staff.find((person) => person.id === staffId && person.role === "Teacher")
     if (!teacher) return { error: "Teacher not found." }
-    if (!current.subjects.some((item) => item.name === subject)) return { error: "Choose a subject." }
+    const targetSub = current.subjects.find((item) => item.name === subject)
+    if (!targetSub) return { error: "Choose a subject." }
     if (teacher.subject === subject) return { error: `${teacher.name} already teaches ${subject}.` }
-    // Close the active assignment, open the new one; lessons, tests and marks keep their own subject.
     const history = [...teacher.subjectHistory.map((row) => (row.to ? row : { ...row, to: TODAY })), { subject, from: TODAY, by: actor.name, reason: reason.trim() || undefined }]
     const staff = current.staff.map((person) => (person.id === staffId ? { ...person, subject, subjectHistory: history } : person))
+
+    const teacherNumId = teacher.id === "st-hassan" ? 46 : Number(teacher.id.replace(/^st-/, ""))
+    if (Number.isFinite(teacherNumId)) {
+      api.put(`/teachers/${teacherNumId}/subject`, {
+        subjectId: Number(targetSub.id),
+        reason: reason.trim() || "Subject re-assignment",
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, staff }, actor.name, `Changed ${teacher.name}'s subject from ${teacher.subject} to ${subject}${reason.trim() ? `: ${reason.trim()}` : ""}`, "teacher_subject") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const markTeacherAbsent = useCallback((input: { teacherId: string; date: string; periods: number[]; notes: string }, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "absences.manage")
@@ -457,8 +612,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const slot = current.slots.find((item) => item.teacherId === teacher.id && item.day === weekday && item.periodIndex === periodIndex)
       return { id: uid("abs"), teacherId: teacher.id, date: input.date, periodIndex, classId: slot?.classId, subject: slot?.subject, status: slot ? "Pending" : "NoClass", markedBy: actor.name, notes: input.notes.trim() }
     })
+
+    const teacherNumId = teacher.id === "st-hassan" ? 46 : Number(teacher.id.replace(/^st-/, ""))
+    if (Number.isFinite(teacherNumId)) {
+      api.post("/teacher-absences", {
+        fkTeacherId: teacherNumId,
+        date: input.date,
+        periods: fresh,
+        notes: input.notes.trim() || undefined,
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, teacherAbsences: [...rows, ...current.teacherAbsences] }, actor.name, `Marked ${teacher.name} absent on ${input.date} (periods ${fresh.join(", ")})`, "teacher_absence") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const assignSubstitute = useCallback((absenceId: string, substituteId: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "absences.manage")
@@ -481,8 +647,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       teacherAbsences: current.teacherAbsences.map((row) => (row.id === absence.id ? { ...row, status: "Covered" } : row)),
     }
     const klass = current.classes.find((item) => item.id === absence.classId)?.label ?? absence.classId
+
+    const absenceNumId = Number(absence.id.replace(/^abs-/, ""))
+    const subNumId = substitute.id === "st-hassan" ? 46 : Number(substitute.id.replace(/^st-/, ""))
+    if (Number.isFinite(absenceNumId) && Number.isFinite(subNumId)) {
+      api.put(`/teacher-absences/${absenceNumId}/substitute`, { substituteTeacherId: subNumId }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit(next, actor.name, `Assigned ${substitute.name} to cover ${klass} ${absence.subject} (period ${absence.periodIndex}, ${absence.date}) for ${staffName(current, absence.teacherId)}`, "substitute_assignment") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const removeSubstitute = useCallback((absenceId: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "absences.manage")
@@ -494,8 +667,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       substitutions: current.substitutions.filter((row) => row.absenceId !== absenceId),
       teacherAbsences: current.teacherAbsences.map((row) => (row.id === absenceId ? { ...row, status: "Pending" } : row)),
     }
+    const absenceNumId = Number(absenceId.replace(/^abs-/, ""))
+    if (Number.isFinite(absenceNumId)) {
+      api.delete(`/teacher-absences/${absenceNumId}/substitute`).then(syncBackend).catch(console.error)
+    }
     return { next: withAudit(next, actor.name, `Removed ${staffName(current, substitution.substituteTeacherId)} as substitute (period ${substitution.periodIndex}, ${substitution.date})`, "substitute_assignment") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const cancelAbsence = useCallback((absenceId: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "absences.manage")
@@ -507,8 +684,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       substitutions: current.substitutions.filter((row) => row.absenceId !== absenceId),
       teacherAbsences: current.teacherAbsences.map((row) => (row.id === absenceId ? { ...row, status: "Cancelled" } : row)),
     }
+    const absenceNumId = Number(absenceId.replace(/^abs-/, ""))
+    if (Number.isFinite(absenceNumId)) {
+      api.post(`/teacher-absences/${absenceNumId}/cancel`).then(syncBackend).catch(console.error)
+    }
     return { next: withAudit(next, actor.name, `Cancelled ${staffName(current, absence.teacherId)}'s absence (period ${absence.periodIndex}, ${absence.date})`, "teacher_absence") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   // ---- planned chapters & daily updates ----------------------------------------
 
@@ -518,15 +699,33 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (!input.classId || !input.subject || !input.title.trim()) return { error: "Class, subject and chapter title are required." }
     const siblings = current.plannedChapters.filter((row) => row.classId === input.classId && row.subject === input.subject)
     const chapter: PlannedChapter = { ...input, id: uid("ch"), title: input.title.trim(), sequence: siblings.length + 1, createdBy: actor.name }
+
+    const classNumId = Number(input.classId)
+    const sub = current.subjects.find((s) => s.name === input.subject)
+    const subNumId = Number(sub?.id ?? 1)
+    if (Number.isFinite(classNumId) && Number.isFinite(subNumId)) {
+      api.post("/planned-chapters", {
+        fkClassId: classNumId,
+        fkSubjectId: subNumId,
+        title: input.title.trim(),
+        description: input.description?.trim() || null,
+        targetDate: input.targetDate || null,
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, plannedChapters: [...current.plannedChapters, chapter] }, actor.name, `Planned ${chapter.title} for ${input.subject}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const removePlannedChapter = useCallback((id: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "chapters.manage")
     if (blocked) return { error: blocked }
     if (current.dailyLessons.some((lesson) => lesson.chapterId === id)) return { error: "This chapter already has daily updates and cannot be removed." }
+    const chapNumId = Number(id.replace(/^ch-/, ""))
+    if (Number.isFinite(chapNumId)) {
+      api.delete(`/planned-chapters/${chapNumId}`).then(syncBackend).catch(console.error)
+    }
     return { next: withAudit({ ...current, plannedChapters: current.plannedChapters.filter((row) => row.id !== id) }, actor.name, "Removed a planned chapter") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const submitDailyLesson = useCallback((input: { classId: string; date: string; chapterId: string; classwork: string; homework: string; remarks: string }, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "lessons.submit")
@@ -541,8 +740,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       id: existing?.id ?? uid("dl"), classId: input.classId, subject: teacher.subject, teacherId: teacher.id, teacherName: teacher.name, date: input.date, chapterId: chapter.id,
       classwork: input.classwork.trim(), homework: input.homework.trim(), remarks: input.remarks.trim(), reviewStatus: "Submitted" as const,
     }
+
+    const classNumId = Number(input.classId)
+    const chapNumId = Number(chapter.id.replace(/^ch-/, ""))
+    if (Number.isFinite(classNumId) && Number.isFinite(chapNumId)) {
+      api.post("/daily-lessons", {
+        classId: classNumId,
+        plannedChapterId: chapNumId,
+        date: input.date,
+        classwork: input.classwork.trim(),
+        homework: input.homework.trim(),
+        remarks: input.remarks.trim(),
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, dailyLessons: [lesson, ...current.dailyLessons.filter((row) => row.id !== lesson.id)] }, actor.name, `Submitted daily update: ${chapter.title}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const reviewDailyLesson = useCallback((id: string, decision: Exclude<ReviewStatus, "Submitted">, note: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "lessons.review")
@@ -551,8 +764,17 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (!lesson) return { error: "Update not found." }
     if (decision === "Rejected" && !note.trim()) return { error: "Tell the teacher why the update is rejected." }
     const next = { ...current, dailyLessons: current.dailyLessons.map((row) => (row.id === id ? { ...row, reviewStatus: decision, reviewedBy: actor.name, reviewNote: note.trim() || undefined } : row)) }
+
+    const lessonNumId = Number(id.replace(/^dl-/, ""))
+    if (Number.isFinite(lessonNumId)) {
+      api.post(`/daily-lessons/${lessonNumId}/review`, {
+        decision,
+        note: note.trim() || null,
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit(next, actor.name, `${decision} ${lesson.teacherName}'s daily update for ${lesson.date}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   // ---- weekly tests --------------------------------------------------------------
 
@@ -563,8 +785,22 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (input.max <= 0) return { error: "Maximum marks must be positive." }
     const existing = current.testSchedules.find((row) => row.classId === input.classId && row.subject === input.subject)
     const schedule: TestSchedule = { ...input, id: existing?.id ?? uid("ts"), active: true }
+
+    const classNumId = Number(input.classId)
+    const sub = current.subjects.find((s) => s.name === input.subject)
+    const subNumId = Number(sub?.id ?? 1)
+    if (Number.isFinite(classNumId) && Number.isFinite(subNumId)) {
+      api.put("/daily-tests/schedules", {
+        classId: classNumId,
+        subjectId: subNumId,
+        weekday: input.weekday,
+        periodIndex: input.periodIndex,
+        maxScore: input.max,
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, testSchedules: [schedule, ...current.testSchedules.filter((row) => row.id !== schedule.id)] }, actor.name, `Set ${input.subject} weekly test for ${input.classId} to ${input.weekday}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const generateMonthTests = useCallback((month: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "tests.schedule")
@@ -579,8 +815,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         }))
     })
     if (!created.length) return { error: `Every scheduled test for ${monthLabel(month)} already exists.` }
+
+    api.post("/daily-tests/generate", { month }).then(syncBackend).catch(console.error)
+
     return { next: withAudit({ ...current, weeklyTests: [...current.weeklyTests, ...created] }, actor.name, `Generated ${created.length} weekly tests for ${monthLabel(month)}`, "daily_test") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const saveWeeklyMarks = useCallback((testId: string, results: { studentId: string; score: number | null }[], actor: Actor) => simple((current) => {
     const blocked = denied(actor, "tests.marks")
@@ -595,8 +834,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (test.date > TODAY) return { error: "Marks can be entered on or after the test date." }
     if (results.some((row) => row.score !== null && (row.score < 0 || row.score > test.max))) return { error: `Scores must be between 0 and ${test.max}.` }
     const next = { ...current, weeklyTests: current.weeklyTests.map((row) => (row.id === testId ? { ...row, results, status: "MarksEntered" as const, enteredBy: actor.name } : row)) }
+
+    const testNumId = Number(testId.replace(/^wt-/, ""))
+    if (Number.isFinite(testNumId)) {
+      const marks = results.map((r) => {
+        const student = current.students.find((s) => s.id === r.studentId || s.admissionNo === r.studentId)
+        return { studentId: Number(student?.id ?? r.studentId), score: r.score }
+      })
+      api.put(`/daily-tests/${testNumId}/marks`, { marks }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit(next, actor.name, `Entered ${test.subject} weekly test marks for ${test.date}`, "daily_test") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const publishWeeklyTest = useCallback((testId: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "tests.publish")
@@ -605,8 +854,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (!test) return { error: "Test not found." }
     if (test.status !== "MarksEntered") return { error: "Only tests with entered marks can be published." }
     const published = withAudit({ ...current, weeklyTests: current.weeklyTests.map((row) => (row.id === testId ? { ...row, status: "Published" as const, publishedBy: actor.name } : row)) }, actor.name, `Published ${test.subject} weekly test (${test.date})`, "daily_test")
+
+    const testNumId = Number(testId.replace(/^wt-/, ""))
+    if (Number.isFinite(testNumId)) {
+      api.post(`/daily-tests/${testNumId}/publish`).then(syncBackend).catch(console.error)
+    }
+
     return { next: auditOutcomes(published, test.classId, test.subject, test.month) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   // ---- marks sheets ----------------------------------------------------------------
 
@@ -615,8 +870,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (!target) return { error: "Mark sheet was not found." }
     if (target.status !== "Draft") return { error: "This sheet is locked. Ask management to reopen it." }
     if (rows.some((row) => row.score !== null && (row.score < 0 || row.score > target.max))) return { error: `Scores must be between 0 and ${target.max}.` }
+
+    const sheetNumId = Number(sheetId.replace(/^sh-/, ""))
+    if (Number.isFinite(sheetNumId)) {
+      const apiRows = rows.map((r) => {
+        const student = current.students.find((s) => s.id === r.studentId || s.admissionNo === r.studentId)
+        return { fkStudentId: Number(student?.id ?? r.studentId), score: r.score }
+      })
+      api.put(`/exams/sheets/${sheetNumId}/rows`, { rows: apiRows }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, rows } : sheet)) }, actor, "Saved draft marks") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const setSheetStatus = useCallback((sheetId: string, status: SheetStatus, actor: string) => simple((current) => {
     const target = current.sheets.find((sheet) => sheet.id === sheetId)
@@ -624,9 +889,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (status !== "Draft" && target.rows.some((row) => row.score === null)) return { error: "Enter every score before moving this sheet forward." }
     const allowed: Record<SheetStatus, SheetStatus[]> = { Draft: ["Submitted"], Submitted: ["Verified", "Draft"], Verified: ["Published", "Draft"], Published: ["Draft"] }
     if (!allowed[target.status].includes(status) && status !== target.status) return { error: `Cannot move a ${target.status.toLowerCase()} sheet to ${status.toLowerCase()}.` }
-    // Publishing never looks at fees: parent visibility is evaluated at view time (UR-07).
+
+    const sheetNumId = Number(sheetId.replace(/^sh-/, ""))
+    if (Number.isFinite(sheetNumId)) {
+      const actionEndpoint = status === "Submitted" ? "submit" : status === "Verified" ? "verify" : status === "Published" ? "publish" : "reopen"
+      api.post(`/exams/sheets/${sheetNumId}/${actionEndpoint}`).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, sheets: current.sheets.map((sheet) => (sheet.id === sheetId ? { ...sheet, status } : sheet)) }, actor, `Moved ${target.subject} (${target.examName}) to ${status}`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   // ---- results & settings -----------------------------------------------------------
 
@@ -638,8 +909,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     if (current.resultOverrides.some((row) => row.examId === examId && row.studentId === studentId && !row.revokedAt)) return { error: "An override is already active." }
     const override = { id: uid("ov"), examId, studentId, reason: reason.trim(), grantedBy: actor.name, grantedAt: new Date().toISOString() }
     const exam = current.sheets.find((sheet) => sheet.examId === examId)?.examName ?? examId
+
+    const examNumId = Number(examId.replace(/^ex-/, ""))
+    const student = current.students.find((s) => s.id === studentId || s.admissionNo === studentId)
+    const studentNumId = Number(student?.id ?? studentId)
+    if (Number.isFinite(examNumId) && Number.isFinite(studentNumId)) {
+      api.post(`/exams/${examNumId}/overrides`, {
+        studentId: studentNumId,
+        reason: reason.trim(),
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, resultOverrides: [override, ...current.resultOverrides] }, actor.name, `Released ${exam} for ${studentLabel(current, studentId)} (fee override): ${reason.trim()}`, "result_override") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const revokeResultOverride = useCallback((overrideId: string, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "results.override")
@@ -647,8 +929,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const override = current.resultOverrides.find((row) => row.id === overrideId && !row.revokedAt)
     if (!override) return { error: "Override not found." }
     const next = { ...current, resultOverrides: current.resultOverrides.map((row) => (row.id === overrideId ? { ...row, revokedAt: new Date().toISOString(), revokedBy: actor.name } : row)) }
+
+    const ovNumId = Number(overrideId.replace(/^ov-/, ""))
+    if (Number.isFinite(ovNumId)) {
+      api.delete(`/exams/overrides/${ovNumId}`).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit(next, actor.name, `Revoked result override for ${studentLabel(current, override.studentId)}`, "result_override") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const updateSettings = useCallback((patch: Partial<SchoolSettings>, actor: Actor) => simple((current) => {
     if (patch.resultVisibility && !can(actor.role, "settings.results")) return { error: "Only the super admin can change the result fee rule." }
@@ -660,27 +948,67 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (rules.maxFailsPerMonth < 0 || rules.lowMarksMinPassed < 0) return { error: "Counts cannot be negative." }
     }
     const settings = { ...current.settings, ...patch }
+
+    if (patch.dailyTestRules) {
+      api.put("/settings/daily-tests", patch.dailyTestRules).then(syncBackend).catch(console.error)
+    }
+    if (patch.resultVisibility) {
+      api.put("/settings/results", patch.resultVisibility).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, settings }, actor.name, `Updated ${Object.keys(patch).join(", ")} settings`, "school_setting") }
-  }), [simple])
+  }), [simple, syncBackend])
 
   // ---- attendance & communication ----------------------------------------------------
 
   const saveAttendance = useCallback((classId: string, date: string, rows: { studentId: string; status: AttendanceStatus }[], actor: string) => {
     simple((current) => {
       const rest = current.attendance.filter((mark) => !(mark.classId === classId && mark.date === date && rows.some((row) => row.studentId === mark.studentId)))
+
+      const classNumId = Number(classId)
+      if (Number.isFinite(classNumId)) {
+        const marks = rows.map((r) => {
+          const student = current.students.find((s) => s.id === r.studentId || s.admissionNo === r.studentId)
+          return {
+            studentId: Number(student?.id ?? r.studentId),
+            status: r.status,
+          }
+        })
+        api.post("/attendances/mark", { classId: classNumId, date, marks }).then(syncBackend).catch(console.error)
+      }
+
       return { next: withAudit({ ...current, attendance: [...rows.map((row) => ({ ...row, classId, date })), ...rest] }, actor, `Saved attendance for ${date}`) }
     })
-  }, [simple])
+  }, [simple, syncBackend])
 
   const addUpdate = useCallback((input: Omit<SchoolUpdate, "id" | "status" | "author"> & { author: string }) => simple((current) => {
     if (!input.text.trim()) return { error: "Write the update before submitting." }
     const item: SchoolUpdate = { ...input, text: input.text.trim(), id: uid("up"), status: "Draft" }
+
+    const classNumId = Number(input.classId)
+    if (Number.isFinite(classNumId)) {
+      api.post("/updates", {
+        classId: classNumId,
+        kind: input.kind,
+        subject: input.subject || "General",
+        text: input.text.trim(),
+        due: input.due || null,
+        author: input.author || null,
+      }).then(syncBackend).catch(console.error)
+    }
+
     return { next: withAudit({ ...current, updates: [item, ...current.updates] }, input.author, `Drafted a ${input.kind.toLowerCase()} update`) }
-  }), [simple])
+  }), [simple, syncBackend])
 
   const setUpdateStatus = useCallback((id: string, status: UpdateStatus, actor: string) => {
-    simple((current) => ({ next: withAudit({ ...current, updates: current.updates.map((item) => (item.id === id ? { ...item, status } : item)) }, actor, `Marked an update as ${status}`) }))
-  }, [simple])
+    simple((current) => {
+      const updateNumId = Number(id.replace(/^up-/, ""))
+      if (Number.isFinite(updateNumId)) {
+        api.patch(`/updates/${updateNumId}/status`, { status }).then(syncBackend).catch(console.error)
+      }
+      return { next: withAudit({ ...current, updates: current.updates.map((item) => (item.id === id ? { ...item, status } : item)) }, actor, `Marked an update as ${status}`) }
+    })
+  }, [simple, syncBackend])
 
   const resetDemo = useCallback(() => {
     const fresh = createSeed()

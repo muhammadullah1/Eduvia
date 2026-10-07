@@ -49,6 +49,7 @@ export type Staff = {
 
 export type Student = {
   id: string
+  admissionNo?: string
   name: string
   classId: string
   guardian: string

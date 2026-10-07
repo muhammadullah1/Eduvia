@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react"
 import {
-  Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, Check, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
+  Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
   Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, ReceiptText, Search, Settings2, ShieldAlert, ShieldCheck,
-  Sparkles, Sun, UserCheck, UserRound, Users, WalletCards,
+  Sun, UserCheck, UserRound, Users, WalletCards,
 } from "lucide-react"
 import {
   BrowserRouter,
@@ -16,8 +16,6 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -27,9 +25,11 @@ import { AcademicSetup, Admissions, Examinations, Fees, Finance, ManagementDashb
 import { AccountantPortal, AbsencesPanel, CurriculumPanel, LessonReviewPanel, OperationsOverview, ResultsGatePanel, SettingsPanel, WeeklyTestsPanel } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
+import { ForgotPasswordScreen, LoginScreen, ResetPasswordScreen } from "@/features/auth/screens"
 import { DEMO_USERS } from "@/lib/actor"
 import { ALL_ROLES, clearAuth, defaultSection, loadAuth, portalPath, roleFromSlug, saveAuth, type Role } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
+import { api } from "@/lib/api"
 import { can } from "@/lib/permissions"
 
 type Icon = ComponentType<{ className?: string }>
@@ -138,87 +138,6 @@ function Logo({ compact = false, inverted = false }: { compact?: boolean; invert
   )
 }
 
-function LoginScreen() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const redirectTo = (location.state as { from?: string } | null)?.from
-  const [role, setRole] = useState<Role>("super_admin")
-  const [email, setEmail] = useState(roles.super_admin.email)
-  const [password, setPassword] = useState("password")
-  const [error, setError] = useState("")
-  const [forgot, setForgot] = useState(false)
-
-  function enter(next = role) {
-    if (!email.trim() || !password.trim()) {
-      setError("Email and password are required.")
-      return
-    }
-    if (password !== "password") {
-      setError("Use the demo password: password")
-      return
-    }
-    setError("")
-    saveAuth({ role: next })
-    const target = redirectTo && redirectTo !== "/login" ? redirectTo : portalPath(next)
-    navigate(target, { replace: true })
-  }
-
-  return (
-    <main className="login-canvas min-h-svh p-4 md:p-7">
-      <div className="mx-auto flex min-h-[calc(100svh-2rem)] max-w-[1500px] overflow-hidden rounded-[2rem] border bg-card shadow-[0_32px_100px_-42px_rgba(16,38,54,.45)] md:min-h-[calc(100svh-3.5rem)]">
-        <section className="relative hidden w-[56%] overflow-hidden bg-primary p-12 text-primary-foreground lg:flex lg:flex-col">
-          <div className="school-grid absolute inset-0 opacity-20" />
-          <div className="relative z-10 flex items-center gap-3"><Logo /><Badge className="border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground">SRS v2</Badge></div>
-          <div className="relative z-10 my-auto max-w-2xl py-16">
-            <p className="mb-5 flex items-center gap-2 text-xs font-semibold tracking-[0.22em] text-primary-foreground/65 uppercase"><Sparkles className="size-4" /> One connected campus</p>
-            <h1 className="font-heading text-5xl leading-[1.05] font-semibold tracking-[-0.045em] xl:text-7xl">Every school day,<br /><span className="text-accent">beautifully organised.</span></h1>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-primary-foreground/70">A complete operating system for super admins, operations managers, accountants, teachers and parents—from admissions to verified receipts and published report cards.</p>
-          </div>
-        </section>
-        <section className="flex flex-1 items-center justify-center p-6 sm:p-10 lg:p-14">
-          <div className="w-full max-w-md">
-            <div className="mb-8 lg:hidden"><Logo /></div>
-            <Badge variant="secondary" className="mb-4">Portal access</Badge>
-            <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">Welcome back</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose a portal. Demo password is <span className="font-medium text-foreground">password</span>.</p>
-            <div className="mt-7 grid gap-2">
-              {ALL_ROLES.map((roleKey) => {
-                const item = roles[roleKey]
-                const Icon = item.icon
-                const selected = role === roleKey
-                return (
-                  <button key={roleKey} onClick={() => { setRole(roleKey); setEmail(item.email); setError("") }} className={`flex items-center gap-4 rounded-2xl border p-4 text-left transition-all ${selected ? "border-primary bg-primary/4 shadow-sm ring-2 ring-primary/10" : "hover:border-primary/25 hover:bg-muted/50"}`}>
-                    <span className={`grid size-11 place-items-center rounded-xl ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}><Icon className="size-5" /></span>
-                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.description}</span></span>
-                    <span className={`grid size-5 place-items-center rounded-full border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border"}`}>{selected ? <Check className="size-3" /> : null}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="mt-6 grid gap-1.5">
-              <label className="text-sm font-medium" htmlFor="portal-email">Email or user ID</label>
-              <Input id="portal-email" aria-invalid={Boolean(error)} value={email} onChange={(event) => setEmail(event.target.value)} />
-            </div>
-            <div className="mt-4 grid gap-1.5">
-              <div className="flex items-center justify-between"><label className="text-sm font-medium" htmlFor="portal-password">Password</label><button className="text-xs font-medium text-primary" onClick={() => setForgot(true)}>Forgot password?</button></div>
-              <Input id="portal-password" aria-invalid={Boolean(error)} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-              {error ? <p className="text-xs text-destructive">{error}</p> : null}
-            </div>
-            <Button size="lg" className="mt-6 w-full" onClick={() => enter()}>Explore {roles[role].short} portal</Button>
-            <p className="mt-5 text-center text-xs text-muted-foreground"><ShieldCheck className="mr-1 inline size-3.5" />Role-based demo · Changes stay in this browser</p>
-          </div>
-        </section>
-      </div>
-      <Dialog open={forgot} onOpenChange={setForgot}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Reset password</DialogTitle><DialogDescription>A reset link would be sent to {email || "your school email"}. In this demo, keep using password.</DialogDescription></DialogHeader>
-          <DialogFooter><Button onClick={() => { setForgot(false); toast.success("Reset instructions noted for the demo account") }}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </main>
-  )
-}
-
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   const auth = loadAuth()
@@ -276,11 +195,18 @@ function PortalShell() {
     return <Navigate to={portalPath(role, section)} replace />
   }
 
-  function changeRole(next: Role) {
-    saveAuth({ role: next })
+  async function changeRole(next: Role) {
+    try {
+      const creds = roles[next]
+      const res = await api.login(creds.email, "password")
+      saveAuth({ role: next, token: res.token, user: res.user })
+    } catch {
+      saveAuth({ role: next })
+    }
     setQuery("")
     setMobileNavOpen(false)
     navigate(portalPath(next))
+    window.dispatchEvent(new Event("eduvia:auth-changed"))
   }
 
   function openSection(id: string) {
@@ -408,6 +334,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<GuestOnly><LoginScreen /></GuestOnly>} />
+      <Route path="/forgot-password" element={<GuestOnly><ForgotPasswordScreen /></GuestOnly>} />
+      <Route path="/reset-password" element={<GuestOnly><ResetPasswordScreen /></GuestOnly>} />
+      <Route path="/set-password" element={<GuestOnly><ResetPasswordScreen /></GuestOnly>} />
       <Route path="/" element={<HomeRedirect />} />
       <Route
         path="/:role/:section/*"

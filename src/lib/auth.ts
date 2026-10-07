@@ -20,8 +20,20 @@ const LEGACY_ROLES: Record<string, Role> = {
 
 const AUTH_KEY = "eduvia-auth"
 
+export type AuthUser = {
+  id: number
+  fkSchoolId?: number
+  firstName: string
+  lastName: string
+  email: string
+  role: Role
+  phone?: string | null
+}
+
 export type AuthSession = {
   role: Role
+  token?: string
+  user?: AuthUser | null
 }
 
 function normalizeRole(value: unknown): Role | null {
@@ -40,8 +52,9 @@ export function loadAuth(): AuthSession | null {
   try {
     const raw = localStorage.getItem(AUTH_KEY)
     if (!raw) return null
-    const role = normalizeRole((JSON.parse(raw) as { role?: unknown }).role)
-    return role ? { role } : null
+    const parsed = JSON.parse(raw) as { role?: unknown; token?: string; user?: AuthUser }
+    const role = normalizeRole(parsed.role)
+    return role ? { role, token: parsed.token, user: parsed.user } : null
   } catch {
     return null
   }

@@ -281,7 +281,10 @@ export function TeacherUpdates() {
   const { state, addUpdate, setUpdateStatus } = useSchool()
   const actor = useActor()
   const teacher = state.staff.find((person) => person.id === TEACHER_ID)
-  const [classId, setClassId] = useState("g7b")
+  const [selectedClassId, setClassId] = useState("")
+  const classId = (selectedClassId && (teacher?.classIds ?? []).includes(selectedClassId))
+    ? selectedClassId
+    : (teacher?.classIds?.[0] ?? state.classes[0]?.id ?? "g7b")
   const [kind, setKind] = useState<"Homework" | "Classwork" | "Notice">("Notice")
   const [subject, setSubject] = useState(teacher?.subject ?? "")
   const [text, setText] = useState("")
