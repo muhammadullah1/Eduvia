@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { BadgeCheck, CloudUpload, Download, FileCheck2, FileSpreadsheet, History, Landmark, Plus, Trash2, UserCheck, Users, WalletCards } from "lucide-react"
@@ -199,8 +199,11 @@ export function AcademicSetup() {
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "" })
   const [teacherForm, setTeacherForm] = useState({ name: "", email: "", phone: "", subject: "", classIds: "" })
   const [editing, setEditing] = useState<Staff | null>(null)
-  const [classId, setClassId] = useState(classFromUrl || state.classes[0]?.id || "")
-  const [tab, setTab] = useState(classFromUrl ? "timetable" : "sessions")
+  const [selectedClassId, setSelectedClassId] = useState("")
+  const validUrlClass = classFromUrl && state.classes.some((item) => item.id === classFromUrl) ? classFromUrl : ""
+  const classId = validUrlClass || selectedClassId || state.classes[0]?.id || ""
+  const [selectedTab, setSelectedTab] = useState<string | null>(null)
+  const tab = selectedTab ?? (classFromUrl ? "timetable" : "sessions")
   const teachers = state.staff.filter((person) => person.role === "Teacher")
   const [slotForm, setSlotForm] = useState({ day: "Monday", time: "08:00", periodIndex: "1", teacherId: teachers[0]?.id ?? "", room: "Room 14" })
   const [error, setError] = useState("")
@@ -209,21 +212,14 @@ export function AcademicSetup() {
   const visible = state.slots.filter((slot) => slot.classId === classId).sort((a, b) => WEEKDAYS.indexOf(a.day as (typeof WEEKDAYS)[number]) - WEEKDAYS.indexOf(b.day as (typeof WEEKDAYS)[number]) || a.periodIndex - b.periodIndex)
   const currentSession = state.sessions.find((session) => session.current)
 
-  useEffect(() => {
-    if (classFromUrl && state.classes.some((item) => item.id === classFromUrl)) {
-      setClassId(classFromUrl)
-      setTab("timetable")
-    }
-  }, [classFromUrl, state.classes])
-
   function selectClass(id: string) {
-    setClassId(id)
-    setTab("timetable")
+    setSelectedClassId(id)
+    setSelectedTab("timetable")
     navigate(portalPath(actor.role, "academic", `classes/${id}`))
   }
 
   return (
-    <Tabs value={tab} onValueChange={setTab} className="grid gap-5">
+    <Tabs value={tab} onValueChange={setSelectedTab} className="grid gap-5">
       <TabsList className="h-10 flex-wrap">
         <TabsTrigger value="sessions">Sessions</TabsTrigger>
         <TabsTrigger value="classes">Classes</TabsTrigger>
@@ -460,44 +456,34 @@ export function Admissions({ query }: { query: string }) {
   const splat = params["*"] ?? ""
   const appFromUrl = splat.startsWith("applications/") ? splat.slice("applications/".length) : ""
   const studentFromUrl = splat.startsWith("students/") ? splat.slice("students/".length) : ""
-  const [tab, setTab] = useState(studentFromUrl ? "students" : "applications")
+  const [selectedTab, setSelectedTab] = useState<string | null>(null)
+  const tab = selectedTab ?? (studentFromUrl ? "students" : "applications")
   const [localQuery, setLocalQuery] = useState("")
   const [status, setStatus] = useState("all")
   const [classId, setClassId] = useState("all")
   const [open, setOpen] = useState(false)
-  const [selectedApp, setSelectedApp] = useState<Application | null>(() => state.applications.find((item) => item.id === appFromUrl) ?? null)
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(() => state.students.find((item) => item.id === studentFromUrl) ?? null)
+  const selectedApp = useMemo(
+    () => (appFromUrl ? state.applications.find((item) => item.id === appFromUrl) ?? null : null),
+    [appFromUrl, state.applications]
+  )
+  const selectedStudent = useMemo(
+    () => (studentFromUrl ? state.students.find((item) => item.id === studentFromUrl) ?? null : null),
+    [studentFromUrl, state.students]
+  )
   const [confirm, setConfirm] = useState<null | { id: string; status: Application["status"] }>(null)
   const search = localQuery || query
 
-  useEffect(() => {
-    if (appFromUrl) {
-      setTab("applications")
-      setSelectedApp(state.applications.find((item) => item.id === appFromUrl) ?? null)
-      setSelectedStudent(null)
-    } else if (studentFromUrl) {
-      setTab("students")
-      setSelectedStudent(state.students.find((item) => item.id === studentFromUrl) ?? null)
-      setSelectedApp(null)
-    } else {
-      setSelectedApp(null)
-      setSelectedStudent(null)
-    }
-  }, [appFromUrl, studentFromUrl, state.applications, state.students])
-
   function openApp(item: Application) {
-    setSelectedApp(item)
+    setSelectedTab("applications")
     navigate(portalPath(actor.role, "admissions", `applications/${item.id}`))
   }
 
   function openStudent(item: Student) {
-    setSelectedStudent(item)
+    setSelectedTab("students")
     navigate(portalPath(actor.role, "admissions", `students/${item.id}`))
   }
 
   function closeDetails() {
-    setSelectedApp(null)
-    setSelectedStudent(null)
     navigate(portalPath(actor.role, "admissions"))
   }
 
@@ -526,7 +512,7 @@ export function Admissions({ query }: { query: string }) {
               <Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">All classes</SelectItem>{state.classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>
             </div>
           </div>
-          <Tabs value={tab} onValueChange={setTab}><TabsList><TabsTrigger value="applications">Applications</TabsTrigger><TabsTrigger value="students">Students</TabsTrigger></TabsList></Tabs>
+          <Tabs value={tab} onValueChange={setSelectedTab}><TabsList><TabsTrigger value="applications">Applications</TabsTrigger><TabsTrigger value="students">Students</TabsTrigger></TabsList></Tabs>
         </CardHeader>
         <CardContent>
           {tab === "applications" ? (
@@ -591,7 +577,7 @@ export function Admissions({ query }: { query: string }) {
                 <p className="text-muted-foreground">{selectedApp.notes || "No admission notes yet."}</p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => { setApplicationStatus(selectedApp.id, "Review", actor.name); setSelectedApp({ ...selectedApp, status: "Review" }); toast.success("Moved to review") }}>Mark in review</Button>
+                <Button variant="outline" onClick={() => { setApplicationStatus(selectedApp.id, "Review", actor.name); toast.success("Moved to review") }}>Mark in review</Button>
                 <Button variant="secondary" onClick={() => setConfirm({ id: selectedApp.id, status: "Waitlist" })}>Waitlist</Button>
                 <Button onClick={() => setConfirm({ id: selectedApp.id, status: "Enrolled" })}>Enroll</Button>
                 <Button variant="destructive" onClick={() => setConfirm({ id: selectedApp.id, status: "Rejected" })}>Reject</Button>
@@ -745,23 +731,18 @@ export function Examinations() {
   const navigate = useNavigate()
   const params = useParams()
   const sheetFromUrl = params["*"] ?? ""
-  const [active, setActive] = useState<MarkSheet | null>(() => state.sheets.find((sheet) => sheet.id === sheetFromUrl) ?? null)
+  const current = useMemo(
+    () => (sheetFromUrl ? state.sheets.find((sheet) => sheet.id === sheetFromUrl) ?? null : null),
+    [sheetFromUrl, state.sheets]
+  )
   const [status, setStatus] = useState("all")
   const rows = state.sheets.filter((sheet) => status === "all" || sheet.status === status)
-  const current = active ? state.sheets.find((sheet) => sheet.id === active.id) ?? null : null
-
-  useEffect(() => {
-    if (sheetFromUrl) setActive(state.sheets.find((sheet) => sheet.id === sheetFromUrl) ?? null)
-    else setActive(null)
-  }, [sheetFromUrl, state.sheets])
 
   function openSheet(sheet: MarkSheet) {
-    setActive(sheet)
     navigate(portalPath(actor.role, "exams", sheet.id))
   }
 
   function closeSheet() {
-    setActive(null)
     navigate(portalPath(actor.role, "exams"))
   }
 
@@ -996,7 +977,7 @@ export function MessagesDesk() {
   )
 }
 
-export function Reports({ onReset }: { onReset: () => void }) {
+export function Reports() {
   const { state } = useSchool()
   const actor = useActor()
   const [preview, setPreview] = useState<string | null>(null)
@@ -1016,7 +997,6 @@ export function Reports({ onReset }: { onReset: () => void }) {
             <CardHeader><div className="flex justify-between"><span className="grid size-10 place-items-center rounded-xl bg-muted"><Download className="size-4" /></span></div><CardTitle className="mt-4">{item.title}</CardTitle><CardDescription>{item.detail}</CardDescription></CardHeader>
           </Card>
         ))}
-        {financial ? <Card><CardHeader><CardTitle>Reset demo data</CardTitle><CardDescription>Restores the original sample school if you want a clean walkthrough.</CardDescription></CardHeader><CardFooter><Button variant="outline" onClick={onReset}>Reset</Button></CardFooter></Card> : null}
       </TabsContent>
       <TabsContent value="audit" className="mt-5">
         <Card>

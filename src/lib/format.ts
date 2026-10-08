@@ -1,4 +1,4 @@
-import { SESSION_TODAY } from "@/data/session"
+import { getToday } from "./dates"
 
 export function formatPkr(amount: number) {
   return `₨ ${Math.round(amount).toLocaleString("en-PK")}`
@@ -26,7 +26,7 @@ export function formatLongDate(iso: string) {
   })
 }
 
-export function formatSchoolDay(iso = SESSION_TODAY) {
+export function formatSchoolDay(iso = getToday()) {
   const date = new Date(`${iso}T12:00:00Z`)
   return date.toLocaleDateString("en-GB", {
     weekday: "long",

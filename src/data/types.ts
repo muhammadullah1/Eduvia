@@ -362,14 +362,9 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
   dailyTestRules: { passPercent: 40, maxFailsPerMonth: 1, lowMarksEnabled: true, lowMarksMinPassed: 3, lowMarksBelowPercent: 55 },
   resultVisibility: { feeRule: "all_due_paid", requireOverrideReason: true },
 }
-
-function localDate() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  const day = String(now.getDate()).padStart(2, "0")
-  return `${now.getFullYear()}-${month}-${day}`
-}
+import { getToday } from "@/lib/dates"
 
 /** Calendar date used for "today" on teacher and parent screens. */
-export const TODAY = localDate()
+export const TODAY = getToday()
+export { getToday }
 export const PAGE_SIZE = 8

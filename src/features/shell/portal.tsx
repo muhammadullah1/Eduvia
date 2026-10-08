@@ -13,7 +13,6 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom"
-import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -159,7 +158,7 @@ function HomeRedirect() {
 function PortalShell() {
   const { role: roleParam, section: sectionParam } = useParams()
   const navigate = useNavigate()
-  const { state, resetDemo } = useSchool()
+  const { state } = useSchool()
   const { theme, setTheme } = useTheme()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState("")
@@ -221,7 +220,7 @@ function PortalShell() {
     if (section === "finance") return <Finance />
     if (section === "messages") return <MessagesDesk />
     if (section === "settings") return <SettingsPanel />
-    if (section === "reports") return <Reports onReset={() => { resetDemo(); toast.success("School data reloaded") }} />
+    if (section === "reports") return <Reports />
     return <ManagementDashboard onOpen={openSection} />
   })()
 

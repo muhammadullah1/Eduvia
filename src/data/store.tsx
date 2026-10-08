@@ -94,7 +94,6 @@ type SchoolContextValue = {
   grantResultOverride: (examId: string, studentId: string, reason: string, actor: Actor) => Result
   revokeResultOverride: (overrideId: string, actor: Actor) => Result
   updateSettings: (patch: Partial<SchoolSettings>, actor: Actor) => Result
-  resetDemo: () => void
 }
 
 const SchoolContext = createContext<SchoolContextValue | null>(null)
@@ -216,7 +215,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     try {
       const auth = loadAuth()
       if (auth?.token) {
-        const fresh = await fetchBackendState(stateRef.current)
+        const fresh = await fetchBackendState()
         stateRef.current = fresh
         setState(fresh)
       }
@@ -226,12 +225,16 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    syncBackend()
-    const onAuth = () => {
-      syncBackend()
+    let active = true
+    const runSync = () => {
+      if (active) void syncBackend()
     }
-    window.addEventListener("eduvia:auth-changed", onAuth)
-    return () => window.removeEventListener("eduvia:auth-changed", onAuth)
+    runSync()
+    window.addEventListener("eduvia:auth-changed", runSync)
+    return () => {
+      active = false
+      window.removeEventListener("eduvia:auth-changed", runSync)
+    }
   }, [syncBackend])
 
   /** Runs a pure transition against the latest state and commits it synchronously. */
@@ -1029,19 +1032,15 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     })
   }, [simple, syncBackend])
 
-  const resetDemo = useCallback(() => {
-    void syncBackend()
-  }, [syncBackend])
-
   const value = useMemo<SchoolContextValue>(() => ({
     state, addApplication, setApplicationStatus, updateStudent, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff,
     saveAttendance, addUpdate, setUpdateStatus, saveScores, setSheetStatus, setClassPeriodCount, recordPayment, confirmPayment, changeTeacherSubject, markTeacherAbsent,
     assignSubstitute, removeSubstitute, cancelAbsence, addPlannedChapter, removePlannedChapter, submitDailyLesson, reviewDailyLesson, saveTestSchedule, generateMonthTests,
-    saveWeeklyMarks, publishWeeklyTest, grantResultOverride, revokeResultOverride, updateSettings, resetDemo,
+    saveWeeklyMarks, publishWeeklyTest, grantResultOverride, revokeResultOverride, updateSettings,
   }), [state, addApplication, setApplicationStatus, updateStudent, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff,
     saveAttendance, addUpdate, setUpdateStatus, saveScores, setSheetStatus, setClassPeriodCount, recordPayment, confirmPayment, changeTeacherSubject, markTeacherAbsent,
     assignSubstitute, removeSubstitute, cancelAbsence, addPlannedChapter, removePlannedChapter, submitDailyLesson, reviewDailyLesson, saveTestSchedule, generateMonthTests,
-    saveWeeklyMarks, publishWeeklyTest, grantResultOverride, revokeResultOverride, updateSettings, resetDemo])
+    saveWeeklyMarks, publishWeeklyTest, grantResultOverride, revokeResultOverride, updateSettings])
 
   return <SchoolContext.Provider value={value}>{children}</SchoolContext.Provider>
 }

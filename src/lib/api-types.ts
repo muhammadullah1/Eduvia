@@ -109,7 +109,7 @@ export type ApiApplication = {
   interviewScore?: string | null
   interviewResult?: string | null
   decision?: "Admit" | "Reject" | "Waitlist" | "" | null
-  status: "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected"
+  status: "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected" | "Inquiry" | "Applied" | "UnderReview" | "InterviewScheduled" | "Approved"
   submittedOn?: string | null
   notes?: string | null
   documents?: Array<{
@@ -176,8 +176,8 @@ export type ApiExam = {
   fkClassId: number
   sheets?: Array<{
     id: number
-    subject: string
-    status: SheetStatus
+    subject: string | { id?: number; name?: string } | null
+    status: SheetStatus | "Approved"
     maxScore: string | number
     publishedAt?: string | null
     rows?: Array<{
@@ -216,7 +216,7 @@ export type ApiAttendance = {
   fkStudentId: number
   fkClassId: number
   date: string
-  status: AttendanceStatus
+  status: AttendanceStatus | "Late" | "Excused" | "HalfDay"
 }
 
 export type ApiPlannedChapter = {
@@ -249,6 +249,7 @@ export type ApiDailyLesson = {
     name: string
   } | null
   teacher?: {
+    id?: number
     user?: {
       firstName: string
       lastName: string
@@ -263,8 +264,8 @@ export type ApiTimetableSlot = {
   day: string
   time: string
   periodIndex: number
-  subject: string
-  teacher: string
+  subject: string | { id?: number; name?: string } | null
+  teacher: string | { id?: number; user?: { firstName: string; lastName: string; email?: string } | null } | null
   fkTeacherId: number
   room?: string | null
 }

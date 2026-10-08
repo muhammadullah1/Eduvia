@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { BookOpen, UserCheck, Users } from "lucide-react"
@@ -105,16 +105,13 @@ export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }
   const params = useParams()
   const classFromUrl = params["*"] ?? ""
   const teacher = signedInTeacher(state.staff)
-  const teacherId = teacher?.id ?? ""
-  const [classId, setClassId] = useState(classFromUrl || teacher?.classIds[0] || "")
+  const [selectedClassId, setSelectedClassId] = useState("")
+  const validUrlClass = classFromUrl && (teacher?.classIds ?? []).includes(classFromUrl) ? classFromUrl : ""
+  const classId = validUrlClass || selectedClassId || teacher?.classIds[0] || ""
   const students = state.students.filter((student) => student.classId === classId && student.status !== "Withdrawn")
 
-  useEffect(() => {
-    if (classFromUrl && (teacher?.classIds ?? []).includes(classFromUrl)) setClassId(classFromUrl)
-  }, [classFromUrl, teacher?.classIds])
-
   function selectClass(id: string) {
-    setClassId(id)
+    setSelectedClassId(id)
     navigate(`/teacher/classes/${id}`)
   }
 
@@ -151,7 +148,6 @@ export function TeacherAttendance() {
   const { state, saveAttendance } = useSchool()
   const actor = useActor()
   const teacher = signedInTeacher(state.staff)
-  const teacherId = teacher?.id ?? ""
   const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
   const [date, setDate] = useState(TODAY)
   const students = state.students.filter((student) => student.classId === classId && student.status !== "Withdrawn")
@@ -265,7 +261,6 @@ export function TeacherDailyUpdate() {
 export function TeacherWeeklyTests() {
   const { state } = useSchool()
   const teacher = signedInTeacher(state.staff)
-  const teacherId = teacher?.id ?? ""
   const [marking, setMarking] = useState<WeeklyTest | null>(null)
   const month = TODAY.slice(0, 7)
   const tests = state.weeklyTests
@@ -299,7 +294,6 @@ export function TeacherUpdates() {
   const { state, addUpdate, setUpdateStatus } = useSchool()
   const actor = useActor()
   const teacher = signedInTeacher(state.staff)
-  const teacherId = teacher?.id ?? ""
   const [selectedClassId, setClassId] = useState("")
   const classId = (selectedClassId && (teacher?.classIds ?? []).includes(selectedClassId))
     ? selectedClassId
@@ -344,7 +338,6 @@ export function TeacherMarks() {
   const { state, saveScores, setSheetStatus } = useSchool()
   const actor = useActor()
   const teacher = signedInTeacher(state.staff)
-  const teacherId = teacher?.id ?? ""
   const sheets = state.sheets.filter((sheet) => teacher?.classIds.includes(sheet.classId) && teacher.subject === sheet.subject && !sheet.examName.includes("August"))
   const [sheetId, setSheetId] = useState(sheets[0]?.id ?? "")
   const sheet = state.sheets.find((item) => item.id === sheetId) ?? sheets[0]

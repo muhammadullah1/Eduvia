@@ -6,8 +6,9 @@ export type Actor = { role: Role; name: string }
 
 /** The signed-in user. The URL role is only a fallback before the session loads. */
 export function useActor(): Actor {
+  const params = useParams()
   const session = loadAuth()
-  const role = session?.user?.role ?? roleFromSlug(useParams().role) ?? "super_admin"
+  const role = session?.user?.role ?? roleFromSlug(params.role) ?? "super_admin"
   const name = session?.user ? `${session.user.firstName} ${session.user.lastName}`.trim() : role
   return { role, name }
 }

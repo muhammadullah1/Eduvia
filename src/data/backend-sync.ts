@@ -71,7 +71,7 @@ async function safeGet<T>(path: string, query: Record<string, string | number | 
   }
 }
 
-export async function fetchBackendState(_currentState: SchoolState): Promise<SchoolState> {
+export async function fetchBackendState(): Promise<SchoolState> {
   const [
     classesData,
     sessionsData,
