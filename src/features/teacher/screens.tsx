@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { MarksDialog } from "@/features/ops/screens"
 import { studentName, useSchool } from "@/data/store"
-import { TODAY, type AttendanceStatus, type WeeklyTest } from "@/data/types"
+import { TODAY, isAttendancePresent, type AttendanceStatus, type WeeklyTest } from "@/data/types"
 import { teacherDuties, weekdayOf } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { loadAuth } from "@/lib/auth"
@@ -55,7 +55,7 @@ export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) 
   const classIds = teacher?.classIds ?? []
   const weekly = schoolWeek(TODAY).map(([date, label]) => {
     const marks = state.attendance.filter((mark) => classIds.includes(mark.classId) && mark.date === date)
-    const present = marks.filter((mark) => mark.status === "Present").length
+    const present = marks.filter((mark) => isAttendancePresent(mark.status)).length
     return { day: label, value: marks.length ? Math.round((present / marks.length) * 100) : 0 }
   })
   return (
@@ -159,14 +159,14 @@ export function TeacherAttendance() {
     return map
   }, [students, state.attendance, date])
   const [marks, setMarks] = useState<Record<string, AttendanceStatus>>(initial)
-  const present = Object.values(marks).filter((status) => status === "Present").length
+  const present = Object.values(marks).filter((status) => isAttendancePresent(status)).length
 
   return (
     <div className="grid gap-5">
       <div className="grid gap-4 sm:grid-cols-3">
         <MetricCard icon={UserCheck} label="Present" value={String(present)} note={`of ${students.length} in this register`} />
         <MetricCard icon={Users} label="Absent" value={String(Object.values(marks).filter((status) => status === "Absent").length)} note="Follow up with the office" />
-        <MetricCard icon={BookOpen} label="Leave" value={String(Object.values(marks).filter((status) => status === "Leave").length)} note="Approved or informed leave" />
+        <MetricCard icon={BookOpen} label="Leave / Excused" value={String(Object.values(marks).filter((status) => status === "Leave" || status === "Excused").length)} note="Approved or informed leave" />
       </div>
       <Card>
         <CardHeader className="gap-4">
@@ -184,8 +184,8 @@ export function TeacherAttendance() {
             return (
               <div key={student.id} className="flex flex-col gap-3 rounded-xl border p-3 sm:flex-row sm:items-center">
                 <div className="flex-1"><p className="text-sm font-medium">{student.name}</p><p className="text-xs text-muted-foreground">{student.id}</p></div>
-                <div className="flex gap-2">
-                  {(["Present", "Absent", "Leave"] as AttendanceStatus[]).map((option) => (
+                <div className="flex flex-wrap gap-2">
+                  {(["Present", "Late", "Absent", "Excused", "HalfDay"] as AttendanceStatus[]).map((option) => (
                     <Button key={option} size="sm" variant={status === option ? "default" : "outline"} onClick={() => setMarks({ ...initial, ...marks, [student.id]: option })}>{option}</Button>
                   ))}
                 </div>

@@ -176,7 +176,10 @@ export type ApiExam = {
   fkClassId: number
   sheets?: Array<{
     id: number
-    subject: string | { id?: number; name?: string } | null
+    subject: {
+      id: number
+      name: string
+    }
     status: SheetStatus | "Approved"
     maxScore: string | number
     publishedAt?: string | null
@@ -216,7 +219,7 @@ export type ApiAttendance = {
   fkStudentId: number
   fkClassId: number
   date: string
-  status: AttendanceStatus | "Late" | "Excused" | "HalfDay"
+  status: AttendanceStatus
 }
 
 export type ApiPlannedChapter = {
@@ -246,10 +249,11 @@ export type ApiDailyLesson = {
   reviewStatus?: ReviewStatus
   reviewNote?: string | null
   subject?: {
+    id?: number
     name: string
   } | null
   teacher?: {
-    id?: number
+    id: number
     user?: {
       firstName: string
       lastName: string
@@ -264,8 +268,18 @@ export type ApiTimetableSlot = {
   day: string
   time: string
   periodIndex: number
-  subject: string | { id?: number; name?: string } | null
-  teacher: string | { id?: number; user?: { firstName: string; lastName: string; email?: string } | null } | null
+  subject: {
+    id: number
+    name: string
+  }
+  teacher: {
+    id: number
+    user?: {
+      firstName: string
+      lastName: string
+      email?: string
+    } | null
+  }
   fkTeacherId: number
   room?: string | null
 }

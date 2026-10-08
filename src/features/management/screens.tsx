@@ -21,7 +21,7 @@ import { AdmissionWizard } from "@/features/management/admission-wizard"
 import { FeeMonthTable, PrintReceiptButton, RecordPaymentForm } from "@/features/fees/components"
 import { feeMonthsLabel } from "@/features/fees/receipts"
 import { useSchool, studentName } from "@/data/store"
-import { TODAY, type Application, type MarkSheet, type Staff, type Student } from "@/data/types"
+import { TODAY, isAttendancePresent, type Application, type MarkSheet, type Staff, type Student } from "@/data/types"
 import { WEEKDAYS } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
@@ -60,7 +60,7 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
   const active = state.students.filter((student) => student.status === "Active").length
   const inactive = state.students.filter((student) => student.status !== "Active").length
   const teachers = state.staff.filter((person) => person.role.toLowerCase().includes("teacher")).length
-  const presentToday = state.attendance.filter((mark) => mark.date === TODAY && mark.status === "Present").length
+  const presentToday = state.attendance.filter((mark) => mark.date === TODAY && isAttendancePresent(mark.status)).length
   const markedToday = state.attendance.filter((mark) => mark.date === TODAY).length
   // Overall fee totals: super admin only (UR-01). The dashboard is not mounted for other roles.
   const collectedThisMonth = state.payments.filter((payment) => payment.date.startsWith(TODAY.slice(0, 7)) && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0)
@@ -1016,7 +1016,7 @@ export function Reports() {
           <DialogHeader><DialogTitle>{catalogs.find((item) => item.id === preview)?.title}</DialogTitle><DialogDescription>Generated from the current dummy ledger.</DialogDescription></DialogHeader>
           <div className="grid gap-2 text-sm">
             {preview === "enrollment" && state.classes.map((item) => <div key={item.id} className="flex justify-between border-b py-2"><span>{item.label}</span><span>{state.students.filter((student) => student.classId === item.id && student.status === "Active").length}</span></div>)}
-            {preview === "attendance" && <p>{state.attendance.filter((mark) => mark.date === TODAY && mark.status === "Present").length} present on {formatDate(TODAY)}.</p>}
+            {preview === "attendance" && <p>{state.attendance.filter((mark) => mark.date === TODAY && isAttendancePresent(mark.status)).length} present on {formatDate(TODAY)}.</p>}
             {preview === "fees" && state.payments.filter((payment) => payment.status === "Pending").map((payment) => <div key={payment.ref} className="flex justify-between border-b py-2"><span>{payment.ref}</span><span>{pkr(payment.amount)}</span></div>)}
             {preview === "exams" && state.sheets.map((sheet) => <div key={sheet.id} className="flex justify-between border-b py-2"><span>{sheet.subject}</span><StatusBadge value={sheet.status} /></div>)}
             {preview === "sync" && state.syncLogs.map((log) => <div key={log.id} className="border-b py-2">{log.fileName}: {log.imported} imported, {log.skipped} skipped, {log.failed} failed</div>)}

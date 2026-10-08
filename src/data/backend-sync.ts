@@ -1,10 +1,10 @@
 import {
   DEFAULT_SETTINGS,
   TODAY,
+  normalizeApplicationStatus,
   type AcademicSession,
   type AbsenceStatus,
   type Application,
-  type ApplicationStatus,
   type AttendanceMark,
   type AttendanceStatus,
   type AuditEvent,
@@ -225,7 +225,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         interviewScore: a.interviewScore ?? "",
         interviewResult: a.interviewResult ?? "",
         decision: (a.decision as "Admit" | "Reject" | "Waitlist" | "") ?? "",
-        status: (a.status === "Inquiry" || a.status === "Applied" ? "New" : a.status === "UnderReview" || a.status === "InterviewScheduled" || a.status === "Approved" ? "Review" : a.status === "Enrolled" ? "Enrolled" : a.status === "Rejected" ? "Rejected" : a.status) as ApplicationStatus,
+        status: normalizeApplicationStatus(a.status),
         submittedOn: String(a.submittedOn || (a as { created_at?: string }).created_at || "").slice(0, 10),
         notes: a.notes ?? "",
       }))
@@ -284,7 +284,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
     examsData.forEach((exam) => {
       const sheetsOnExam = exam.sheets ?? (exam as { markSheets?: typeof exam.sheets }).markSheets ?? []
       sheetsOnExam.forEach((sheet) => {
-        const subjectName = typeof sheet.subject === "string" ? sheet.subject : sheet.subject?.name ?? "Subject"
+        const subjectName = sheet.subject.name || "Subject"
         const rawStatus = sheet.status === "Approved" ? "Verified" : sheet.status
         sheets.push({
           id: String(sheet.id),
@@ -323,7 +323,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         studentId: String(a.fkStudentId),
         classId: String(a.fkClassId),
         date: a.date ? a.date.slice(0, 10) : TODAY,
-        status: (a.status === "Excused" || a.status === "HalfDay" ? "Leave" : a.status) as AttendanceStatus,
+        status: a.status as AttendanceStatus,
       }))
     : []
 
@@ -367,9 +367,9 @@ export async function fetchBackendState(): Promise<SchoolState> {
         day: slot.day || (slot as { dayOfWeek?: string }).dayOfWeek || "",
         time: String(slot.time || (slot as { startTime?: string }).startTime || "").slice(0, 5),
         periodIndex: Number(slot.periodIndex) || 1,
-        subject: typeof slot.subject === "string" ? slot.subject : slot.subject?.name ?? "",
+        subject: slot.subject.name,
         teacherId: String(slot.fkTeacherId ?? ""),
-        teacher: typeof slot.teacher === "string" ? slot.teacher : slot.teacher?.user ? `${slot.teacher.user.firstName} ${slot.teacher.user.lastName}`.trim() : "",
+        teacher: slot.teacher?.user ? `${slot.teacher.user.firstName} ${slot.teacher.user.lastName}`.trim() : "",
         room: slot.room ?? "Room",
       }))
     : []

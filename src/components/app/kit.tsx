@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input"
 
 const positive = new Set(["Active", "Paid", "Published", "Present", "Completed", "Approved", "Enrolled", "Verified", "Complete", "Admit", "Excused", "Advance", "Covered", "Passed", "Visible", "Override"])
-const warning = new Set(["Pending", "Review", "Draft", "In progress", "Submitted", "Leave", "Late", "Next", "Upcoming", "New", "Planned", "Waitlist", "Partially Paid", "Scheduled", "MarksEntered", "InProgress", "LowMarks", "Substitute"])
+const warning = new Set(["Pending", "Review", "Draft", "In progress", "Submitted", "Leave", "Late", "HalfDay", "Next", "Upcoming", "New", "Planned", "Waitlist", "Partially Paid", "Scheduled", "MarksEntered", "InProgress", "LowMarks", "Substitute"])
 const negative = new Set(["Rejected", "Absent", "Withdrawn", "Failed", "Reject", "Archived", "Unpaid", "Withheld"])
 
 export function StatusBadge({ value }: { value: string }) {

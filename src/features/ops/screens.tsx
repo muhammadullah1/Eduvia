@@ -17,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { FeeMonthTable, PrintReceiptButton, RecordPaymentForm } from "@/features/fees/components"
 import { feeMonthsLabel } from "@/features/fees/receipts"
 import { studentName, useSchool } from "@/data/store"
-import { TODAY, type DailyTestRules, type Payment, type ResultFeeRule, type ReviewStatus, type TeacherAbsence, type WeeklyTest } from "@/data/types"
+import { TODAY, isAttendancePresent, type DailyTestRules, type Payment, type ResultFeeRule, type ReviewStatus, type TeacherAbsence, type WeeklyTest } from "@/data/types"
 import { activeOverride, availableSubstitutes, busyReason, feeCleared, monthlySummaries, resultVisibility, WEEKDAYS, weekdayOf } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { monthLabel } from "@/lib/fees"
@@ -151,7 +151,7 @@ export function OperationsOverview({ onOpen }: { onOpen: (section: string) => vo
   const { state } = useSchool()
   const active = state.students.filter((student) => student.status === "Active").length
   const marked = state.attendance.filter((mark) => mark.date === TODAY)
-  const present = marked.filter((mark) => mark.status === "Present").length
+  const present = marked.filter((mark) => isAttendancePresent(mark.status)).length
   const pendingCover = state.teacherAbsences.filter((row) => row.date === TODAY && row.status === "Pending").length
   const toReview = state.dailyLessons.filter((row) => row.reviewStatus === "Submitted").length
   const toPublish = state.weeklyTests.filter((test) => test.status === "MarksEntered").length

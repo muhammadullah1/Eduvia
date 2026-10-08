@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FeeMonthTable } from "@/features/fees/components"
 import { feeMonthsLabel, printReceipt } from "@/features/fees/receipts"
 import { useSchool } from "@/data/store"
-import { TODAY, type MarkSheet, type SchoolState } from "@/data/types"
+import { TODAY, isAttendancePresent, type MarkSheet, type SchoolState } from "@/data/types"
 import { monthlySummaries, resultVisibility, weekdayOf } from "@/lib/academics"
 import { feeMonthStatus, monthLabel, outstanding } from "@/lib/fees"
 import { classLabel, formatDate, gradeFromScore, pkr } from "@/lib/format"
@@ -63,7 +63,7 @@ function ChildSwitcher({ childId, onChange, options }: { childId: string; onChan
 export function ParentHome() {
   const { state, child, childId, setChildId, options } = useChild()
   const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(CURRENT_MONTH))
-  const present = marks.filter((mark) => mark.status === "Present").length
+  const present = marks.filter((mark) => isAttendancePresent(mark.status)).length
   const rate = marks.length ? `${Math.round((present / marks.length) * 1000) / 10}%` : "—"
   const visible = state.sheets.filter((sheet) => sheet.classId === child.classId && visibilityFor(state, sheet, child.id).visible)
   const withheld = state.sheets.some((sheet) => sheet.classId === child.classId && sheet.status === "Published" && !visibilityFor(state, sheet, child.id).visible)
@@ -128,13 +128,15 @@ export function ParentHome() {
 export function ParentAttendance() {
   const { state, child, childId, setChildId, options } = useChild()
   const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(CURRENT_MONTH))
-  const present = marks.filter((mark) => mark.status === "Present").length
+  const present = marks.filter((mark) => isAttendancePresent(mark.status)).length
   const absent = marks.filter((mark) => mark.status === "Absent").length
-  const leave = marks.filter((mark) => mark.status === "Leave").length
+  const leave = marks.filter((mark) => mark.status === "Leave" || mark.status === "Excused").length
+  const late = marks.filter((mark) => mark.status === "Late").length
   const pie = [
     { name: "Present", value: present, fill: "var(--color-present)" },
     { name: "Absent", value: absent, fill: "var(--color-absent)" },
-    { name: "Leave", value: leave, fill: "var(--color-leave)" },
+    { name: "Leave / Excused", value: leave, fill: "var(--color-leave)" },
+    ...(late ? [{ name: "Late", value: late, fill: "var(--warning)" }] : []),
   ]
   return (
     <div className="grid gap-5">
