@@ -71,7 +71,7 @@ async function safeGet<T>(path: string, query: Record<string, string | number | 
   }
 }
 
-export async function fetchBackendState(currentState: SchoolState): Promise<SchoolState> {
+export async function fetchBackendState(_currentState: SchoolState): Promise<SchoolState> {
   const [
     classesData,
     sessionsData,
@@ -129,9 +129,9 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         section: c.section,
         room: c.room || "Room",
         periodCount: Number(c.periodCount) || 8,
-        monthlyFee: Number(c.monthlyFee) || 8500,
+        monthlyFee: Number((c as { monthlyTuitionFee?: string | number }).monthlyTuitionFee ?? c.monthlyFee) || 0,
       }))
-    : currentState.classes
+    : []
 
   // 2. Academic Sessions
   const sessions: AcademicSession[] = sessionsData.length
@@ -142,7 +142,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         end: s.endDate,
         current: Boolean(s.isCurrent),
       }))
-    : currentState.sessions
+    : []
 
   // 3. Subjects
   const subjects: Subject[] = subjectsData.length
@@ -151,26 +151,20 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         name: s.name,
         code: s.code,
       }))
-    : currentState.subjects
+    : []
 
   // 4. Staff
   const teacherStaff: Staff[] = teachersData.map((t) => {
-    const isHassan = t.user?.email === "hassan@cls.edu.pk"
     return {
-      id: isHassan ? "st-hassan" : `st-${t.id}`,
+      id: String(t.id),
       name: `${t.user?.firstName ?? ""} ${t.user?.lastName ?? ""}`.trim() || t.employeeCode,
       role: "Teacher",
       email: t.user?.email ?? "",
       phone: t.user?.phone ?? "",
       subject: t.subject?.name ?? "",
-      subjectHistory: [
-        {
-          subject: t.subject?.name ?? "",
-          from: "2026-04-01",
-          by: "Imran Shah",
-          reason: "Session allocation",
-        },
-      ],
+      subjectHistory: t.subject?.name
+        ? [{ subject: t.subject.name, from: String((t as { joiningDate?: string }).joiningDate || "2026-04-01").slice(0, 10), by: "School office" }]
+        : [],
       classIds: (t.classes ?? []).map((c) => String(c.id)),
     }
   })
@@ -188,7 +182,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
       classIds: [],
     }))
 
-  const staff: Staff[] = teacherStaff.length || otherStaff.length ? [...teacherStaff, ...otherStaff] : currentState.staff
+  const staff: Staff[] = [...teacherStaff, ...otherStaff]
 
   // 5. Students
   const students: Student[] = studentsData.students?.length
@@ -197,24 +191,24 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         admissionNo: s.admissionNo,
         name: `${s.firstName} ${s.lastName}`.trim(),
         classId: String(s.fkClassId || s.class?.id || ""),
-        guardian: `${s.lastName} Guardian`,
-        phone: "0300-1234567",
-        status: (s.status === "Withdrawn" ? "Withdrawn" : s.status === "Pending" ? "Pending" : "Active") as StudentStatus,
-        dob: s.dob ? s.dob.slice(0, 10) : "2013-01-01",
+        guardian: s.lastName,
+        phone: "",
+        status: (s.status === "Withdrawn" ? "Withdrawn" : "Active") as StudentStatus,
+        dob: String((s as { dateOfBirth?: string }).dateOfBirth || s.dob || "").slice(0, 10),
         gender: s.gender === "Female" ? "Female" : "Male",
-        admittedOn: s.admittedOn ? s.admittedOn.slice(0, 10) : "2026-04-01",
+        admittedOn: String((s as { admissionDate?: string }).admissionDate || s.admittedOn || "").slice(0, 10),
       }))
-    : currentState.students
+    : []
 
   // 6. Applications
   const applications: Application[] = applicationsData.length
     ? applicationsData.map((a) => ({
         id: `APP-${a.id}`,
-        name: a.name,
+        name: a.name || `${(a as { applicantFirstName?: string }).applicantFirstName ?? ""} ${(a as { applicantLastName?: string }).applicantLastName ?? ""}`.trim(),
         classId: String(a.fkClassId ?? ""),
-        guardian: a.guardian,
-        phone: a.phone,
-        dob: a.dob ? a.dob.slice(0, 10) : "2015-01-01",
+        guardian: a.guardian || (a as { parentName?: string }).parentName || "",
+        phone: a.phone || (a as { parentPhone?: string }).parentPhone || "",
+        dob: String(a.dob || (a as { dateOfBirth?: string }).dateOfBirth || "").slice(0, 10),
         gender: a.gender === "Male" ? "Male" : "Female",
         address: a.address ?? "",
         previousSchool: a.previousSchool ?? "",
@@ -223,19 +217,19 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         guardianAddress: a.guardianAddress ?? "",
         documents: (a.documents ?? []).map((d) => ({
           id: String(d.id),
-          label: d.label,
-          status: d.status as DocumentStatus,
+          label: d.label || (d as { title?: string }).title || "Document",
+          status: (d.status ?? "Uploaded") as DocumentStatus,
         })),
         interviewType: a.interviewType ?? "",
         interviewDate: a.interviewDate ? a.interviewDate.slice(0, 10) : "",
         interviewScore: a.interviewScore ?? "",
         interviewResult: a.interviewResult ?? "",
         decision: (a.decision as "Admit" | "Reject" | "Waitlist" | "") ?? "",
-        status: a.status as ApplicationStatus,
-        submittedOn: a.submittedOn ? a.submittedOn.slice(0, 10) : "2026-09-01",
+        status: (a.status === "Inquiry" || a.status === "Applied" ? "New" : a.status === "UnderReview" || a.status === "InterviewScheduled" || a.status === "Approved" ? "Review" : a.status === "Enrolled" ? "Enrolled" : a.status === "Rejected" ? "Rejected" : a.status) as ApplicationStatus,
+        submittedOn: String(a.submittedOn || (a as { created_at?: string }).created_at || "").slice(0, 10),
         notes: a.notes ?? "",
       }))
-    : currentState.applications
+    : []
 
   // 7. Fee Months
   const feeMonths: FeeMonth[] = feeMonthsData.length
@@ -248,7 +242,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         amountPaid: Number(fm.amountPaid) || 0,
         dueDate: fm.dueDate ? fm.dueDate.slice(0, 10) : `${fm.month.slice(0, 7)}-10`,
       }))
-    : currentState.feeMonths
+    : []
 
   // 8. Payments
   const payments: Payment[] = paymentsData.length
@@ -271,7 +265,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         note: p.notes ?? undefined,
         idempotencyKey: p.idempotencyKey ?? undefined,
       }))
-    : currentState.payments
+    : []
 
   // 9. Expenses
   const expenses: Expense[] = expensesData.length
@@ -280,27 +274,30 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         title: e.title,
         category: e.category,
         amount: Number(e.amount) || 0,
-        date: e.date ? e.date.slice(0, 10) : TODAY,
+        date: String(e.date || (e as { expenseDate?: string }).expenseDate || "").slice(0, 10),
       }))
-    : currentState.expenses
+    : []
 
   // 10. Exams & MarkSheets
   const sheets: MarkSheet[] = []
   if (examsData.length) {
     examsData.forEach((exam) => {
-      ;(exam.sheets ?? []).forEach((sheet) => {
+      const sheetsOnExam = exam.sheets ?? (exam as { markSheets?: typeof exam.sheets }).markSheets ?? []
+      sheetsOnExam.forEach((sheet) => {
+        const subjectName = typeof sheet.subject === "string" ? sheet.subject : sheet.subject?.name ?? "Subject"
+        const rawStatus = sheet.status === "Approved" ? "Verified" : sheet.status
         sheets.push({
           id: String(sheet.id),
           examId: String(exam.id),
           examName: exam.name,
-          classId: String(exam.fkClassId),
-          subject: sheet.subject,
-          status: (sheet.status ?? "Draft") as SheetStatus,
-          max: Number(sheet.maxScore) || 100,
-          feeMonth: exam.feeMonth ? exam.feeMonth.slice(0, 7) : undefined,
+          classId: String((sheet as { fkClassId?: number }).fkClassId ?? exam.fkClassId ?? ""),
+          subject: subjectName,
+          status: (rawStatus ?? "Draft") as SheetStatus,
+          max: Number(sheet.maxScore ?? (sheet as { totalMarks?: number }).totalMarks) || 100,
+          feeMonth: (exam.feeMonth || (exam as { requiredFeeMonth?: string }).requiredFeeMonth || "").slice(0, 7) || undefined,
           rows: (sheet.rows ?? []).map((r) => ({
             studentId: String(r.fkStudentId),
-            score: r.score !== null ? Number(r.score) : null,
+            score: r.score != null ? Number(r.score) : (r as { obtainedMarks?: number | null }).obtainedMarks != null ? Number((r as { obtainedMarks?: number }).obtainedMarks) : null,
           })),
         })
       })
@@ -318,7 +315,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         grantedAt: o.grantedAt,
         revokedAt: o.revokedAt ?? undefined,
       }))
-    : currentState.resultOverrides
+    : []
 
   // 12. Attendances
   const attendance: AttendanceMark[] = attendancesData.length
@@ -326,9 +323,9 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         studentId: String(a.fkStudentId),
         classId: String(a.fkClassId),
         date: a.date ? a.date.slice(0, 10) : TODAY,
-        status: a.status as AttendanceStatus,
+        status: (a.status === "Excused" || a.status === "HalfDay" ? "Leave" : a.status) as AttendanceStatus,
       }))
-    : currentState.attendance
+    : []
 
   // 13. Planned Chapters
   const plannedChapters: PlannedChapter[] = plannedChaptersData.length
@@ -336,13 +333,13 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         id: String(ch.id),
         classId: String(ch.fkClassId),
         subject: ch.subject?.name ?? "Mathematics",
-        sequence: Number(ch.sequence) || 1,
+        sequence: Number(ch.sequence || (ch as { chapterNo?: number }).chapterNo) || 1,
         title: ch.title,
         description: ch.description ?? undefined,
         targetDate: ch.targetDate ? ch.targetDate.slice(0, 10) : undefined,
         createdBy: "Imran Shah",
       }))
-    : currentState.plannedChapters
+    : []
 
   // 14. Daily Lessons
   const dailyLessons: DailyLesson[] = dailyLessonsData.length
@@ -350,7 +347,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         id: String(l.id),
         classId: String(l.fkClassId),
         subject: l.subject?.name ?? "Mathematics",
-        teacherId: l.teacher?.user?.email === "hassan@cls.edu.pk" ? "st-hassan" : `st-${l.fkTeacherId}`,
+        teacherId: String(l.fkTeacherId ?? l.teacher?.id ?? ""),
         teacherName: l.teacher?.user ? `${l.teacher.user.firstName} ${l.teacher.user.lastName}`.trim() : "Teacher",
         date: l.date ? l.date.slice(0, 10) : TODAY,
         chapterId: String(l.fkPlannedChapterId),
@@ -360,58 +357,73 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         reviewStatus: (l.reviewStatus ?? "Submitted") as ReviewStatus,
         reviewNote: l.reviewNote ?? undefined,
       }))
-    : currentState.dailyLessons
+    : []
 
   // 15. Timetable Slots
   const slots: TimetableSlot[] = timetableData.length
     ? timetableData.map((slot) => ({
         id: String(slot.id),
         classId: String(slot.fkClassId),
-        day: slot.day,
-        time: slot.time,
+        day: slot.day || (slot as { dayOfWeek?: string }).dayOfWeek || "",
+        time: String(slot.time || (slot as { startTime?: string }).startTime || "").slice(0, 5),
         periodIndex: Number(slot.periodIndex) || 1,
-        subject: slot.subject,
-        teacherId: slot.teacher === "Hassan Ali" ? "st-hassan" : `st-${slot.fkTeacherId}`,
-        teacher: slot.teacher,
+        subject: typeof slot.subject === "string" ? slot.subject : slot.subject?.name ?? "",
+        teacherId: String(slot.fkTeacherId ?? ""),
+        teacher: typeof slot.teacher === "string" ? slot.teacher : slot.teacher?.user ? `${slot.teacher.user.firstName} ${slot.teacher.user.lastName}`.trim() : "",
         room: slot.room ?? "Room",
       }))
-    : currentState.slots
+    : []
 
   // 16. Teacher Absences & Substitutions
-  const teacherAbsences: TeacherAbsence[] = absencesData.length
-    ? absencesData.map((a) => ({
-        id: String(a.id),
-        teacherId: a.teacher?.user?.email === "hassan@cls.edu.pk" ? "st-hassan" : `st-${a.fkTeacherId}`,
-        date: a.date ? a.date.slice(0, 10) : TODAY,
-        periodIndex: Number(a.periodIndex) || 1,
-        classId: a.fkClassId ? String(a.fkClassId) : undefined,
-        subject: a.subject?.name ?? undefined,
-        status: (a.status ?? "Pending") as AbsenceStatus,
-        markedBy: "Imran Shah",
-        notes: a.notes ?? "",
-      }))
-    : currentState.teacherAbsences
+  type CoverSlot = { periodIndex?: number; fkClassId?: number; subject?: { name?: string } }
+  type Cover = NonNullable<ApiAbsence["substitution"]> & {
+    periodIndex?: number
+    slot?: CoverSlot
+    substituteTeacher?: NonNullable<ApiAbsence["substitution"]>["substituteTeacher"] & { id?: number }
+  }
+  type AbsenceRow = ApiAbsence & {
+    reason?: string
+    markedBy?: string
+    teacher?: ApiAbsence["teacher"] & { id?: number }
+    substitutions?: Cover[]
+  }
+  const absenceRows = absencesData as AbsenceRow[]
+  const coversFor = (row: AbsenceRow) => [...(row.substitution ? [row.substitution as Cover] : []), ...(row.substitutions ?? [])]
 
-  const substitutions: Substitution[] = absencesData.length
-    ? absencesData
-        .filter((a) => a.substitution)
-        .map((a) => {
-          const sub = a.substitution as NonNullable<typeof a.substitution>
-          return {
-            id: String(sub.id),
-            absenceId: String(a.id),
-            date: a.date ? a.date.slice(0, 10) : TODAY,
-            periodIndex: Number(a.periodIndex) || 1,
-            classId: String(a.fkClassId ?? ""),
-            subject: a.subject?.name ?? "",
-            originalTeacherId: a.teacher?.user?.email === "hassan@cls.edu.pk" ? "st-hassan" : `st-${a.fkTeacherId}`,
-            substituteTeacherId:
-              sub.substituteTeacher?.user?.email === "hassan@cls.edu.pk" ? "st-hassan" : `st-${sub.fkSubstituteTeacherId}`,
-            authorizedBy: sub.authorizedBy ?? "Imran Shah",
-            at: sub.createdAt ?? new Date().toISOString(),
-          }
-        })
-    : currentState.substitutions
+  const teacherAbsences: TeacherAbsence[] = absenceRows.map((a) => {
+    const cover = coversFor(a)[0]
+    const slot = cover?.slot
+    const rawStatus = String(a.status ?? "Pending")
+    return {
+      id: String(a.id),
+      teacherId: String(a.fkTeacherId ?? a.teacher?.id ?? ""),
+      date: a.date ? a.date.slice(0, 10) : TODAY,
+      periodIndex: Number(a.periodIndex || slot?.periodIndex || cover?.periodIndex) || 1,
+      classId: a.fkClassId ? String(a.fkClassId) : slot?.fkClassId ? String(slot.fkClassId) : undefined,
+      subject: a.subject?.name ?? slot?.subject?.name,
+      status: (cover ? "Covered" : rawStatus === "Approved" ? "Pending" : rawStatus) as AbsenceStatus,
+      markedBy: a.markedBy ?? "",
+      notes: a.notes ?? a.reason ?? "",
+    }
+  })
+
+  const substitutions: Substitution[] = absenceRows.flatMap((a) =>
+    coversFor(a).map((sub) => {
+      const slot = sub.slot
+      return {
+        id: String(sub.id),
+        absenceId: String(a.id),
+        date: a.date ? a.date.slice(0, 10) : TODAY,
+        periodIndex: Number(sub.periodIndex || slot?.periodIndex) || 1,
+        classId: String(a.fkClassId ?? slot?.fkClassId ?? ""),
+        subject: a.subject?.name ?? slot?.subject?.name ?? "",
+        originalTeacherId: String(a.fkTeacherId ?? a.teacher?.id ?? ""),
+        substituteTeacherId: String(sub.fkSubstituteTeacherId ?? sub.substituteTeacher?.id ?? ""),
+        authorizedBy: typeof sub.authorizedBy === "string" ? sub.authorizedBy : "",
+        at: sub.createdAt ?? new Date().toISOString(),
+      }
+    }),
+  )
 
   // 17. Test Schedules & Weekly Tests
   const testSchedules: TestSchedule[] = schedulesData.length
@@ -419,12 +431,12 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         id: String(s.id),
         classId: String(s.fkClassId),
         subject: s.subject?.name ?? "Mathematics",
-        weekday: s.weekday,
+        weekday: s.weekday || (s as { dayOfWeek?: string }).dayOfWeek || "",
         periodIndex: Number(s.periodIndex) || 4,
         max: Number(s.maxScore) || 20,
         active: Boolean(s.isActive),
       }))
-    : currentState.testSchedules
+    : []
 
   const weeklyTests: WeeklyTest[] = dailyTestsData.length
     ? dailyTestsData.map((t) => ({
@@ -435,22 +447,22 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         date: t.date ? t.date.slice(0, 10) : TODAY,
         month: t.month ? t.month.slice(0, 7) : TODAY.slice(0, 7),
         week: Number(t.weekOfMonth) || 1,
-        max: Number(t.maxScore) || 20,
-        status: (t.status ?? "Scheduled") as WeeklyTestStatus,
+        max: Number(t.maxScore ?? (t as { totalMarks?: number }).totalMarks) || 20,
+        status: (t.status ?? ((t.results ?? []).length ? "Published" : "Scheduled")) as WeeklyTestStatus,
         results: (t.results ?? []).map((r) => ({
           studentId: String(r.fkStudentId),
-          score: r.score !== null ? Number(r.score) : null,
+          score: r.score != null ? Number(r.score) : (r as { obtainedMarks?: number | null }).obtainedMarks != null ? Number((r as { obtainedMarks?: number }).obtainedMarks) : null,
         })),
         enteredBy: t.enteredBy?.name ?? undefined,
         publishedBy: t.publishedBy?.name ?? undefined,
       }))
-    : currentState.weeklyTests
+    : []
 
   // 18. Settings
   const settings: SchoolSettings = {
-    dailyTestRules: settingsData.dailyTestRules ?? currentState.settings.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
+    dailyTestRules: settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
     resultVisibility:
-      settingsData.resultVisibility ?? currentState.settings.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
+      settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
   }
 
   // 19. Updates
@@ -465,7 +477,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         due: u.dueDate ? u.dueDate.slice(0, 10) : TODAY,
         author: u.author ?? "School Office",
       }))
-    : currentState.updates
+    : []
 
   // 20. Audits
   const audits: AuditEvent[] = auditLogsData.length
@@ -476,7 +488,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
         at: a.at ?? a.created_at ?? new Date().toISOString(),
         entity: a.entityType ?? undefined,
       }))
-    : currentState.audits
+    : []
 
   return {
     sessions,
@@ -488,7 +500,7 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
     feeMonths,
     payments,
     expenses,
-    sheets: sheets.length ? sheets : currentState.sheets,
+    sheets,
     resultOverrides,
     attendance,
     plannedChapters,
@@ -501,6 +513,6 @@ export async function fetchBackendState(currentState: SchoolState): Promise<Scho
     settings,
     updates,
     audits,
-    syncLogs: currentState.syncLogs,
+    syncLogs: [],
   }
 }

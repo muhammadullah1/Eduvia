@@ -25,7 +25,7 @@ import { TODAY, type Application, type MarkSheet, type Staff, type Student } fro
 import { WEEKDAYS } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
-import { outstanding } from "@/lib/fees"
+import { monthLabel, outstanding } from "@/lib/fees"
 import { classLabel, formatDate, gradeFromScore, pkr, timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
 import { useClientTable } from "@/lib/use-client-table"
@@ -36,8 +36,17 @@ const chartConfig = {
   target: { label: "Target", color: "var(--chart-3)" },
 } satisfies ChartConfig
 
-const months = ["Apr", "May", "Jun", "Jul", "Aug", "Sep"]
-const monthKeys = ["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]
+function monthsThroughToday(start: string) {
+  const keys: string[] = []
+  let cursor = start.slice(0, 7)
+  const end = TODAY.slice(0, 7)
+  while (cursor <= end && keys.length < 12) {
+    keys.push(cursor)
+    const [year, month] = cursor.split("-").map(Number)
+    cursor = month === 12 ? `${year + 1}-01` : `${year}-${String(month + 1).padStart(2, "0")}`
+  }
+  return keys
+}
 
 function queryMatch(query: string, parts: Array<string | number>) {
   const needle = query.trim().toLowerCase()
@@ -54,15 +63,19 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
   const presentToday = state.attendance.filter((mark) => mark.date === TODAY && mark.status === "Present").length
   const markedToday = state.attendance.filter((mark) => mark.date === TODAY).length
   // Overall fee totals: super admin only (UR-01). The dashboard is not mounted for other roles.
-  const september = state.payments.filter((payment) => payment.date.startsWith(TODAY.slice(0, 7)) && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0)
+  const collectedThisMonth = state.payments.filter((payment) => payment.date.startsWith(TODAY.slice(0, 7)) && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0)
   const unpaid = state.feeMonths.filter((month) => month.month <= TODAY.slice(0, 7)).reduce((sum, month) => sum + outstanding(month), 0)
+  const enrollmentMonths = monthsThroughToday(currentSession?.start || TODAY)
   const openApps = state.applications.filter((item) => item.status === "New" || item.status === "Review").length
   const pendingMarks = state.sheets.filter((sheet) => sheet.status === "Draft" || sheet.status === "Submitted").length
   const classDistribution = state.classes.map((item) => ({
     class: item.label,
     students: state.students.filter((student) => student.classId === item.id && student.status === "Active").length,
   }))
-  const enrollment = months.map((month, index) => ({ month, students: index === months.length - 1 ? active : 1180 + index * 14 }))
+  const enrollment = enrollmentMonths.map((month) => ({
+    month: monthLabel(month).slice(0, 3),
+    students: state.students.filter((student) => student.status === "Active" && student.admittedOn.slice(0, 7) <= month).length,
+  }))
   const queue = [
     { count: openApps, title: "Applications to review", tag: "Admissions", section: "admissions" },
     { count: state.sheets.filter((sheet) => sheet.status === "Submitted").length, title: "Marks awaiting verification", tag: "Exams", section: "exams" },
@@ -89,7 +102,7 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Users} label="Active students" value={active.toLocaleString("en-PK")} note={`${inactive} inactive / withdrawn`} tone="accent" />
         <MetricCard icon={UserCheck} label="Today’s attendance" value={markedToday ? `${Math.round((presentToday / markedToday) * 1000) / 10}%` : "—"} note={`${presentToday} present today`} />
-        <MetricCard icon={WalletCards} label="September collected" value={pkr(september)} note={`${pkr(unpaid)} still outstanding`} />
+        <MetricCard icon={WalletCards} label={`${monthLabel(TODAY.slice(0, 7))} collected`} value={pkr(collectedThisMonth)} note={`${pkr(unpaid)} still outstanding`} />
         <MetricCard icon={FileCheck2} label="Pending marks sheets" value={String(pendingMarks)} note={`${openApps} open admissions`} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
@@ -137,14 +150,14 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
           <CardContent className="grid gap-4">
             <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
               <span className="text-sm text-muted-foreground">Collected this month</span>
-              <span className="font-semibold text-[var(--primary-color)]">{pkr(september)}</span>
+              <span className="font-semibold text-[var(--primary-color)]">{pkr(collectedThisMonth)}</span>
             </div>
             <div className="flex items-center justify-between rounded-xl border bg-background px-4 py-3">
               <span className="text-sm text-muted-foreground">Outstanding</span>
               <span className="font-semibold">{pkr(unpaid)}</span>
             </div>
-            <Progress value={(september + unpaid) ? Math.round((september / (september + unpaid)) * 100) : 0} className="h-2" />
-            <p className="text-xs text-muted-foreground">{(september + unpaid) ? Math.round((september / (september + unpaid)) * 100) : 0}% of tracked fee value is paid.</p>
+            <Progress value={(collectedThisMonth + unpaid) ? Math.round((collectedThisMonth / (collectedThisMonth + unpaid)) * 100) : 0} className="h-2" />
+            <p className="text-xs text-muted-foreground">{(collectedThisMonth + unpaid) ? Math.round((collectedThisMonth / (collectedThisMonth + unpaid)) * 100) : 0}% of tracked fee value is paid.</p>
           </CardContent>
         </Card>
       </div>
@@ -816,11 +829,11 @@ export function Fees({ query }: { query: string }) {
   const search = localQuery || query
   const rows = state.payments.filter((payment) => (status === "all" || payment.status === status) && queryMatch(search, [payment.ref, payment.studentId, studentName(state.students, payment.studentId), feeMonthsLabel(payment), payment.recordedBy]))
   const table = useClientTable(rows, `${search}|${status}`)
-  const feeData = useMemo(() => monthKeys.map((key, index) => ({
-    month: months[index],
+  const feeData = useMemo(() => monthsThroughToday(state.sessions.find((session) => session.current)?.start || TODAY).map((key) => ({
+    month: monthLabel(key).slice(0, 3),
     collection: Math.round(state.payments.filter((payment) => payment.date.startsWith(key) && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0) / 1000),
-    target: 120,
-  })), [state.payments])
+    target: Math.round(state.feeMonths.filter((month) => month.month === key).reduce((sum, month) => sum + month.amountDue, 0) / 1000),
+  })), [state.feeMonths, state.payments, state.sessions])
 
   return (
     <div className="grid gap-5">

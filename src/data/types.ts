@@ -363,8 +363,13 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
   resultVisibility: { feeRule: "all_due_paid", requireOverrideReason: true },
 }
 
-export const TODAY = "2026-09-23"
-/** Children linked to the demo parent (Sara Ahmed). Parent screens never read outside this list. */
-export const PARENT_CHILDREN = ["CLS-24118", "CLS-23014"]
-export const TEACHER_ID = "st-hassan"
+function localDate() {
+  const now = new Date()
+  const month = String(now.getMonth() + 1).padStart(2, "0")
+  const day = String(now.getDate()).padStart(2, "0")
+  return `${now.getFullYear()}-${month}-${day}`
+}
+
+/** Calendar date used for "today" on teacher and parent screens. */
+export const TODAY = localDate()
 export const PAGE_SIZE = 8

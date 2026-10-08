@@ -19,15 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Spinner } from "@/components/ui/spinner"
 import { api } from "@/lib/api"
-import { portalPath, saveAuth, type Role } from "@/lib/auth"
-
-const DEMO_ACCOUNTS: { label: string; email: string; role: Role }[] = [
-  { label: "Super Admin", email: "admin@cls.edu.pk", role: "super_admin" },
-  { label: "Operations", email: "operations@cls.edu.pk", role: "operations_manager" },
-  { label: "Accountant", email: "accountant@cls.edu.pk", role: "accountant" },
-  { label: "Teacher", email: "hassan@cls.edu.pk", role: "teacher" },
-  { label: "Parent", email: "parent@cls.edu.pk", role: "parent" },
-]
+import { portalPath, saveAuth } from "@/lib/auth"
 
 export function LoginScreen() {
   const navigate = useNavigate()
@@ -173,31 +165,10 @@ export function LoginScreen() {
           </Button>
         </form>
 
-        <div className="mt-6 border-t pt-4">
-          <p className="mb-2.5 text-center text-[11px] font-medium tracking-wider text-muted-foreground uppercase">
-            Quick demo credentials
-          </p>
-          <div className="flex flex-wrap justify-center gap-1.5">
-            {DEMO_ACCOUNTS.map((account) => (
-              <button
-                key={account.role}
-                type="button"
-                onClick={() => {
-                  setEmail(account.email)
-                  setPassword("Creative@2026")
-                  setError("")
-                }}
-                className="rounded-full border border-border/70 bg-muted/40 px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {account.label}
-              </button>
-            ))}
-          </div>
-          <p className="mt-4 flex items-center justify-center text-center text-[11px] text-muted-foreground">
-            <ShieldCheck className="mr-1 inline size-3.5" />
-            Dynamic role routing · Secure session
-          </p>
-        </div>
+        <p className="mt-6 flex items-center justify-center border-t pt-4 text-center text-[11px] text-muted-foreground">
+          <ShieldCheck className="mr-1 inline size-3.5" />
+          Secure school session
+        </p>
       </div>
     </main>
   )

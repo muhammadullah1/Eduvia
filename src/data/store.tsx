@@ -2,9 +2,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 
 import { fetchBackendState } from "@/data/backend-sync"
-import { createSeed } from "@/data/seed"
 import {
-  TEACHER_ID,
   TODAY,
   type AcademicSession,
   type Application,
@@ -35,8 +33,7 @@ import { loadAuth } from "@/lib/auth"
 import { allocateOldestFirst, applyLines, monthLabel, validateManualPlan } from "@/lib/fees"
 import { can, ROLE_LABELS, type Permission } from "@/lib/permissions"
 
-const STORAGE_KEY = "eduvia-demo-v5"
-const LEGACY_KEYS = ["eduvia-demo-v4"]
+const LEGACY_KEYS = ["eduvia-demo-v4", "eduvia-demo-v5"]
 
 type ApplicationInput = Omit<Application, "id" | "status" | "submittedOn">
 type SyncReport = { imported: number; skipped: number; failed: number; notes: string[] }
@@ -102,19 +99,45 @@ type SchoolContextValue = {
 
 const SchoolContext = createContext<SchoolContextValue | null>(null)
 
-const REQUIRED_KEYS: Array<keyof SchoolState> = ["feeMonths", "payments", "plannedChapters", "dailyLessons", "substitutions", "testSchedules", "weeklyTests", "resultOverrides", "settings"]
+function emptyState(): SchoolState {
+  return {
+    sessions: [],
+    classes: [],
+    subjects: [],
+    staff: [],
+    students: [],
+    applications: [],
+    feeMonths: [],
+    payments: [],
+    expenses: [],
+    sheets: [],
+    resultOverrides: [],
+    attendance: [],
+    plannedChapters: [],
+    dailyLessons: [],
+    updates: [],
+    slots: [],
+    audits: [],
+    syncLogs: [],
+    teacherAbsences: [],
+    substitutions: [],
+    testSchedules: [],
+    weeklyTests: [],
+    settings: {
+      dailyTestRules: { passPercent: 40, maxFailsPerMonth: 1, lowMarksEnabled: true, lowMarksMinPassed: 3, lowMarksBelowPercent: 55 },
+      resultVisibility: { feeRule: "all_due_paid", requireOverrideReason: true },
+    },
+  }
+}
 
 function loadState(): SchoolState {
   LEGACY_KEYS.forEach((key) => localStorage.removeItem(key))
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return createSeed()
-    const parsed = JSON.parse(raw) as SchoolState
-    if (!parsed.students?.length || REQUIRED_KEYS.some((key) => !parsed[key])) return createSeed()
-    return parsed
-  } catch {
-    return createSeed()
-  }
+  return emptyState()
+}
+
+function signedInTeacher(state: SchoolState) {
+  const email = loadAuth()?.user?.email
+  return state.staff.find((person) => person.role === "Teacher" && person.email === email)
 }
 
 function uid(prefix: string) {
@@ -201,10 +224,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       console.warn("Backend sync failed:", err)
     }
   }, [])
-
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state))
-  }, [state])
 
   useEffect(() => {
     syncBackend()
@@ -504,7 +523,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const staff = current.staff.map((person) => (person.id === teacher.id && !person.classIds.includes(klass.id) ? { ...person, classIds: [...person.classIds, klass.id] } : person))
 
     const classIdNum = Number(klass.id)
-    const teacherIdNum = teacher.id === "st-hassan" ? 46 : Number(teacher.id.replace(/^st-/, ""))
+    const teacherIdNum = Number(teacher.id)
     const subObj = current.subjects.find((s) => s.name === slot.subject)
     const subIdNum = Number(subObj?.id ?? 1)
     if (Number.isFinite(classIdNum) && Number.isFinite(teacherIdNum)) {
@@ -586,7 +605,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const history = [...teacher.subjectHistory.map((row) => (row.to ? row : { ...row, to: TODAY })), { subject, from: TODAY, by: actor.name, reason: reason.trim() || undefined }]
     const staff = current.staff.map((person) => (person.id === staffId ? { ...person, subject, subjectHistory: history } : person))
 
-    const teacherNumId = teacher.id === "st-hassan" ? 46 : Number(teacher.id.replace(/^st-/, ""))
+    const teacherNumId = Number(teacher.id)
     if (Number.isFinite(teacherNumId)) {
       api.put(`/teachers/${teacherNumId}/subject`, {
         subjectId: Number(targetSub.id),
@@ -613,7 +632,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       return { id: uid("abs"), teacherId: teacher.id, date: input.date, periodIndex, classId: slot?.classId, subject: slot?.subject, status: slot ? "Pending" : "NoClass", markedBy: actor.name, notes: input.notes.trim() }
     })
 
-    const teacherNumId = teacher.id === "st-hassan" ? 46 : Number(teacher.id.replace(/^st-/, ""))
+    const teacherNumId = Number(teacher.id)
     if (Number.isFinite(teacherNumId)) {
       api.post("/teacher-absences", {
         fkTeacherId: teacherNumId,
@@ -649,7 +668,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const klass = current.classes.find((item) => item.id === absence.classId)?.label ?? absence.classId
 
     const absenceNumId = Number(absence.id.replace(/^abs-/, ""))
-    const subNumId = substitute.id === "st-hassan" ? 46 : Number(substitute.id.replace(/^st-/, ""))
+    const subNumId = Number(substitute.id)
     if (Number.isFinite(absenceNumId) && Number.isFinite(subNumId)) {
       api.put(`/teacher-absences/${absenceNumId}/substitute`, { substituteTeacherId: subNumId }).then(syncBackend).catch(console.error)
     }
@@ -730,7 +749,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const submitDailyLesson = useCallback((input: { classId: string; date: string; chapterId: string; classwork: string; homework: string; remarks: string }, actor: Actor) => simple((current) => {
     const blocked = denied(actor, "lessons.submit")
     if (blocked) return { error: blocked }
-    const teacher = current.staff.find((person) => person.id === TEACHER_ID) as Staff
+    const teacher = signedInTeacher(current) as Staff
     if (!teacher.classIds.includes(input.classId)) return { error: "You can only post updates for your own classes." }
     const chapter = current.plannedChapters.find((row) => row.id === input.chapterId)
     if (!chapter || chapter.classId !== input.classId || chapter.subject !== teacher.subject) return { error: "Choose one of the planned chapters for this class and your subject." }
@@ -827,7 +846,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const test = current.weeklyTests.find((row) => row.id === testId)
     if (!test) return { error: "Test not found." }
     if (actor.role === "teacher") {
-      const teacher = current.staff.find((person) => person.id === TEACHER_ID) as Staff
+      const teacher = signedInTeacher(current) as Staff
       if (teacher.subject !== test.subject || !teacher.classIds.includes(test.classId)) return { error: "You can only enter marks for your own subject and classes." }
     }
     if (test.status === "Published") return { error: "Published marks are locked." }
@@ -1011,11 +1030,8 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   }, [simple, syncBackend])
 
   const resetDemo = useCallback(() => {
-    const fresh = createSeed()
-    localStorage.removeItem(STORAGE_KEY)
-    stateRef.current = fresh
-    setState(fresh)
-  }, [])
+    void syncBackend()
+  }, [syncBackend])
 
   const value = useMemo<SchoolContextValue>(() => ({
     state, addApplication, setApplicationStatus, updateStudent, importWorkbook, addExpense, addSession, activateSession, addClass, addSubject, addSlot, removeSlot, addStaff,

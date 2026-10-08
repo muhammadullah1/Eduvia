@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FeeMonthTable } from "@/features/fees/components"
 import { feeMonthsLabel, printReceipt } from "@/features/fees/receipts"
 import { useSchool } from "@/data/store"
-import { PARENT_CHILDREN, TODAY, type MarkSheet, type SchoolState } from "@/data/types"
+import { TODAY, type MarkSheet, type SchoolState } from "@/data/types"
 import { monthlySummaries, resultVisibility, weekdayOf } from "@/lib/academics"
 import { feeMonthStatus, monthLabel, outstanding } from "@/lib/fees"
 import { classLabel, formatDate, gradeFromScore, pkr } from "@/lib/format"
@@ -39,11 +39,8 @@ const attendanceConfig = {
 function useChild() {
   const { state } = useSchool()
   const stored = localStorage.getItem("eduvia-child")
-  const options =
-    state.students.length > 0 && state.students.length <= 10
-      ? state.students
-      : state.students.filter((student) => PARENT_CHILDREN.includes(student.id) || (student.admissionNo && PARENT_CHILDREN.includes(student.admissionNo)))
-  const defaultId = options[0]?.id ?? PARENT_CHILDREN[0]
+  const options = state.students
+  const defaultId = options[0]?.id ?? ""
   const [selected, setChildId] = useState(() => (stored && options.some((s) => s.id === stored) ? stored : defaultId))
   const childId = options.some((s) => s.id === selected) ? selected : defaultId
   useEffect(() => {
@@ -65,7 +62,7 @@ function ChildSwitcher({ childId, onChange, options }: { childId: string; onChan
 
 export function ParentHome() {
   const { state, child, childId, setChildId, options } = useChild()
-  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith("2026-09"))
+  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(CURRENT_MONTH))
   const present = marks.filter((mark) => mark.status === "Present").length
   const rate = marks.length ? `${Math.round((present / marks.length) * 1000) / 10}%` : "—"
   const visible = state.sheets.filter((sheet) => sheet.classId === child.classId && visibilityFor(state, sheet, child.id).visible)
@@ -89,7 +86,7 @@ export function ParentHome() {
         <ChildSwitcher childId={childId} onChange={setChildId} options={options} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={UserCheck} label="September attendance" value={rate} note={`${present} of ${marks.length} days`} tone="accent" />
+        <MetricCard icon={UserCheck} label={`${monthLabel(CURRENT_MONTH)} attendance`} value={rate} note={`${present} of ${marks.length} days`} tone="accent" />
         <MetricCard icon={GraduationCap} label="Published results" value={average} note={withheld ? "Held until fees are cleared" : "Average of visible results"} />
         <MetricCard icon={WalletCards} label="Fee status" value={unpaid.length ? `${unpaid.length} unpaid` : "Paid"} note={unpaid.length ? unpaid.map((month) => monthLabel(month.month)).join(", ") : "No month outstanding"} />
         <MetricCard icon={BookOpen} label="Homework" value={String(homework.length).padStart(2, "0")} note="From approved daily updates" />
@@ -130,7 +127,7 @@ export function ParentHome() {
 
 export function ParentAttendance() {
   const { state, child, childId, setChildId, options } = useChild()
-  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith("2026-09"))
+  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(CURRENT_MONTH))
   const present = marks.filter((mark) => mark.status === "Present").length
   const absent = marks.filter((mark) => mark.status === "Absent").length
   const leave = marks.filter((mark) => mark.status === "Leave").length

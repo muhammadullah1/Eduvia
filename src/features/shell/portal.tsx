@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react"
+import { useMemo, useState, type ComponentType, type ReactNode } from "react"
 import {
   Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
   Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, ReceiptText, Search, Settings2, ShieldAlert, ShieldCheck,
@@ -17,7 +17,6 @@ import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useTheme } from "@/components/theme-provider"
 import { useSchool } from "@/data/store"
@@ -26,20 +25,18 @@ import { AccountantPortal, AbsencesPanel, CurriculumPanel, LessonReviewPanel, Op
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
 import { ForgotPasswordScreen, LoginScreen, ResetPasswordScreen } from "@/features/auth/screens"
-import { DEMO_USERS } from "@/lib/actor"
-import { ALL_ROLES, clearAuth, defaultSection, loadAuth, portalPath, roleFromSlug, saveAuth, type Role } from "@/lib/auth"
+import { ALL_ROLES, clearAuth, defaultSection, loadAuth, portalPath, roleFromSlug, type Role } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
-import { api } from "@/lib/api"
 import { can } from "@/lib/permissions"
 
 type Icon = ComponentType<{ className?: string }>
 
-const roles: Record<Role, { label: string; short: string; description: string; user: string; email: string; initials: string; icon: Icon }> = {
-  super_admin: { label: "Super Admin Portal", short: "Super Admin", description: "Full control, including overall fee totals", user: DEMO_USERS.super_admin, email: "admin@cls.edu.pk", initials: "AK", icon: Building2 },
-  operations_manager: { label: "Operations Portal", short: "Operations Manager", description: "Academics, people, absences and results — no fee totals", user: DEMO_USERS.operations_manager, email: "operations@cls.edu.pk", initials: "IS", icon: ShieldCheck },
-  accountant: { label: "Accountant Portal", short: "Accountant", description: "Record payments and print your daily receipts", user: DEMO_USERS.accountant, email: "accountant@cls.edu.pk", initials: "NI", icon: Calculator },
-  teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", user: DEMO_USERS.teacher, email: "hassan@cls.edu.pk", initials: "HA", icon: BookOpen },
-  parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", user: DEMO_USERS.parent, email: "parent@cls.edu.pk", initials: "SA", icon: UserRound },
+const roles: Record<Role, { label: string; short: string; description: string; icon: Icon }> = {
+  super_admin: { label: "Super Admin Portal", short: "Super Admin", description: "Full control, including overall fee totals", icon: Building2 },
+  operations_manager: { label: "Operations Portal", short: "Operations Manager", description: "Academics, people, absences and results — no fee totals", icon: ShieldCheck },
+  accountant: { label: "Accountant Portal", short: "Accountant", description: "Record payments and print your daily receipts", icon: Calculator },
+  teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", icon: BookOpen },
+  parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", icon: UserRound },
 }
 
 /** Shared by the super admin and the operations manager; fee sections are super-admin only. */
@@ -174,11 +171,10 @@ function PortalShell() {
   const sectionValid = Boolean(sectionParam && sectionIds[role].has(sectionParam))
   const section = sectionValid && sectionParam ? sectionParam : defaultSection[role]
   const current = navigation[role].find((item) => item.id === section) ?? navigation[role][0]
-  const authRole = loadAuth()?.role
-
-  useEffect(() => {
-    if (roleOk && authRole && authRole !== role) saveAuth({ role })
-  }, [authRole, role, roleOk])
+  const session = loadAuth()
+  const authRole = session?.role
+  const signedInName = session?.user ? `${session.user.firstName} ${session.user.lastName}`.trim() : roles[role].short
+  const initials = signedInName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -188,25 +184,11 @@ function PortalShell() {
     return [...students, ...payments]
   }, [query, role, state.payments, state.students])
 
-  if (!roleOk) {
-    return <Navigate to="/login" replace />
+  if (!roleOk || (authRole && authRole !== role)) {
+    return <Navigate to={authRole ? portalPath(authRole) : "/login"} replace />
   }
   if (!sectionValid || roleParam !== portalPath(role).split("/")[1]) {
     return <Navigate to={portalPath(role, section)} replace />
-  }
-
-  async function changeRole(next: Role) {
-    try {
-      const creds = roles[next]
-      const res = await api.login(creds.email, "password")
-      saveAuth({ role: next, token: res.token, user: res.user })
-    } catch {
-      saveAuth({ role: next })
-    }
-    setQuery("")
-    setMobileNavOpen(false)
-    navigate(portalPath(next))
-    window.dispatchEvent(new Event("eduvia:auth-changed"))
   }
 
   function openSection(id: string) {
@@ -239,14 +221,14 @@ function PortalShell() {
     if (section === "finance") return <Finance />
     if (section === "messages") return <MessagesDesk />
     if (section === "settings") return <SettingsPanel />
-    if (section === "reports") return <Reports onReset={() => { resetDemo(); toast.success("Demo data restored") }} />
+    if (section === "reports") return <Reports onReset={() => { resetDemo(); toast.success("School data reloaded") }} />
     return <ManagementDashboard onOpen={openSection} />
   })()
 
   return (
     <div className="min-h-svh bg-[var(--page-wash)]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
-        <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={logout} />
+        <Sidebar role={role} userName={signedInName} initials={initials} active={section} onNavigate={openSection} onLogout={logout} />
       </aside>
       <div className="lg:pl-64">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-3 lg:hidden">
@@ -254,7 +236,7 @@ function PortalShell() {
             <SheetTrigger asChild><Button variant="outline" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
             <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
               <SheetHeader className="sr-only"><SheetTitle>Portal navigation</SheetTitle><SheetDescription>Choose a section of the school portal.</SheetDescription></SheetHeader>
-              <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={logout} />
+              <Sidebar role={role} userName={signedInName} initials={initials} active={section} onNavigate={openSection} onLogout={logout} />
             </SheetContent>
           </Sheet>
           <Logo />
@@ -297,7 +279,7 @@ function PortalShell() {
   )
 }
 
-function Sidebar({ role, active, onNavigate, onRole, onLogout }: { role: Role; active: string; onNavigate: (id: string) => void; onRole: (role: Role) => void; onLogout: () => void }) {
+function Sidebar({ role, userName, initials, active, onNavigate, onLogout }: { role: Role; userName: string; initials: string; active: string; onNavigate: (id: string) => void; onLogout: () => void }) {
   const { theme, setTheme } = useTheme()
   return (
     <div className="flex h-full flex-col bg-sidebar p-3 text-sidebar-foreground">
@@ -316,14 +298,10 @@ function Sidebar({ role, active, onNavigate, onRole, onLogout }: { role: Role; a
       </nav>
       <div className="rounded-2xl border border-white/15 bg-white/10 p-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">{roles[role].initials}</div>
-          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white">{roles[role].user}</p><p className="truncate text-[11px] text-[var(--sidebar-inactive)]">{roles[role].label}</p></div>
+          <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">{initials}</div>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white">{userName}</p><p className="truncate text-[11px] text-[var(--sidebar-inactive)]">{roles[role].label}</p></div>
           <Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white" aria-label="Sign out" onClick={onLogout}><LogOut /></Button>
         </div>
-        <Select value={role} onValueChange={(value) => onRole(value as Role)}>
-          <SelectTrigger className="mt-3 h-10 w-full border-white/20 bg-white/10 text-xs text-white"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectGroup>{ALL_ROLES.map((item) => <SelectItem key={item} value={item}>{roles[item].short} demo</SelectItem>)}</SelectGroup></SelectContent>
-        </Select>
         <Button variant="ghost" size="sm" className="mt-2 w-full text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? "Light theme" : "Dark theme"}</Button>
       </div>
     </div>
