@@ -1,7 +1,9 @@
 export type StudentStatus = "Active" | "Pending" | "Withdrawn"
-export type ApplicationStatus = "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected"
+export type ApplicationStatus =
+  "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected"
 export type PaymentStatus = "Paid" | "Pending"
-export type AttendanceStatus = "Present" | "Absent" | "Late" | "Excused" | "Leave" | "HalfDay"
+export type AttendanceStatus =
+  "Present" | "Absent" | "Late" | "Excused" | "Leave" | "HalfDay"
 export type LessonStatus = "Completed" | "In progress" | "Planned"
 export type UpdateKind = "Homework" | "Classwork" | "Notice"
 export type UpdateStatus = "Draft" | "Approved" | "Published" | "Rejected"
@@ -48,7 +50,6 @@ export function normalizeApplicationStatus(raw: string): ApplicationStatus {
       return "New"
   }
 }
-
 
 export type ClassSection = {
   id: string
@@ -149,7 +150,11 @@ export type FeeMonth = {
   dueDate: string
 }
 
-export type FeeAllocation = { feeMonthId: string; month: string; amount: number }
+export type FeeAllocation = {
+  feeMonthId: string
+  month: string
+  amount: number
+}
 
 export type Payment = {
   /** Receipt number generated when the payment is recorded. */
@@ -402,7 +407,13 @@ export type SchoolState = {
 }
 
 export const DEFAULT_SETTINGS: SchoolSettings = {
-  dailyTestRules: { passPercent: 40, maxFailsPerMonth: 1, lowMarksEnabled: true, lowMarksMinPassed: 3, lowMarksBelowPercent: 55 },
+  dailyTestRules: {
+    passPercent: 40,
+    maxFailsPerMonth: 1,
+    lowMarksEnabled: true,
+    lowMarksMinPassed: 3,
+    lowMarksBelowPercent: 55,
+  },
   resultVisibility: { feeRule: "all_due_paid", requireOverrideReason: true },
 }
 export { getToday } from "@/lib/dates"

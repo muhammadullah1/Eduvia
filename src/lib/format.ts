@@ -110,11 +110,27 @@ export function timeAgo(iso: string) {
 export function formatDate(iso: string) {
   const [y, m, d] = iso.split("-")
   if (!y || !m || !d) return iso
-  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+  const months = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ]
   return `${Number(d)} ${months[Number(m) - 1]} ${y}`
 }
 
-export function classLabel(classes: { id: string; label: string }[], id: string) {
+export function classLabel(
+  classes: { id: string; label: string }[],
+  id: string
+) {
   return classes.find((item) => item.id === id)?.label ?? id
 }
 

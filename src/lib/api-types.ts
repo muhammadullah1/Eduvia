@@ -109,7 +109,17 @@ export type ApiApplication = {
   interviewScore?: string | null
   interviewResult?: string | null
   decision?: "Admit" | "Reject" | "Waitlist" | "" | null
-  status: "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected" | "Inquiry" | "Applied" | "UnderReview" | "InterviewScheduled" | "Approved"
+  status:
+    | "New"
+    | "Review"
+    | "Waitlist"
+    | "Enrolled"
+    | "Rejected"
+    | "Inquiry"
+    | "Applied"
+    | "UnderReview"
+    | "InterviewScheduled"
+    | "Approved"
   submittedOn?: string | null
   notes?: string | null
   documents?: Array<{

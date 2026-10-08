@@ -1,9 +1,33 @@
-import { useMemo, useState, type ComponentType, type ReactNode } from "react"
 import {
-  Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
-  Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, ReceiptText, Search, Settings2, ShieldAlert, ShieldCheck,
-  Sun, UserCheck, UserRound, Users, WalletCards,
+  Bell,
+  BookOpen,
+  Building2,
+  Calculator,
+  CalendarClock,
+  CalendarDays,
+  ClipboardCheck,
+  ClipboardList,
+  FileCheck2,
+  GraduationCap,
+  Landmark,
+  LayoutDashboard,
+  LibraryBig,
+  LogOut,
+  Menu,
+  MessageSquareText,
+  Moon,
+  ReceiptText,
+  Search,
+  Settings2,
+  ShieldAlert,
+  ShieldCheck,
+  Sun,
+  UserCheck,
+  UserRound,
+  Users,
+  WalletCards,
 } from "lucide-react"
+import { type ComponentType, type ReactNode, useMemo, useState } from "react"
 import {
   BrowserRouter,
   Navigate,
@@ -14,28 +38,94 @@ import {
   useParams,
 } from "react-router-dom"
 
+import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { useTheme } from "@/components/theme-provider"
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet"
 import { useSchool } from "@/data/store"
-import { AcademicSetup, Admissions, Examinations, Fees, Finance, ManagementDashboard, MessagesDesk, People, Reports } from "@/features/management/screens"
-import { AccountantPortal, AbsencesPanel, CurriculumPanel, LessonReviewPanel, OperationsOverview, ResultsGatePanel, SettingsPanel, WeeklyTestsPanel } from "@/features/ops/screens"
+import {
+  ForgotPasswordScreen,
+  LoginScreen,
+  ResetPasswordScreen,
+} from "@/features/auth/screens"
+import {
+  AcademicSetup,
+  Admissions,
+  Examinations,
+  Fees,
+  Finance,
+  ManagementDashboard,
+  MessagesDesk,
+  People,
+  Reports,
+} from "@/features/management/screens"
+import {
+  AbsencesPanel,
+  AccountantPortal,
+  CurriculumPanel,
+  LessonReviewPanel,
+  OperationsOverview,
+  ResultsGatePanel,
+  SettingsPanel,
+  WeeklyTestsPanel,
+} from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
-import { ForgotPasswordScreen, LoginScreen, ResetPasswordScreen } from "@/features/auth/screens"
-import { ALL_ROLES, clearAuth, defaultSection, loadAuth, portalPath, roleFromSlug, type Role } from "@/lib/auth"
+import {
+  ALL_ROLES,
+  clearAuth,
+  defaultSection,
+  loadAuth,
+  portalPath,
+  type Role,
+  roleFromSlug,
+} from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
 
 type Icon = ComponentType<{ className?: string }>
 
-const roles: Record<Role, { label: string; short: string; description: string; icon: Icon }> = {
-  super_admin: { label: "Super Admin Portal", short: "Super Admin", description: "Full control, including overall fee totals", icon: Building2 },
-  operations_manager: { label: "Operations Portal", short: "Operations Manager", description: "Academics, people, absences and results — no fee totals", icon: ShieldCheck },
-  accountant: { label: "Accountant Portal", short: "Accountant", description: "Record payments and print your daily receipts", icon: Calculator },
-  teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", icon: BookOpen },
-  parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", icon: UserRound },
+const roles: Record<
+  Role,
+  { label: string; short: string; description: string; icon: Icon }
+> = {
+  super_admin: {
+    label: "Super Admin Portal",
+    short: "Super Admin",
+    description: "Full control, including overall fee totals",
+    icon: Building2,
+  },
+  operations_manager: {
+    label: "Operations Portal",
+    short: "Operations Manager",
+    description: "Academics, people, absences and results — no fee totals",
+    icon: ShieldCheck,
+  },
+  accountant: {
+    label: "Accountant Portal",
+    short: "Accountant",
+    description: "Record payments and print your daily receipts",
+    icon: Calculator,
+  },
+  teacher: {
+    label: "Teacher Portal",
+    short: "Teacher",
+    description: "Classes, attendance and academic delivery",
+    icon: BookOpen,
+  },
+  parent: {
+    label: "Parent Portal",
+    short: "Parent",
+    description: "A clear view of your child’s school journey",
+    icon: UserRound,
+  },
 }
 
 /** Shared by the super admin and the operations manager; fee sections are super-admin only. */
@@ -91,7 +181,12 @@ const navigation: Record<Role, { id: string; label: string; icon: Icon }[]> = {
   ],
 }
 
-const sectionIds = Object.fromEntries(ALL_ROLES.map((role) => [role, new Set(navigation[role].map((item) => item.id))])) as Record<Role, Set<string>>
+const sectionIds = Object.fromEntries(
+  ALL_ROLES.map((role) => [
+    role,
+    new Set(navigation[role].map((item) => item.id)),
+  ])
+) as Record<Role, Set<string>>
 
 const subtitles: Record<string, string> = {
   dashboard: "A live view of people, learning, fees and school operations.",
@@ -102,9 +197,11 @@ const subtitles: Record<string, string> = {
   admissions: "Applications, enrollment and the student register.",
   people: "Teachers and office staff; one active subject per teacher.",
   absences: "Mark teachers absent by period and assign a free substitute.",
-  "weekly-tests": "One test day per subject, marks, publishing and monthly outcomes.",
+  "weekly-tests":
+    "One test day per subject, marks, publishing and monthly outcomes.",
   exams: "Controlled marks, verification and publishing.",
-  "results-gate": "Published results, the fee rule at view time and audited overrides.",
+  "results-gate":
+    "Published results, the fee rule at view time and audited overrides.",
   fees: "Receipts, monthly fee status and offline synchronisation.",
   finance: "Income, expenses and the operating position.",
   messages: "Approve what families are allowed to see.",
@@ -125,11 +222,34 @@ const subtitles: Record<string, string> = {
   updates: "Approved lesson updates and school notices.",
 }
 
-function Logo({ compact = false, inverted = false }: { compact?: boolean; inverted?: boolean }) {
+function Logo({
+  compact = false,
+  inverted = false,
+}: {
+  compact?: boolean
+  inverted?: boolean
+}) {
   return (
     <div className="flex items-center gap-3">
-      <div className={`grid size-10 shrink-0 place-items-center rounded-xl shadow-sm ${inverted ? "bg-white text-[var(--primary-color)]" : "brand-mark text-primary-foreground"}`}><GraduationCap className="size-5" /></div>
-      {!compact ? <div className="leading-tight"><p className={`font-heading text-sm font-semibold tracking-tight ${inverted ? "text-white" : ""}`}>Creative Leaders</p><p className={`text-[11px] ${inverted ? "text-[var(--sidebar-inactive)]" : "text-muted-foreground"}`}>School operating system</p></div> : null}
+      <div
+        className={`grid size-10 shrink-0 place-items-center rounded-xl shadow-sm ${inverted ? "bg-white text-[var(--primary-color)]" : "brand-mark text-primary-foreground"}`}
+      >
+        <GraduationCap className="size-5" />
+      </div>
+      {!compact ? (
+        <div className="leading-tight">
+          <p
+            className={`font-heading text-sm font-semibold tracking-tight ${inverted ? "text-white" : ""}`}
+          >
+            Creative Leaders
+          </p>
+          <p
+            className={`text-[11px] ${inverted ? "text-[var(--sidebar-inactive)]" : "text-muted-foreground"}`}
+          >
+            School operating system
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -138,7 +258,13 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   const auth = loadAuth()
   if (!auth) {
-    return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: location.pathname + location.search }}
+      />
+    )
   }
   return children
 }
@@ -167,19 +293,50 @@ function PortalShell() {
   const parsedRole = roleFromSlug(roleParam)
   const roleOk = parsedRole !== null
   const role: Role = parsedRole ?? "super_admin"
-  const sectionValid = Boolean(sectionParam && sectionIds[role].has(sectionParam))
-  const section = sectionValid && sectionParam ? sectionParam : defaultSection[role]
-  const current = navigation[role].find((item) => item.id === section) ?? navigation[role][0]
+  const sectionValid = Boolean(
+    sectionParam && sectionIds[role].has(sectionParam)
+  )
+  const section =
+    sectionValid && sectionParam ? sectionParam : defaultSection[role]
+  const current =
+    navigation[role].find((item) => item.id === section) ?? navigation[role][0]
   const session = loadAuth()
   const authRole = session?.role
-  const signedInName = session?.user ? `${session.user.firstName} ${session.user.lastName}`.trim() : roles[role].short
-  const initials = signedInName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()
+  const signedInName = session?.user
+    ? `${session.user.firstName} ${session.user.lastName}`.trim()
+    : roles[role].short
+  const initials = signedInName
+    .split(" ")
+    .map((part) => part[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (needle.length < 2 || role === "parent") return []
-    const students = state.students.filter((student) => `${student.name} ${student.id}`.toLowerCase().includes(needle)).slice(0, 4).map((student) => ({ id: student.id, label: student.name, hint: student.id, section: role === "teacher" ? "classes" : "admissions" }))
-    const payments = can(role, "fees.totals") ? state.payments.filter((payment) => payment.ref.toLowerCase().includes(needle)).slice(0, 3).map((payment) => ({ id: payment.ref, label: payment.ref, hint: "Fee receipt", section: "fees" })) : []
+    const students = state.students
+      .filter((student) =>
+        `${student.name} ${student.id}`.toLowerCase().includes(needle)
+      )
+      .slice(0, 4)
+      .map((student) => ({
+        id: student.id,
+        label: student.name,
+        hint: student.id,
+        section: role === "teacher" ? "classes" : "admissions",
+      }))
+    const payments = can(role, "fees.totals")
+      ? state.payments
+          .filter((payment) => payment.ref.toLowerCase().includes(needle))
+          .slice(0, 3)
+          .map((payment) => ({
+            id: payment.ref,
+            label: payment.ref,
+            hint: "Fee receipt",
+            section: "fees",
+          }))
+      : []
     return [...students, ...payments]
   }, [query, role, state.payments, state.students])
 
@@ -203,10 +360,12 @@ function PortalShell() {
   }
 
   const content = (() => {
-    if (role === "teacher") return <TeacherPortal section={section} onOpen={openSection} />
+    if (role === "teacher")
+      return <TeacherPortal section={section} onOpen={openSection} />
     if (role === "parent") return <ParentPortal section={section} />
     if (role === "accountant") return <AccountantPortal section={section} />
-    if (section === "overview") return <OperationsOverview onOpen={openSection} />
+    if (section === "overview")
+      return <OperationsOverview onOpen={openSection} />
     if (section === "academic") return <AcademicSetup />
     if (section === "curriculum") return <CurriculumPanel />
     if (section === "lesson-review") return <LessonReviewPanel />
@@ -227,15 +386,45 @@ function PortalShell() {
   return (
     <div className="min-h-svh bg-[var(--page-wash)]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
-        <Sidebar role={role} userName={signedInName} initials={initials} active={section} onNavigate={openSection} onLogout={logout} />
+        <Sidebar
+          role={role}
+          userName={signedInName}
+          initials={initials}
+          active={section}
+          onNavigate={openSection}
+          onLogout={logout}
+        />
       </aside>
       <div className="lg:pl-64">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-3 lg:hidden">
           <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <SheetTrigger asChild><Button variant="outline" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
-            <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
-              <SheetHeader className="sr-only"><SheetTitle>Portal navigation</SheetTitle><SheetDescription>Choose a section of the school portal.</SheetDescription></SheetHeader>
-              <Sidebar role={role} userName={signedInName} initials={initials} active={section} onNavigate={openSection} onLogout={logout} />
+            <SheetTrigger asChild>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Open navigation"
+              >
+                <Menu />
+              </Button>
+            </SheetTrigger>
+            <SheetContent
+              side="left"
+              className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground"
+            >
+              <SheetHeader className="sr-only">
+                <SheetTitle>Portal navigation</SheetTitle>
+                <SheetDescription>
+                  Choose a section of the school portal.
+                </SheetDescription>
+              </SheetHeader>
+              <Sidebar
+                role={role}
+                userName={signedInName}
+                initials={initials}
+                active={section}
+                onNavigate={openSection}
+                onLogout={logout}
+              />
             </SheetContent>
           </Sheet>
           <Logo />
@@ -243,65 +432,166 @@ function PortalShell() {
         <header className="sticky top-0 z-20 flex flex-col gap-4 border-b bg-background/90 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground"><span>2026–27</span><span>·</span><span>{roles[role].short}</span></div>
-              <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] dark:text-foreground">{current.label}</h1>
-              <p className="mt-1 text-sm text-muted-foreground">{subtitles[section] ?? "Creative Leaders School"}</p>
+              <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                <span>2026–27</span>
+                <span>·</span>
+                <span>{roles[role].short}</span>
+              </div>
+              <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] dark:text-foreground">
+                {current.label}
+              </h1>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {subtitles[section] ?? "Creative Leaders School"}
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative hidden min-w-64 md:block">
                 <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={role === "parent" ? "Search is on each family page" : "Search students or receipts"} className="pl-9" />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={
+                    role === "parent"
+                      ? "Search is on each family page"
+                      : "Search students or receipts"
+                  }
+                  className="pl-9"
+                />
                 {results.length ? (
                   <div className="absolute top-12 z-30 w-full rounded-xl border bg-popover p-1 shadow-lg">
                     {results.map((item) => (
-                      <button key={item.id} className="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-muted" onClick={() => { openSection(item.section); setQuery(item.label) }}>
-                        <span className="text-sm font-medium">{item.label}</span>
-                        <span className="text-xs text-muted-foreground">{item.hint}</span>
+                      <button
+                        key={item.id}
+                        className="flex w-full flex-col rounded-lg px-3 py-2 text-left hover:bg-muted"
+                        onClick={() => {
+                          openSection(item.section)
+                          setQuery(item.label)
+                        }}
+                      >
+                        <span className="text-sm font-medium">
+                          {item.label}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {item.hint}
+                        </span>
                       </button>
                     ))}
                   </div>
                 ) : null}
               </div>
-              <Button variant="outline" size="icon" aria-label="Notifications" onClick={() => setNotesOpen((open) => !open)}><Bell /></Button>
-              <Button variant="outline" size="icon" aria-label="Toggle theme" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? <Sun /> : <Moon />}</Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Notifications"
+                onClick={() => setNotesOpen((open) => !open)}
+              >
+                <Bell />
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                aria-label="Toggle theme"
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              >
+                {theme === "dark" ? <Sun /> : <Moon />}
+              </Button>
             </div>
           </div>
           {notesOpen ? (
             <div className="rounded-xl border bg-card p-3">
-              {state.audits.slice(0, 5).map((event) => <div key={event.id} className="border-b py-2 last:border-0"><p className="text-sm"><span className="font-medium">{event.actor}</span> {event.action}</p><p className="text-xs text-muted-foreground">{timeAgo(event.at)}</p></div>)}
+              {state.audits.slice(0, 5).map((event) => (
+                <div key={event.id} className="border-b py-2 last:border-0">
+                  <p className="text-sm">
+                    <span className="font-medium">{event.actor}</span>{" "}
+                    {event.action}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {timeAgo(event.at)}
+                  </p>
+                </div>
+              ))}
             </div>
           ) : null}
         </header>
-        <main className="mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8">{content}</main>
+        <main className="mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8">
+          {content}
+        </main>
       </div>
     </div>
   )
 }
 
-function Sidebar({ role, userName, initials, active, onNavigate, onLogout }: { role: Role; userName: string; initials: string; active: string; onNavigate: (id: string) => void; onLogout: () => void }) {
+function Sidebar({
+  role,
+  userName,
+  initials,
+  active,
+  onNavigate,
+  onLogout,
+}: {
+  role: Role
+  userName: string
+  initials: string
+  active: string
+  onNavigate: (id: string) => void
+  onLogout: () => void
+}) {
   const { theme, setTheme } = useTheme()
   return (
     <div className="flex h-full flex-col bg-sidebar p-3 text-sidebar-foreground">
-      <div className="px-2 py-3"><Logo inverted /></div>
-      <p className="mt-4 px-2 text-[10px] font-semibold tracking-[0.18em] text-[var(--sidebar-inactive)]/80 uppercase">Workspace</p>
+      <div className="px-2 py-3">
+        <Logo inverted />
+      </div>
+      <p className="mt-4 px-2 text-[10px] font-semibold tracking-[0.18em] text-[var(--sidebar-inactive)]/80 uppercase">
+        Workspace
+      </p>
       <nav className="mt-2 flex flex-1 flex-col gap-1 overflow-y-auto">
         {navigation[role].map((item) => {
           const Icon = item.icon
           const selected = active === item.id
           return (
-            <button key={item.id} onClick={() => onNavigate(item.id)} className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${selected ? "bg-white text-[var(--primary-color)] shadow-sm" : "text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white"}`}>
-              <Icon className="size-4" /><span>{item.label}</span>
+            <button
+              key={item.id}
+              onClick={() => onNavigate(item.id)}
+              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${selected ? "bg-white text-[var(--primary-color)] shadow-sm" : "text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white"}`}
+            >
+              <Icon className="size-4" />
+              <span>{item.label}</span>
             </button>
           )
         })}
       </nav>
       <div className="rounded-2xl border border-white/15 bg-white/10 p-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">{initials}</div>
-          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white">{userName}</p><p className="truncate text-[11px] text-[var(--sidebar-inactive)]">{roles[role].label}</p></div>
-          <Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white" aria-label="Sign out" onClick={onLogout}><LogOut /></Button>
+          <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">
+            {initials}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-xs font-semibold text-white">
+              {userName}
+            </p>
+            <p className="truncate text-[11px] text-[var(--sidebar-inactive)]">
+              {roles[role].label}
+            </p>
+          </div>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-white hover:bg-white/10 hover:text-white"
+            aria-label="Sign out"
+            onClick={onLogout}
+          >
+            <LogOut />
+          </Button>
         </div>
-        <Button variant="ghost" size="sm" className="mt-2 w-full text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? "Light theme" : "Dark theme"}</Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mt-2 w-full text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? "Light theme" : "Dark theme"}
+        </Button>
       </div>
     </div>
   )
@@ -310,10 +600,38 @@ function Sidebar({ role, userName, initials, active, onNavigate, onLogout }: { r
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<GuestOnly><LoginScreen /></GuestOnly>} />
-      <Route path="/forgot-password" element={<GuestOnly><ForgotPasswordScreen /></GuestOnly>} />
-      <Route path="/reset-password" element={<GuestOnly><ResetPasswordScreen /></GuestOnly>} />
-      <Route path="/set-password" element={<GuestOnly><ResetPasswordScreen /></GuestOnly>} />
+      <Route
+        path="/login"
+        element={
+          <GuestOnly>
+            <LoginScreen />
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/forgot-password"
+        element={
+          <GuestOnly>
+            <ForgotPasswordScreen />
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/reset-password"
+        element={
+          <GuestOnly>
+            <ResetPasswordScreen />
+          </GuestOnly>
+        }
+      />
+      <Route
+        path="/set-password"
+        element={
+          <GuestOnly>
+            <ResetPasswordScreen />
+          </GuestOnly>
+        }
+      />
       <Route path="/" element={<HomeRedirect />} />
       <Route
         path="/:role/:section/*"

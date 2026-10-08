@@ -1,4 +1,4 @@
-import { clearAuth, loadAuth, type AuthUser } from "@/lib/auth"
+import { type AuthUser, clearAuth, loadAuth } from "@/lib/auth"
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api"
 
@@ -20,10 +20,7 @@ export class ApiHttpError extends Error {
   }
 }
 
-async function request<T>(
-  path: string,
-  options: RequestInit = {}
-): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const session = loadAuth()
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -44,7 +41,8 @@ async function request<T>(
       headers,
     })
   } catch (err) {
-    const errorMsg = err instanceof Error ? err.message : "Network request failed"
+    const errorMsg =
+      err instanceof Error ? err.message : "Network request failed"
     throw new ApiHttpError(0, `Cannot connect to API server: ${errorMsg}`)
   }
 
@@ -76,7 +74,10 @@ async function request<T>(
 }
 
 export const api = {
-  get: <T>(path: string, query?: Record<string, string | number | undefined | null>) => {
+  get: <T>(
+    path: string,
+    query?: Record<string, string | number | undefined | null>
+  ) => {
     let url = path
     if (query) {
       const q = new URLSearchParams()
@@ -111,30 +112,52 @@ export const api = {
 
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 
-  login: async (email: string, password: string): Promise<{ user: AuthUser; token: string }> => {
+  login: async (
+    email: string,
+    password: string
+  ): Promise<{ user: AuthUser; token: string }> => {
     return request<{ user: AuthUser; token: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
     })
   },
 
-  forgotPassword: async (email: string): Promise<{ message: string; resetUrl?: string }> => {
-    return request<{ message: string; resetUrl?: string }>("/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    })
+  forgotPassword: async (
+    email: string
+  ): Promise<{ message: string; resetUrl?: string }> => {
+    return request<{ message: string; resetUrl?: string }>(
+      "/auth/forgot-password",
+      {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }
+    )
   },
 
   verifyResetToken: async (
     token: string
-  ): Promise<{ valid: boolean; email: string; name: string; role: string; purpose: string }> => {
-    return request<{ valid: boolean; email: string; name: string; role: string; purpose: string }>(
-      `/auth/verify-token?token=${encodeURIComponent(token)}`,
-      { method: "GET" }
-    )
+  ): Promise<{
+    valid: boolean
+    email: string
+    name: string
+    role: string
+    purpose: string
+  }> => {
+    return request<{
+      valid: boolean
+      email: string
+      name: string
+      role: string
+      purpose: string
+    }>(`/auth/verify-token?token=${encodeURIComponent(token)}`, {
+      method: "GET",
+    })
   },
 
-  resetPassword: async (token: string, password: string): Promise<{ message: string }> => {
+  resetPassword: async (
+    token: string,
+    password: string
+  ): Promise<{ message: string }> => {
     return request<{ message: string }>("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({ token, password }),
