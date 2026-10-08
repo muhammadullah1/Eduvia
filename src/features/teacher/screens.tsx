@@ -15,10 +15,11 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { MarksDialog } from "@/features/ops/screens"
 import { studentName, useSchool } from "@/data/store"
-import { TODAY, isAttendancePresent, type AttendanceStatus, type WeeklyTest } from "@/data/types"
+import { isAttendancePresent, type AttendanceStatus, type WeeklyTest } from "@/data/types"
 import { teacherDuties, weekdayOf } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { loadAuth } from "@/lib/auth"
+import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
 import { classLabel, formatDate } from "@/lib/format"
 
@@ -45,15 +46,16 @@ function schoolWeek(today: string) {
 
 export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) {
   const { state } = useSchool()
+  const today = getToday()
   const teacher = signedInTeacher(state.staff)
   const teacherId = teacher?.id ?? ""
-  const day = weekdayOf(TODAY)
+  const day = weekdayOf(today)
   // Own timetable plus any class assigned to this teacher as a substitute today (UR-03).
-  const periods = teacherDuties(teacherId, TODAY, state.slots, state.substitutions)
+  const periods = teacherDuties(teacherId, today, state.slots, state.substitutions)
   const timeOf = (classId: string, periodIndex: number) => state.slots.find((slot) => slot.classId === classId && slot.day === day && slot.periodIndex === periodIndex)
   const covering = periods.filter((duty) => duty.substitute).length
   const classIds = teacher?.classIds ?? []
-  const weekly = schoolWeek(TODAY).map(([date, label]) => {
+  const weekly = schoolWeek(today).map(([date, label]) => {
     const marks = state.attendance.filter((mark) => classIds.includes(mark.classId) && mark.date === date)
     const present = marks.filter((mark) => isAttendancePresent(mark.status)).length
     return { day: label, value: marks.length ? Math.round((present / marks.length) * 100) : 0 }
@@ -63,7 +65,7 @@ export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) 
       <div className="relative overflow-hidden rounded-3xl bg-primary p-7 text-primary-foreground md:p-9">
         <div className="school-grid absolute inset-0 opacity-10" />
         <div className="relative z-10 max-w-xl">
-          <p className="text-xs font-semibold tracking-[0.18em] text-primary-foreground/60 uppercase">{day} · {formatDate(TODAY)}</p>
+          <p className="text-xs font-semibold tracking-[0.18em] text-primary-foreground/60 uppercase">{day} · {formatDate(today)}</p>
           <h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight">Good morning, {teacher?.name.split(" ")[0] ?? "teacher"}.</h2>
           <p className="mt-2 text-sm text-primary-foreground/70">You have {periods.length} periods today{covering ? `, including ${covering} substitute ${covering === 1 ? "class" : "classes"}` : ""}. You teach {teacher?.subject}.</p>
           <Button variant="secondary" className="mt-6" onClick={() => onOpen("attendance")}><UserCheck data-icon="inline-start" />Start attendance</Button>
@@ -149,7 +151,7 @@ export function TeacherAttendance() {
   const actor = useActor()
   const teacher = signedInTeacher(state.staff)
   const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
-  const [date, setDate] = useState(TODAY)
+  const [date, setDate] = useState(getToday)
   const students = state.students.filter((student) => student.classId === classId && student.status !== "Withdrawn")
   const initial = useMemo(() => {
     const map: Record<string, AttendanceStatus> = {}
@@ -203,6 +205,7 @@ export function TeacherAttendance() {
 export function TeacherDailyUpdate() {
   const { state, submitDailyLesson } = useSchool()
   const actor = useActor()
+  const today = getToday()
   const teacher = signedInTeacher(state.staff)
   const teacherId = teacher?.id ?? ""
   const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
@@ -210,10 +213,10 @@ export function TeacherDailyUpdate() {
   const [form, setForm] = useState({ classwork: "", homework: "", remarks: "" })
   const chapters = state.plannedChapters.filter((row) => row.classId === classId && row.subject === teacher?.subject).sort((a, b) => a.sequence - b.sequence)
   const mine = state.dailyLessons.filter((row) => row.teacherId === teacherId).sort((a, b) => b.date.localeCompare(a.date))
-  const today = mine.find((row) => row.classId === classId && row.date === TODAY)
+  const todayLesson = mine.find((row) => row.classId === classId && row.date === today)
 
   function submit() {
-    const message = submitDailyLesson({ classId, date: TODAY, chapterId, ...form }, actor)
+    const message = submitDailyLesson({ classId, date: today, chapterId, ...form }, actor)
     if (message) toast.error(message)
     else {
       toast.success("Sent to management for review")
@@ -225,7 +228,7 @@ export function TeacherDailyUpdate() {
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
       <Card>
-        <CardHeader><CardTitle>Today’s update · {formatDate(TODAY)}</CardTitle><CardDescription>{teacher?.subject}. Parents see it once management approves it.</CardDescription></CardHeader>
+        <CardHeader><CardTitle>Today’s update · {formatDate(today)}</CardTitle><CardDescription>{teacher?.subject}. Parents see it once management approves it.</CardDescription></CardHeader>
         <CardContent className="grid gap-4">
           <Field label="Class"><Select value={classId} onValueChange={(value) => { setClassId(value); setChapterId("") }}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup>{(teacher?.classIds ?? []).map((id) => <SelectItem key={id} value={id}>{classLabel(state.classes, id)}</SelectItem>)}</SelectGroup></SelectContent></Select></Field>
           <Field label="Chapter taught" hint={chapters.length ? undefined : "No chapters are planned for this class yet — ask the operations manager."}>
@@ -234,9 +237,9 @@ export function TeacherDailyUpdate() {
           <Field label="Classwork (optional)"><Textarea value={form.classwork} onChange={(event) => setForm({ ...form, classwork: event.target.value })} /></Field>
           <Field label="Homework (optional)"><Textarea value={form.homework} onChange={(event) => setForm({ ...form, homework: event.target.value })} /></Field>
           <Field label="Remarks (optional)"><Input value={form.remarks} onChange={(event) => setForm({ ...form, remarks: event.target.value })} /></Field>
-          {today ? <p className="text-xs text-muted-foreground">Today’s update for this class is {today.reviewStatus.toLowerCase()}{today.reviewStatus === "Approved" ? "." : "; submitting again replaces it."}</p> : null}
+          {todayLesson ? <p className="text-xs text-muted-foreground">Today’s update for this class is {todayLesson.reviewStatus.toLowerCase()}{todayLesson.reviewStatus === "Approved" ? "." : "; submitting again replaces it."}</p> : null}
         </CardContent>
-        <CardFooter><Button disabled={!chapterId || today?.reviewStatus === "Approved"} onClick={submit}>Submit for review</Button></CardFooter>
+        <CardFooter><Button disabled={!chapterId || todayLesson?.reviewStatus === "Approved"} onClick={submit}>Submit for review</Button></CardFooter>
       </Card>
       <Card>
         <CardHeader><CardTitle>Your daily updates</CardTitle></CardHeader>
@@ -262,7 +265,8 @@ export function TeacherWeeklyTests() {
   const { state } = useSchool()
   const teacher = signedInTeacher(state.staff)
   const [marking, setMarking] = useState<WeeklyTest | null>(null)
-  const month = TODAY.slice(0, 7)
+  const today = getToday()
+  const month = today.slice(0, 7)
   const tests = state.weeklyTests
     .filter((test) => test.month === month && test.subject === teacher?.subject && teacher.classIds.includes(test.classId))
     .sort((a, b) => a.date.localeCompare(b.date) || a.classId.localeCompare(b.classId))
@@ -273,7 +277,7 @@ export function TeacherWeeklyTests() {
       <CardContent className="grid gap-2">
         {tests.length === 0 ? <EmptyState title="No tests scheduled" detail="The operations manager sets one test day per subject." /> : tests.map((test) => {
           const entered = test.results.filter((row) => row.score !== null).length
-          const due = test.date <= TODAY
+          const due = test.date <= today
           return (
             <div key={test.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3">
               <div><p className="text-sm font-medium">{classLabel(state.classes, test.classId)} · week {test.week}</p><p className="text-xs text-muted-foreground">{weekdayOf(test.date)} {formatDate(test.date)} · out of {test.max} · {entered}/{test.results.length} marks</p></div>
@@ -301,7 +305,7 @@ export function TeacherUpdates() {
   const [kind, setKind] = useState<"Homework" | "Classwork" | "Notice">("Notice")
   const [subject, setSubject] = useState(teacher?.subject ?? "")
   const [text, setText] = useState("")
-  const [due, setDue] = useState("2026-09-25")
+  const [due, setDue] = useState(getToday)
   const [error, setError] = useState("")
   const mine = state.updates.filter((item) => item.author === actor.name)
   return (

@@ -17,15 +17,14 @@ import { Textarea } from "@/components/ui/textarea"
 import { FeeMonthTable, PrintReceiptButton, RecordPaymentForm } from "@/features/fees/components"
 import { feeMonthsLabel } from "@/features/fees/receipts"
 import { studentName, useSchool } from "@/data/store"
-import { TODAY, isAttendancePresent, type DailyTestRules, type Payment, type ResultFeeRule, type ReviewStatus, type TeacherAbsence, type WeeklyTest } from "@/data/types"
+import { isAttendancePresent, type DailyTestRules, type Payment, type ResultFeeRule, type ReviewStatus, type TeacherAbsence, type WeeklyTest } from "@/data/types"
 import { activeOverride, availableSubstitutes, busyReason, feeCleared, monthlySummaries, resultVisibility, WEEKDAYS, weekdayOf } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
+import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
 import { classLabel, formatDate, pkr, timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
 import { printDocument } from "@/lib/print"
-
-const CURRENT_MONTH = TODAY.slice(0, 7)
 
 function useStaffName() {
   const { state } = useSchool()
@@ -97,7 +96,7 @@ function CollectDesk() {
 function MyCollections() {
   const { state } = useSchool()
   const actor = useActor()
-  const [day, setDay] = useState(TODAY)
+  const [day, setDay] = useState(getToday)
   // Only this accountant's own confirmed receipts for the chosen day, no aggregates (§9.2).
   const rows = state.payments.filter((payment) => payment.recordedBy === actor.name && payment.status === "Paid" && payment.date === day)
 
@@ -115,7 +114,7 @@ function MyCollections() {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div><CardTitle>My receipts</CardTitle><CardDescription>Only payments you recorded. Totals are kept by the super admin.</CardDescription></div>
           <div className="flex items-end gap-2">
-            <Field label="Day"><Input type="date" value={day} max={TODAY} onChange={(event) => setDay(event.target.value || TODAY)} /></Field>
+            <Field label="Day"><Input type="date" value={day} max={getToday()} onChange={(event) => setDay(event.target.value || getToday())} /></Field>
             <Button variant="outline" disabled={!rows.length} onClick={printDay}><Printer data-icon="inline-start" />Print day</Button>
           </div>
         </div>
@@ -149,13 +148,15 @@ function MyCollections() {
 /** Operations manager landing page. Deliberately shows no fee amounts (UR-01). */
 export function OperationsOverview({ onOpen }: { onOpen: (section: string) => void }) {
   const { state } = useSchool()
+  const today = getToday()
+  const currentMonth = today.slice(0, 7)
   const active = state.students.filter((student) => student.status === "Active").length
-  const marked = state.attendance.filter((mark) => mark.date === TODAY)
+  const marked = state.attendance.filter((mark) => mark.date === today)
   const present = marked.filter((mark) => isAttendancePresent(mark.status)).length
-  const pendingCover = state.teacherAbsences.filter((row) => row.date === TODAY && row.status === "Pending").length
+  const pendingCover = state.teacherAbsences.filter((row) => row.date === today && row.status === "Pending").length
   const toReview = state.dailyLessons.filter((row) => row.reviewStatus === "Submitted").length
   const toPublish = state.weeklyTests.filter((test) => test.status === "MarksEntered").length
-  const flagged = monthlySummaries(state.weeklyTests, CURRENT_MONTH, state.settings.dailyTestRules).filter((row) => row.flaggedForFollowUp)
+  const flagged = monthlySummaries(state.weeklyTests, currentMonth, state.settings.dailyTestRules).filter((row) => row.flaggedForFollowUp)
   const queue = [
     { count: pendingCover, title: "Absent periods without cover today", section: "absences" },
     { count: toReview, title: "Daily updates awaiting review", section: "lesson-review" },
@@ -185,7 +186,7 @@ export function OperationsOverview({ onOpen }: { onOpen: (section: string) => vo
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle>Follow-up list · {monthLabel(CURRENT_MONTH)}</CardTitle><CardDescription>More than {state.settings.dailyTestRules.maxFailsPerMonth} failed weekly test(s) in a subject</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Follow-up list · {monthLabel(currentMonth)}</CardTitle><CardDescription>More than {state.settings.dailyTestRules.maxFailsPerMonth} failed weekly test(s) in a subject</CardDescription></CardHeader>
           <CardContent className="grid gap-2">
             {flagged.length === 0 ? <p className="text-sm text-muted-foreground">No students flagged.</p> : flagged.map((row) => (
               <div key={`${row.studentId}-${row.subject}`} className="flex items-center justify-between rounded-xl border px-3 py-2 text-sm">
@@ -208,10 +209,10 @@ export function AbsencesPanel() {
   const nameOf = useStaffName()
   const teachers = state.staff.filter((person) => person.role === "Teacher")
   const [teacherId, setTeacherId] = useState("")
-  const [date, setDate] = useState(TODAY)
+  const [date, setDate] = useState(getToday)
   const [periods, setPeriods] = useState<number[]>([])
   const [notes, setNotes] = useState("")
-  const [viewDate, setViewDate] = useState(TODAY)
+  const [viewDate, setViewDate] = useState(getToday)
   const [picking, setPicking] = useState<TeacherAbsence | null>(null)
   const teacher = teachers.find((person) => person.id === teacherId)
   const periodCount = Math.max(...state.classes.filter((klass) => teacher?.classIds.includes(klass.id)).map((klass) => klass.periodCount), 8)
@@ -277,7 +278,7 @@ export function AbsencesPanel() {
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div><CardTitle>Absences · {formatDate(viewDate)}</CardTitle><CardDescription>Free teachers are found from the timetable and today’s other substitutions.</CardDescription></div>
-            <Input type="date" className="sm:w-44" value={viewDate} onChange={(event) => setViewDate(event.target.value || TODAY)} />
+            <Input type="date" className="sm:w-44" value={viewDate} onChange={(event) => setViewDate(event.target.value || getToday())} />
           </CardHeader>
           <CardContent>
             {dayRows.length === 0 ? <EmptyState title="No absences" detail="Nobody is marked absent on this date." /> : (
@@ -529,7 +530,7 @@ export function WeeklyTestsPanel() {
     : (state.classes.find((c) => c.label.includes("Grade 7") || c.id === "g7b")?.id ?? state.classes[0]?.id ?? "g7b")
   const [form, setForm] = useState({ classId, subject: "Mathematics", weekday: "Thursday", periodIndex: "4", max: "20" })
   const [marking, setMarking] = useState<WeeklyTest | null>(null)
-  const [month, setMonth] = useState(CURRENT_MONTH)
+  const [month, setMonth] = useState(() => getToday().slice(0, 7))
   const rules = state.settings.dailyTestRules
   const tests = state.weeklyTests.filter((test) => test.month === month).sort((a, b) => a.date.localeCompare(b.date) || a.classId.localeCompare(b.classId))
   const summaries = useMemo(() => monthlySummaries(state.weeklyTests, month, rules), [state.weeklyTests, month, rules])
@@ -540,7 +541,7 @@ export function WeeklyTestsPanel() {
     <Tabs defaultValue="tests" className="grid gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <TabsList><TabsTrigger value="tests">Tests</TabsTrigger><TabsTrigger value="summary">Monthly summary</TabsTrigger><TabsTrigger value="flagged">Flagged ({flagged.length})</TabsTrigger><TabsTrigger value="schedule">Test days</TabsTrigger></TabsList>
-        <Input type="month" className="w-44" value={month} onChange={(event) => setMonth(event.target.value || CURRENT_MONTH)} />
+        <Input type="month" className="w-44" value={month} onChange={(event) => setMonth(event.target.value || getToday().slice(0, 7))} />
       </div>
       <Alert><ClipboardList /><AlertTitle>Rules for {monthLabel(month)}</AlertTitle><AlertDescription>Pass at {rules.passPercent}%. More than {rules.maxFailsPerMonth} failed test(s) in a subject ⇒ Failed and flagged for follow-up.{rules.lowMarksEnabled ? ` ${rules.lowMarksMinPassed}+ passed but average below ${rules.lowMarksBelowPercent}% ⇒ Low marks.` : ""} * = not yet published.</AlertDescription></Alert>
 
@@ -562,7 +563,7 @@ export function WeeklyTestsPanel() {
                       <TableCell><StatusBadge value={test.status} /></TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          {test.status !== "Published" && test.date <= TODAY ? <Button size="sm" variant="outline" onClick={() => setMarking(test)}>Marks</Button> : null}
+                          {test.status !== "Published" && test.date <= getToday() ? <Button size="sm" variant="outline" onClick={() => setMarking(test)}>Marks</Button> : null}
                           {test.status === "MarksEntered" ? <Button size="sm" onClick={() => { const message = publishWeeklyTest(test.id, actor); if (message) toast.error(message); else toast.success("Published to parents") }}>Publish</Button> : null}
                         </div>
                       </TableCell>
@@ -665,7 +666,8 @@ export function ResultsGatePanel() {
   const sheets = state.sheets.filter((sheet) => sheet.examId === examId)
   const exam = sheets[0]
   const studentIds = [...new Set(sheets.flatMap((sheet) => sheet.rows.map((row) => row.studentId)))]
-  const context = { feeMonths: state.feeMonths, overrides: state.resultOverrides, rule, today: TODAY }
+  const today = getToday()
+  const context = { feeMonths: state.feeMonths, overrides: state.resultOverrides, rule, today }
 
   function grant() {
     if (!granting) return
@@ -692,7 +694,7 @@ export function ResultsGatePanel() {
               {studentIds.map((studentId) => {
                 const own = sheets.filter((sheet) => sheet.rows.some((row) => row.studentId === studentId))
                 const published = own.filter((sheet) => sheet.status === "Published")
-                const cleared = feeCleared(state.feeMonths, studentId, exam?.feeMonth, rule, TODAY)
+                const cleared = feeCleared(state.feeMonths, studentId, exam?.feeMonth, rule, today)
                 const override = activeOverride(state.resultOverrides, examId, studentId)
                 const visible = published.some((sheet) => resultVisibility(sheet, studentId, context).visible)
                 return (

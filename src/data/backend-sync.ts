@@ -1,6 +1,5 @@
 import {
   DEFAULT_SETTINGS,
-  TODAY,
   normalizeApplicationStatus,
   type AcademicSession,
   type AbsenceStatus,
@@ -36,6 +35,7 @@ import {
   type WeeklyTest,
   type WeeklyTestStatus,
 } from "@/data/types"
+import { getToday } from "@/lib/dates"
 import { api } from "@/lib/api"
 import type {
   ApiAbsence,
@@ -119,6 +119,8 @@ export async function fetchBackendState(): Promise<SchoolState> {
     safeGet<ApiUpdate[]>("/updates", undefined, []),
     safeGet<ApiAuditLog[]>("/audit-logs", { limit: 50 }, []),
   ])
+
+  const today = getToday()
 
   // 1. Classes
   const classes: ClassSection[] = classesData.length
@@ -252,7 +254,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         amount: Number(p.amount) || 0,
         method: p.method || "Cash",
         status: (p.status === "Paid" ? "Paid" : "Pending") as PaymentStatus,
-        date: p.paymentDate ? p.paymentDate.slice(0, 10) : TODAY,
+        date: p.paymentDate ? p.paymentDate.slice(0, 10) : today,
         recordedBy: p.recordedBy?.name ?? "School Office",
         recordedByRole: "Accountant",
         allocations: (p.feeMonths ?? []).map((fm) => ({
@@ -322,7 +324,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
     ? attendancesData.map((a) => ({
         studentId: String(a.fkStudentId),
         classId: String(a.fkClassId),
-        date: a.date ? a.date.slice(0, 10) : TODAY,
+        date: a.date ? a.date.slice(0, 10) : today,
         status: a.status as AttendanceStatus,
       }))
     : []
@@ -349,7 +351,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         subject: l.subject?.name ?? "Mathematics",
         teacherId: String(l.fkTeacherId ?? l.teacher?.id ?? ""),
         teacherName: l.teacher?.user ? `${l.teacher.user.firstName} ${l.teacher.user.lastName}`.trim() : "Teacher",
-        date: l.date ? l.date.slice(0, 10) : TODAY,
+        date: l.date ? l.date.slice(0, 10) : today,
         chapterId: String(l.fkPlannedChapterId),
         classwork: l.classwork ?? "",
         homework: l.homework ?? "",
@@ -397,7 +399,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
     return {
       id: String(a.id),
       teacherId: String(a.fkTeacherId ?? a.teacher?.id ?? ""),
-      date: a.date ? a.date.slice(0, 10) : TODAY,
+      date: a.date ? a.date.slice(0, 10) : today,
       periodIndex: Number(a.periodIndex || slot?.periodIndex || cover?.periodIndex) || 1,
       classId: a.fkClassId ? String(a.fkClassId) : slot?.fkClassId ? String(slot.fkClassId) : undefined,
       subject: a.subject?.name ?? slot?.subject?.name,
@@ -413,7 +415,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
       return {
         id: String(sub.id),
         absenceId: String(a.id),
-        date: a.date ? a.date.slice(0, 10) : TODAY,
+        date: a.date ? a.date.slice(0, 10) : today,
         periodIndex: Number(sub.periodIndex || slot?.periodIndex) || 1,
         classId: String(a.fkClassId ?? slot?.fkClassId ?? ""),
         subject: a.subject?.name ?? slot?.subject?.name ?? "",
@@ -444,8 +446,8 @@ export async function fetchBackendState(): Promise<SchoolState> {
         scheduleId: String(t.fkScheduleId ?? ""),
         classId: String(t.fkClassId),
         subject: t.subject?.name ?? "Mathematics",
-        date: t.date ? t.date.slice(0, 10) : TODAY,
-        month: t.month ? t.month.slice(0, 7) : TODAY.slice(0, 7),
+        date: t.date ? t.date.slice(0, 10) : today,
+        month: t.month ? t.month.slice(0, 7) : today.slice(0, 7),
         week: Number(t.weekOfMonth) || 1,
         max: Number(t.maxScore ?? (t as { totalMarks?: number }).totalMarks) || 20,
         status: (t.status ?? ((t.results ?? []).length ? "Published" : "Scheduled")) as WeeklyTestStatus,
@@ -474,7 +476,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         subject: u.subject ?? "General",
         text: u.text,
         status: (u.status ?? "Draft") as UpdateStatus,
-        due: u.dueDate ? u.dueDate.slice(0, 10) : TODAY,
+        due: u.dueDate ? u.dueDate.slice(0, 10) : today,
         author: u.author ?? "School Office",
       }))
     : []

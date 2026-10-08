@@ -405,9 +405,5 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
   dailyTestRules: { passPercent: 40, maxFailsPerMonth: 1, lowMarksEnabled: true, lowMarksMinPassed: 3, lowMarksBelowPercent: 55 },
   resultVisibility: { feeRule: "all_due_paid", requireOverrideReason: true },
 }
-import { getToday } from "@/lib/dates"
-
-/** Calendar date used for "today" on teacher and parent screens. */
-export const TODAY = getToday()
-export { getToday }
+export { getToday } from "@/lib/dates"
 export const PAGE_SIZE = 8

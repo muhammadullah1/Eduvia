@@ -20,11 +20,12 @@ import { Textarea } from "@/components/ui/textarea"
 import { AdmissionWizard } from "@/features/management/admission-wizard"
 import { FeeMonthTable, PrintReceiptButton, RecordPaymentForm } from "@/features/fees/components"
 import { feeMonthsLabel } from "@/features/fees/receipts"
-import { useSchool, studentName } from "@/data/store"
-import { TODAY, isAttendancePresent, type Application, type MarkSheet, type Staff, type Student } from "@/data/types"
+import { studentName, useSchool } from "@/data/store"
+import { isAttendancePresent, type Application, type MarkSheet, type Staff, type Student } from "@/data/types"
 import { WEEKDAYS } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
+import { getToday } from "@/lib/dates"
 import { monthLabel, outstanding } from "@/lib/fees"
 import { classLabel, formatDate, gradeFromScore, pkr, timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
@@ -39,7 +40,7 @@ const chartConfig = {
 function monthsThroughToday(start: string) {
   const keys: string[] = []
   let cursor = start.slice(0, 7)
-  const end = TODAY.slice(0, 7)
+  const end = getToday().slice(0, 7)
   while (cursor <= end && keys.length < 12) {
     keys.push(cursor)
     const [year, month] = cursor.split("-").map(Number)
@@ -56,16 +57,18 @@ function queryMatch(query: string, parts: Array<string | number>) {
 
 export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => void }) {
   const { state } = useSchool()
+  const today = getToday()
+  const thisMonth = today.slice(0, 7)
   const currentSession = state.sessions.find((session) => session.current)
   const active = state.students.filter((student) => student.status === "Active").length
   const inactive = state.students.filter((student) => student.status !== "Active").length
   const teachers = state.staff.filter((person) => person.role.toLowerCase().includes("teacher")).length
-  const presentToday = state.attendance.filter((mark) => mark.date === TODAY && isAttendancePresent(mark.status)).length
-  const markedToday = state.attendance.filter((mark) => mark.date === TODAY).length
+  const presentToday = state.attendance.filter((mark) => mark.date === today && isAttendancePresent(mark.status)).length
+  const markedToday = state.attendance.filter((mark) => mark.date === today).length
   // Overall fee totals: super admin only (UR-01). The dashboard is not mounted for other roles.
-  const collectedThisMonth = state.payments.filter((payment) => payment.date.startsWith(TODAY.slice(0, 7)) && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0)
-  const unpaid = state.feeMonths.filter((month) => month.month <= TODAY.slice(0, 7)).reduce((sum, month) => sum + outstanding(month), 0)
-  const enrollmentMonths = monthsThroughToday(currentSession?.start || TODAY)
+  const collectedThisMonth = state.payments.filter((payment) => payment.date.startsWith(thisMonth) && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0)
+  const unpaid = state.feeMonths.filter((month) => month.month <= thisMonth).reduce((sum, month) => sum + outstanding(month), 0)
+  const enrollmentMonths = monthsThroughToday(currentSession?.start || today)
   const openApps = state.applications.filter((item) => item.status === "New" || item.status === "Review").length
   const pendingMarks = state.sheets.filter((sheet) => sheet.status === "Draft" || sheet.status === "Submitted").length
   const classDistribution = state.classes.map((item) => ({
@@ -102,7 +105,7 @@ export function ManagementDashboard({ onOpen }: { onOpen: (section: string) => v
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Users} label="Active students" value={active.toLocaleString("en-PK")} note={`${inactive} inactive / withdrawn`} tone="accent" />
         <MetricCard icon={UserCheck} label="Today’s attendance" value={markedToday ? `${Math.round((presentToday / markedToday) * 1000) / 10}%` : "—"} note={`${presentToday} present today`} />
-        <MetricCard icon={WalletCards} label={`${monthLabel(TODAY.slice(0, 7))} collected`} value={pkr(collectedThisMonth)} note={`${pkr(unpaid)} still outstanding`} />
+        <MetricCard icon={WalletCards} label={`${monthLabel(thisMonth)} collected`} value={pkr(collectedThisMonth)} note={`${pkr(unpaid)} still outstanding`} />
         <MetricCard icon={FileCheck2} label="Pending marks sheets" value={String(pendingMarks)} note={`${openApps} open admissions`} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
@@ -810,7 +813,7 @@ export function Fees({ query }: { query: string }) {
   const search = localQuery || query
   const rows = state.payments.filter((payment) => (status === "all" || payment.status === status) && queryMatch(search, [payment.ref, payment.studentId, studentName(state.students, payment.studentId), feeMonthsLabel(payment), payment.recordedBy]))
   const table = useClientTable(rows, `${search}|${status}`)
-  const feeData = useMemo(() => monthsThroughToday(state.sessions.find((session) => session.current)?.start || TODAY).map((key) => ({
+  const feeData = useMemo(() => monthsThroughToday(state.sessions.find((session) => session.current)?.start || getToday()).map((key) => ({
     month: monthLabel(key).slice(0, 3),
     collection: Math.round(state.payments.filter((payment) => payment.date.startsWith(key) && payment.status === "Paid").reduce((sum, payment) => sum + payment.amount, 0) / 1000),
     target: Math.round(state.feeMonths.filter((month) => month.month === key).reduce((sum, month) => sum + month.amountDue, 0) / 1000),
@@ -903,7 +906,7 @@ export function Finance() {
   const { state, addExpense } = useSchool()
   const actor = useActor()
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ title: "", category: "Facilities", amount: "", date: TODAY })
+  const [form, setForm] = useState(() => ({ title: "", category: "Facilities", amount: "", date: getToday() }))
   const income = state.payments.filter((payment) => payment.status === "Paid" && payment.date.startsWith("2026-09")).reduce((sum, payment) => sum + payment.amount, 0)
   const spent = state.expenses.filter((expense) => expense.date.startsWith("2026-09")).reduce((sum, expense) => sum + expense.amount, 0)
   const categories = ["Payroll", "Facilities", "Academic supplies", "Transport", "Other"]
@@ -984,7 +987,7 @@ export function Reports() {
   const financial = can(actor.role, "fees.totals")
   const catalogs = [
     { id: "enrollment", title: "Enrollment register", detail: "Class strength from the live register" },
-    { id: "attendance", title: "Attendance summary", detail: `Marks recorded for ${formatDate(TODAY)}` },
+    { id: "attendance", title: "Attendance summary", detail: `Marks recorded for ${formatDate(getToday())}` },
     ...(financial ? [{ id: "fees", title: "Fee outstanding", detail: "Pending receipts still to confirm" }, { id: "sync", title: "Offline sync log", detail: "Imported, skipped and failed rows" }] : []),
     { id: "exams", title: "Exam analytics", detail: "Mark sheet progress by status" },
   ]
@@ -1016,7 +1019,7 @@ export function Reports() {
           <DialogHeader><DialogTitle>{catalogs.find((item) => item.id === preview)?.title}</DialogTitle><DialogDescription>Generated from the current dummy ledger.</DialogDescription></DialogHeader>
           <div className="grid gap-2 text-sm">
             {preview === "enrollment" && state.classes.map((item) => <div key={item.id} className="flex justify-between border-b py-2"><span>{item.label}</span><span>{state.students.filter((student) => student.classId === item.id && student.status === "Active").length}</span></div>)}
-            {preview === "attendance" && <p>{state.attendance.filter((mark) => mark.date === TODAY && isAttendancePresent(mark.status)).length} present on {formatDate(TODAY)}.</p>}
+            {preview === "attendance" && <p>{state.attendance.filter((mark) => mark.date === getToday() && isAttendancePresent(mark.status)).length} present on {formatDate(getToday())}.</p>}
             {preview === "fees" && state.payments.filter((payment) => payment.status === "Pending").map((payment) => <div key={payment.ref} className="flex justify-between border-b py-2"><span>{payment.ref}</span><span>{pkr(payment.amount)}</span></div>)}
             {preview === "exams" && state.sheets.map((sheet) => <div key={sheet.id} className="flex justify-between border-b py-2"><span>{sheet.subject}</span><StatusBadge value={sheet.status} /></div>)}
             {preview === "sync" && state.syncLogs.map((log) => <div key={log.id} className="border-b py-2">{log.fileName}: {log.imported} imported, {log.skipped} skipped, {log.failed} failed</div>)}

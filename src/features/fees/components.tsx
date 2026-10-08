@@ -9,14 +9,13 @@ import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectVa
 import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { useSchool } from "@/data/store"
-import { TODAY, type Payment } from "@/data/types"
+import type { Payment } from "@/data/types"
 import { useActor } from "@/lib/actor"
+import { getToday } from "@/lib/dates"
 import { feeMonthStatus, monthLabel, outstanding, planOldestFirst } from "@/lib/fees"
 import { classLabel, formatDate, pkr } from "@/lib/format"
 import { can } from "@/lib/permissions"
 import { feeMonthsLabel, printReceipt } from "@/features/fees/receipts"
-
-const CURRENT_MONTH = TODAY.slice(0, 7)
 
 function newKey() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `k-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -24,6 +23,7 @@ function newKey() {
 
 /** Month-by-month fee status for one student (Paid / Partially Paid / Unpaid / Advance). */
 export function FeeMonthTable({ studentId }: { studentId: string }) {
+  const currentMonth = getToday().slice(0, 7)
   const { state } = useSchool()
   const months = state.feeMonths.filter((month) => month.studentId === studentId).sort((a, b) => a.month.localeCompare(b.month))
   if (!months.length) return <p className="text-sm text-muted-foreground">No fee months generated yet.</p>
@@ -38,7 +38,7 @@ export function FeeMonthTable({ studentId }: { studentId: string }) {
             <TableCell>{pkr(month.amountDue)}</TableCell>
             <TableCell>{pkr(month.amountPaid)}</TableCell>
             <TableCell>{pkr(outstanding(month))}</TableCell>
-            <TableCell><StatusBadge value={feeMonthStatus(month, CURRENT_MONTH)} /></TableCell>
+            <TableCell><StatusBadge value={feeMonthStatus(month, currentMonth)} /></TableCell>
           </TableRow>
         ))}
       </TableBody>
@@ -57,7 +57,7 @@ export function RecordPaymentForm({ onRecorded }: { onRecorded?: (payment: Payme
   const [studentId, setStudentId] = useState("")
   const [amount, setAmount] = useState("")
   const [method, setMethod] = useState("Cash")
-  const [date, setDate] = useState(TODAY)
+  const [date, setDate] = useState(getToday)
   const [note, setNote] = useState("")
   const [manual, setManual] = useState(false)
   const [lines, setLines] = useState<Record<string, string>>({})
@@ -100,7 +100,7 @@ export function RecordPaymentForm({ onRecorded }: { onRecorded?: (payment: Payme
           </Field>
         </div>
         <Field label="Amount (PKR)"><Input inputMode="numeric" value={amount} onChange={(event) => setAmount(event.target.value.replace(/[^0-9]/g, ""))} placeholder="8500" /></Field>
-        <Field label="Payment date"><Input type="date" value={date} max={TODAY} onChange={(event) => setDate(event.target.value)} /></Field>
+        <Field label="Payment date"><Input type="date" value={date} max={getToday()} onChange={(event) => setDate(event.target.value)} /></Field>
         <Field label="Method">
           <Select value={method} onValueChange={setMethod}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -122,7 +122,7 @@ export function RecordPaymentForm({ onRecorded }: { onRecorded?: (payment: Payme
                 const line = preview?.lines.find((item) => item.feeMonthId === month.id)
                 return (
                   <div key={month.id} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="flex items-center gap-2">{monthLabel(month.month)} <StatusBadge value={feeMonthStatus(month, CURRENT_MONTH)} /></span>
+                    <span className="flex items-center gap-2">{monthLabel(month.month)} <StatusBadge value={feeMonthStatus(month, getToday().slice(0, 7))} /></span>
                     <span className="text-muted-foreground">balance {pkr(outstanding(month))}</span>
                     {manual ? (
                       <Input className="h-8 w-28" inputMode="numeric" value={lines[month.id] ?? ""} onChange={(event) => setLines({ ...lines, [month.id]: event.target.value.replace(/[^0-9]/g, "") })} placeholder="0" />

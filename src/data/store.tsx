@@ -3,7 +3,6 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { fetchBackendState } from "@/data/backend-sync"
 import {
-  TODAY,
   type AcademicSession,
   type Application,
   type AttendanceStatus,
@@ -30,6 +29,7 @@ import { busyReason, datesOnWeekday, monthlySummaries, weekdayOf, weekOfMonth } 
 import type { Actor } from "@/lib/actor"
 import { api } from "@/lib/api"
 import { loadAuth } from "@/lib/auth"
+import { getToday } from "@/lib/dates"
 import { allocateOldestFirst, applyLines, monthLabel, validateManualPlan } from "@/lib/fees"
 import { can, ROLE_LABELS, type Permission } from "@/lib/permissions"
 
@@ -276,7 +276,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       decision: input.decision || "",
       id: `APP-${1045 + Math.floor(Math.random() * 400)}`,
       status: "New",
-      submittedOn: TODAY,
+      submittedOn: getToday(),
     }
     commit((current) => ({ next: withAudit({ ...current, applications: [application, ...current.applications] }, actor, `Created admission application for ${application.name}`) }))
 
@@ -311,9 +311,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         status: "Active",
         dob: application.dob,
         gender: application.gender || "Female",
-        admittedOn: TODAY,
+        admittedOn: getToday(),
       }
-      const month = TODAY.slice(0, 7)
+      const month = getToday().slice(0, 7)
       students = [student, ...students]
       feeMonths = [...feeMonths, { id: `fm-${student.id}-${month}`, studentId: student.id, month, feeType: "Tuition", amountDue: classFee(current, student.classId), amountPaid: 0, dueDate: `${month}-10` }]
     }
@@ -356,7 +356,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       const student = current.students.find((item) => item.id === input.studentId || item.admissionNo === input.studentId)
       if (!student) return { error: "Choose a student." }
       if (!Number.isFinite(input.amount) || input.amount <= 0) return { error: "Amount must be greater than zero." }
-      const date = input.date || TODAY
+      const date = input.date || getToday()
       const payment: Payment = {
         ref: receiptNo(current, date),
         studentId: student.id,
@@ -567,7 +567,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       name: input.name.trim(),
       email: input.email.trim(),
       subject: isTeacher ? input.subject : "",
-      subjectHistory: isTeacher ? [{ subject: input.subject, from: TODAY, by: actor.name, reason: "Initial allocation" }] : [],
+      subjectHistory: isTeacher ? [{ subject: input.subject, from: getToday(), by: actor.name, reason: "Initial allocation" }] : [],
     }
 
     const sub = current.subjects.find((s) => s.name === input.subject)
@@ -605,7 +605,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     const targetSub = current.subjects.find((item) => item.name === subject)
     if (!targetSub) return { error: "Choose a subject." }
     if (teacher.subject === subject) return { error: `${teacher.name} already teaches ${subject}.` }
-    const history = [...teacher.subjectHistory.map((row) => (row.to ? row : { ...row, to: TODAY })), { subject, from: TODAY, by: actor.name, reason: reason.trim() || undefined }]
+    const history = [...teacher.subjectHistory.map((row) => (row.to ? row : { ...row, to: getToday() })), { subject, from: getToday(), by: actor.name, reason: reason.trim() || undefined }]
     const staff = current.staff.map((person) => (person.id === staffId ? { ...person, subject, subjectHistory: history } : person))
 
     const teacherNumId = Number(teacher.id)
@@ -853,7 +853,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       if (teacher.subject !== test.subject || !teacher.classIds.includes(test.classId)) return { error: "You can only enter marks for your own subject and classes." }
     }
     if (test.status === "Published") return { error: "Published marks are locked." }
-    if (test.date > TODAY) return { error: "Marks can be entered on or after the test date." }
+    if (test.date > getToday()) return { error: "Marks can be entered on or after the test date." }
     if (results.some((row) => row.score !== null && (row.score < 0 || row.score > test.max))) return { error: `Scores must be between 0 and ${test.max}.` }
     const next = { ...current, weeklyTests: current.weeklyTests.map((row) => (row.id === testId ? { ...row, results, status: "MarksEntered" as const, enteredBy: actor.name } : row)) }
 

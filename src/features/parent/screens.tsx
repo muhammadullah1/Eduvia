@@ -14,20 +14,20 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { FeeMonthTable } from "@/features/fees/components"
 import { feeMonthsLabel, printReceipt } from "@/features/fees/receipts"
 import { useSchool } from "@/data/store"
-import { TODAY, isAttendancePresent, type MarkSheet, type SchoolState } from "@/data/types"
+import { isAttendancePresent, type MarkSheet, type SchoolState } from "@/data/types"
 import { monthlySummaries, resultVisibility, weekdayOf } from "@/lib/academics"
+import { getToday } from "@/lib/dates"
 import { feeMonthStatus, monthLabel, outstanding } from "@/lib/fees"
 import { classLabel, formatDate, gradeFromScore, pkr } from "@/lib/format"
 
-const CURRENT_MONTH = TODAY.slice(0, 7)
-
 /** Parent visibility for one sheet, evaluated now against the fee rule and overrides (UR-07). */
 function visibilityFor(state: SchoolState, sheet: MarkSheet, studentId: string) {
-  return resultVisibility(sheet, studentId, { feeMonths: state.feeMonths, overrides: state.resultOverrides, rule: state.settings.resultVisibility.feeRule, today: TODAY })
+  return resultVisibility(sheet, studentId, { feeMonths: state.feeMonths, overrides: state.resultOverrides, rule: state.settings.resultVisibility.feeRule, today: getToday() })
 }
 
 function unpaidMonths(state: SchoolState, studentId: string) {
-  return state.feeMonths.filter((month) => month.studentId === studentId && month.month <= CURRENT_MONTH && outstanding(month) > 0).sort((a, b) => a.month.localeCompare(b.month))
+  const currentMonth = getToday().slice(0, 7)
+  return state.feeMonths.filter((month) => month.studentId === studentId && month.month <= currentMonth && outstanding(month) > 0).sort((a, b) => a.month.localeCompare(b.month))
 }
 
 const attendanceConfig = {
@@ -62,7 +62,9 @@ function ChildSwitcher({ childId, onChange, options }: { childId: string; onChan
 
 export function ParentHome() {
   const { state, child, childId, setChildId, options } = useChild()
-  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(CURRENT_MONTH))
+  const today = getToday()
+  const currentMonth = today.slice(0, 7)
+  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(currentMonth))
   const present = marks.filter((mark) => isAttendancePresent(mark.status)).length
   const rate = marks.length ? `${Math.round((present / marks.length) * 1000) / 10}%` : "—"
   const visible = state.sheets.filter((sheet) => sheet.classId === child.classId && visibilityFor(state, sheet, child.id).visible)
@@ -72,7 +74,7 @@ export function ParentHome() {
   const unpaid = unpaidMonths(state, child.id)
   const lessons = state.dailyLessons.filter((row) => row.classId === child.classId && row.reviewStatus === "Approved").sort((a, b) => b.date.localeCompare(a.date))
   const homework = lessons.filter((row) => row.homework)
-  const day = weekdayOf(TODAY)
+  const day = weekdayOf(today)
   const periods = state.slots.filter((slot) => slot.classId === child.classId && slot.day === day).sort((a, b) => a.periodIndex - b.periodIndex)
   const updates = lessons.slice(0, 3)
 
@@ -86,17 +88,17 @@ export function ParentHome() {
         <ChildSwitcher childId={childId} onChange={setChildId} options={options} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard icon={UserCheck} label={`${monthLabel(CURRENT_MONTH)} attendance`} value={rate} note={`${present} of ${marks.length} days`} tone="accent" />
+        <MetricCard icon={UserCheck} label={`${monthLabel(currentMonth)} attendance`} value={rate} note={`${present} of ${marks.length} days`} tone="accent" />
         <MetricCard icon={GraduationCap} label="Published results" value={average} note={withheld ? "Held until fees are cleared" : "Average of visible results"} />
         <MetricCard icon={WalletCards} label="Fee status" value={unpaid.length ? `${unpaid.length} unpaid` : "Paid"} note={unpaid.length ? unpaid.map((month) => monthLabel(month.month)).join(", ") : "No month outstanding"} />
         <MetricCard icon={BookOpen} label="Homework" value={String(homework.length).padStart(2, "0")} note="From approved daily updates" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.25fr_1fr]">
         <Card>
-          <CardHeader><CardTitle>Today at school</CardTitle><CardDescription>{formatDate(TODAY)}</CardDescription></CardHeader>
+          <CardHeader><CardTitle>Today at school</CardTitle><CardDescription>{formatDate(today)}</CardDescription></CardHeader>
           <CardContent className="grid gap-2">
             {periods.map((slot) => {
-              const attendance = state.attendance.find((mark) => mark.studentId === child.id && mark.date === TODAY)
+              const attendance = state.attendance.find((mark) => mark.studentId === child.id && mark.date === today)
               return (
                 <div key={slot.id} className="flex items-center gap-4 rounded-xl border p-3">
                   <p className="w-12 text-xs font-semibold">{slot.time}</p>
@@ -127,7 +129,8 @@ export function ParentHome() {
 
 export function ParentAttendance() {
   const { state, child, childId, setChildId, options } = useChild()
-  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(CURRENT_MONTH))
+  const currentMonth = getToday().slice(0, 7)
+  const marks = state.attendance.filter((mark) => mark.studentId === child.id && mark.date.startsWith(currentMonth))
   const present = marks.filter((mark) => isAttendancePresent(mark.status)).length
   const absent = marks.filter((mark) => mark.status === "Absent").length
   const leave = marks.filter((mark) => mark.status === "Leave" || mark.status === "Excused").length
@@ -214,10 +217,11 @@ export function ParentResults() {
 /** Published weekly test marks and the month's outcome per subject (UR-05 / UR-06). */
 export function ParentTests() {
   const { state, child, childId, setChildId, options } = useChild()
-  const rows = monthlySummaries(state.weeklyTests, CURRENT_MONTH, state.settings.dailyTestRules, { classId: child.classId, studentIds: [child.id], publishedOnly: true })
+  const currentMonth = getToday().slice(0, 7)
+  const rows = monthlySummaries(state.weeklyTests, currentMonth, state.settings.dailyTestRules, { classId: child.classId, studentIds: [child.id], publishedOnly: true })
   return (
     <div className="grid gap-5">
-      <SectionHeading title={`Weekly tests · ${monthLabel(CURRENT_MONTH)}`} detail="Marks appear once the school publishes them." action={<ChildSwitcher childId={childId} onChange={setChildId} options={options} />} />
+      <SectionHeading title={`Weekly tests · ${monthLabel(currentMonth)}`} detail="Marks appear once the school publishes them." action={<ChildSwitcher childId={childId} onChange={setChildId} options={options} />} />
       {rows.length === 0 ? <EmptyState title="No weekly tests" detail="Weekly subject tests for this class will appear here." /> : (
         <div className="grid gap-4 md:grid-cols-2">
           {rows.map((row) => (
@@ -248,10 +252,11 @@ export function ParentTests() {
 
 export function ParentFees() {
   const { state, child, childId, setChildId, options } = useChild()
+  const currentMonth = getToday().slice(0, 7)
   const payments = state.payments.filter((payment) => payment.studentId === child.id)
   const unpaid = unpaidMonths(state, child.id)
   const balance = unpaid.reduce((sum, month) => sum + outstanding(month), 0)
-  const paidMonths = state.feeMonths.filter((month) => month.studentId === child.id && ["Paid", "Advance"].includes(feeMonthStatus(month, CURRENT_MONTH))).length
+  const paidMonths = state.feeMonths.filter((month) => month.studentId === child.id && ["Paid", "Advance"].includes(feeMonthStatus(month, currentMonth))).length
   return (
     <div className="grid gap-5">
       <div className="flex justify-end"><ChildSwitcher childId={childId} onChange={setChildId} options={options} /></div>
@@ -259,7 +264,7 @@ export function ParentFees() {
         <Alert>
           <AlertTitle>{unpaid.length} {unpaid.length === 1 ? "month" : "months"} unpaid</AlertTitle>
           <AlertDescription>
-            <ul className="mt-2 grid gap-1">{unpaid.map((month) => <li key={month.id} className="flex items-center gap-2">{monthLabel(month.month)} · {pkr(outstanding(month))} <StatusBadge value={feeMonthStatus(month, CURRENT_MONTH)} /></li>)}</ul>
+            <ul className="mt-2 grid gap-1">{unpaid.map((month) => <li key={month.id} className="flex items-center gap-2">{monthLabel(month.month)} · {pkr(outstanding(month))} <StatusBadge value={feeMonthStatus(month, currentMonth)} /></li>)}</ul>
             <p className="mt-2 text-xs">Payments are always applied to the oldest unpaid month first.</p>
           </AlertDescription>
         </Alert>
@@ -367,7 +372,7 @@ export function ParentUpdates() {
 
 /** The teacher actually covering a period today (substitute when one is assigned). */
 function substituteFor(state: SchoolState, classId: string, periodIndex: number) {
-  const row = state.substitutions.find((item) => item.classId === classId && item.date === TODAY && item.periodIndex === periodIndex)
+  const row = state.substitutions.find((item) => item.classId === classId && item.date === getToday() && item.periodIndex === periodIndex)
   return row ? `${state.staff.find((person) => person.id === row.substituteTeacherId)?.name} (substitute)` : null
 }
 
