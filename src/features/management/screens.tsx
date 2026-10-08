@@ -204,7 +204,7 @@ export function AcademicSetup() {
   const [editing, setEditing] = useState<Staff | null>(null)
   const [selectedClassId, setSelectedClassId] = useState("")
   const validUrlClass = classFromUrl && state.classes.some((item) => item.id === classFromUrl) ? classFromUrl : ""
-  const classId = validUrlClass || selectedClassId || state.classes[0]?.id || ""
+  const classId = selectedClassId || validUrlClass || state.classes[0]?.id || ""
   const [selectedTab, setSelectedTab] = useState<string | null>(null)
   const tab = selectedTab ?? (classFromUrl ? "timetable" : "sessions")
   const teachers = state.staff.filter((person) => person.role === "Teacher")
@@ -221,8 +221,15 @@ export function AcademicSetup() {
     navigate(portalPath(actor.role, "academic", `classes/${id}`))
   }
 
+  function handleTabChange(nextTab: string) {
+    setSelectedTab(nextTab)
+    if (nextTab !== "timetable" && classFromUrl) {
+      navigate(portalPath(actor.role, "academic"))
+    }
+  }
+
   return (
-    <Tabs value={tab} onValueChange={setSelectedTab} className="grid gap-5">
+    <Tabs value={tab} onValueChange={handleTabChange} className="grid gap-5">
       <TabsList className="h-10 flex-wrap">
         <TabsTrigger value="sessions">Sessions</TabsTrigger>
         <TabsTrigger value="classes">Classes</TabsTrigger>
@@ -465,29 +472,50 @@ export function Admissions({ query }: { query: string }) {
   const [status, setStatus] = useState("all")
   const [classId, setClassId] = useState("all")
   const [open, setOpen] = useState(false)
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null)
+
+  const activeAppId = selectedAppId !== null ? selectedAppId : (appFromUrl || null)
+  const activeStudentId = selectedStudentId !== null ? selectedStudentId : (studentFromUrl || null)
+
   const selectedApp = useMemo(
-    () => (appFromUrl ? state.applications.find((item) => item.id === appFromUrl) ?? null : null),
-    [appFromUrl, state.applications]
+    () => (activeAppId ? state.applications.find((item) => item.id === activeAppId) ?? null : null),
+    [activeAppId, state.applications]
   )
   const selectedStudent = useMemo(
-    () => (studentFromUrl ? state.students.find((item) => item.id === studentFromUrl) ?? null : null),
-    [studentFromUrl, state.students]
+    () => (activeStudentId ? state.students.find((item) => item.id === activeStudentId) ?? null : null),
+    [activeStudentId, state.students]
   )
   const [confirm, setConfirm] = useState<null | { id: string; status: Application["status"] }>(null)
   const search = localQuery || query
 
   function openApp(item: Application) {
+    setSelectedAppId(item.id)
+    setSelectedStudentId("")
     setSelectedTab("applications")
     navigate(portalPath(actor.role, "admissions", `applications/${item.id}`))
   }
 
   function openStudent(item: Student) {
+    setSelectedStudentId(item.id)
+    setSelectedAppId("")
     setSelectedTab("students")
     navigate(portalPath(actor.role, "admissions", `students/${item.id}`))
   }
 
   function closeDetails() {
+    setSelectedAppId("")
+    setSelectedStudentId("")
     navigate(portalPath(actor.role, "admissions"))
+  }
+
+  function handleTabChange(nextTab: string) {
+    setSelectedTab(nextTab)
+    setSelectedAppId("")
+    setSelectedStudentId("")
+    if (splat) {
+      navigate(portalPath(actor.role, "admissions"))
+    }
   }
 
   const applications = state.applications.filter((item) => (status === "all" || item.status === status) && (classId === "all" || item.classId === classId) && queryMatch(search, [item.id, item.name, item.guardian, classLabel(state.classes, item.classId)]))
@@ -515,7 +543,7 @@ export function Admissions({ query }: { query: string }) {
               <Select value={classId} onValueChange={setClassId}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectGroup><SelectItem value="all">All classes</SelectItem>{state.classes.map((item) => <SelectItem key={item.id} value={item.id}>{item.label}</SelectItem>)}</SelectGroup></SelectContent></Select>
             </div>
           </div>
-          <Tabs value={tab} onValueChange={setSelectedTab}><TabsList><TabsTrigger value="applications">Applications</TabsTrigger><TabsTrigger value="students">Students</TabsTrigger></TabsList></Tabs>
+          <Tabs value={tab} onValueChange={handleTabChange}><TabsList><TabsTrigger value="applications">Applications</TabsTrigger><TabsTrigger value="students">Students</TabsTrigger></TabsList></Tabs>
         </CardHeader>
         <CardContent>
           {tab === "applications" ? (
@@ -734,18 +762,22 @@ export function Examinations() {
   const navigate = useNavigate()
   const params = useParams()
   const sheetFromUrl = params["*"] ?? ""
+  const [selectedSheetId, setSelectedSheetId] = useState<string | null>(null)
+  const activeSheetId = selectedSheetId !== null ? selectedSheetId : (sheetFromUrl || null)
   const current = useMemo(
-    () => (sheetFromUrl ? state.sheets.find((sheet) => sheet.id === sheetFromUrl) ?? null : null),
-    [sheetFromUrl, state.sheets]
+    () => (activeSheetId ? state.sheets.find((sheet) => sheet.id === activeSheetId) ?? null : null),
+    [activeSheetId, state.sheets]
   )
   const [status, setStatus] = useState("all")
   const rows = state.sheets.filter((sheet) => status === "all" || sheet.status === status)
 
   function openSheet(sheet: MarkSheet) {
+    setSelectedSheetId(sheet.id)
     navigate(portalPath(actor.role, "exams", sheet.id))
   }
 
   function closeSheet() {
+    setSelectedSheetId("")
     navigate(portalPath(actor.role, "exams"))
   }
 

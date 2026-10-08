@@ -109,7 +109,7 @@ export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }
   const teacher = signedInTeacher(state.staff)
   const [selectedClassId, setSelectedClassId] = useState("")
   const validUrlClass = classFromUrl && (teacher?.classIds ?? []).includes(classFromUrl) ? classFromUrl : ""
-  const classId = validUrlClass || selectedClassId || teacher?.classIds[0] || ""
+  const classId = selectedClassId || validUrlClass || teacher?.classIds[0] || ""
   const students = state.students.filter((student) => student.classId === classId && student.status !== "Withdrawn")
 
   function selectClass(id: string) {
