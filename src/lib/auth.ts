@@ -1,7 +1,14 @@
 /** Operational roles (SRS Addendum v1.1 · UR-01). Values mirror the API `users.role` enum. */
-export type Role = "super_admin" | "operations_manager" | "accountant" | "teacher" | "parent"
+export type Role =
+  "super_admin" | "operations_manager" | "accountant" | "teacher" | "parent"
 
-export const ALL_ROLES: Role[] = ["super_admin", "operations_manager", "accountant", "teacher", "parent"]
+export const ALL_ROLES: Role[] = [
+  "super_admin",
+  "operations_manager",
+  "accountant",
+  "teacher",
+  "parent",
+]
 
 /** URL slug per role: `/admin/...`, `/operations/...`, `/accountant/...`, `/teacher/...`, `/parent/...`. */
 const ROLE_SLUGS: Record<Role, string> = {
@@ -52,7 +59,11 @@ export function loadAuth(): AuthSession | null {
   try {
     const raw = localStorage.getItem(AUTH_KEY)
     if (!raw) return null
-    const parsed = JSON.parse(raw) as { role?: unknown; token?: string; user?: AuthUser }
+    const parsed = JSON.parse(raw) as {
+      role?: unknown
+      token?: string
+      user?: AuthUser
+    }
     const role = normalizeRole(parsed.role)
     return role ? { role, token: parsed.token, user: parsed.user } : null
   } catch {

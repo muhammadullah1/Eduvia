@@ -14,7 +14,9 @@ export function Heading({
       <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] dark:text-foreground">
         {title}
       </h1>
-      {detail ? <p className="text-sm text-muted-foreground">{detail}</p> : null}
+      {detail ? (
+        <p className="text-sm text-muted-foreground">{detail}</p>
+      ) : null}
     </div>
   )
 }

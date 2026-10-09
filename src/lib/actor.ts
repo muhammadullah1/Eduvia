@@ -1,13 +1,16 @@
 import { useParams } from "react-router-dom"
 
-import { loadAuth, roleFromSlug, type Role } from "@/lib/auth"
+import { loadAuth, type Role, roleFromSlug } from "@/lib/auth"
 
 export type Actor = { role: Role; name: string }
 
 /** The signed-in user. The URL role is only a fallback before the session loads. */
 export function useActor(): Actor {
+  const params = useParams()
   const session = loadAuth()
-  const role = session?.user?.role ?? roleFromSlug(useParams().role) ?? "super_admin"
-  const name = session?.user ? `${session.user.firstName} ${session.user.lastName}`.trim() : role
+  const role = session?.user?.role ?? roleFromSlug(params.role) ?? "super_admin"
+  const name = session?.user
+    ? `${session.user.firstName} ${session.user.lastName}`.trim()
+    : role
   return { role, name }
 }

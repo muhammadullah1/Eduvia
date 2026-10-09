@@ -109,7 +109,17 @@ export type ApiApplication = {
   interviewScore?: string | null
   interviewResult?: string | null
   decision?: "Admit" | "Reject" | "Waitlist" | "" | null
-  status: "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected"
+  status:
+    | "New"
+    | "Review"
+    | "Waitlist"
+    | "Enrolled"
+    | "Rejected"
+    | "Inquiry"
+    | "Applied"
+    | "UnderReview"
+    | "InterviewScheduled"
+    | "Approved"
   submittedOn?: string | null
   notes?: string | null
   documents?: Array<{
@@ -176,8 +186,11 @@ export type ApiExam = {
   fkClassId: number
   sheets?: Array<{
     id: number
-    subject: string
-    status: SheetStatus
+    subject: {
+      id: number
+      name: string
+    }
+    status: SheetStatus | "Approved"
     maxScore: string | number
     publishedAt?: string | null
     rows?: Array<{
@@ -246,9 +259,11 @@ export type ApiDailyLesson = {
   reviewStatus?: ReviewStatus
   reviewNote?: string | null
   subject?: {
+    id?: number
     name: string
   } | null
   teacher?: {
+    id: number
     user?: {
       firstName: string
       lastName: string
@@ -263,8 +278,18 @@ export type ApiTimetableSlot = {
   day: string
   time: string
   periodIndex: number
-  subject: string
-  teacher: string
+  subject: {
+    id: number
+    name: string
+  }
+  teacher: {
+    id: number
+    user?: {
+      firstName: string
+      lastName: string
+      email?: string
+    } | null
+  }
   fkTeacherId: number
   room?: string | null
 }

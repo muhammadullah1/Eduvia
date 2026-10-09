@@ -1,11 +1,55 @@
 export type StudentStatus = "Active" | "Pending" | "Withdrawn"
-export type ApplicationStatus = "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected"
+export type ApplicationStatus =
+  "New" | "Review" | "Waitlist" | "Enrolled" | "Rejected"
 export type PaymentStatus = "Paid" | "Pending"
-export type AttendanceStatus = "Present" | "Absent" | "Leave"
+export type AttendanceStatus =
+  "Present" | "Absent" | "Late" | "Excused" | "Leave" | "HalfDay"
 export type LessonStatus = "Completed" | "In progress" | "Planned"
 export type UpdateKind = "Homework" | "Classwork" | "Notice"
 export type UpdateStatus = "Draft" | "Approved" | "Published" | "Rejected"
 export type SheetStatus = "Draft" | "Submitted" | "Verified" | "Published"
+
+/**
+ * SRS §5.3, §6.3, P2-02: Present and Late count as present for day attendance summaries and rates.
+ * Late indicates the student was in class, but arrived after school start.
+ */
+export function isAttendancePresent(status: AttendanceStatus): boolean {
+  return status === "Present" || status === "Late"
+}
+
+/**
+ * Maps raw backend application status to canonical frontend ApplicationStatus.
+ *
+ * Backend context:
+ * - Constants (constants/index.js), validator (validations/application.js), and service (application.service.js)
+ *   define the active workflow: "New", "Review", "Waitlist", "Enrolled", "Rejected".
+ * - Database migration (019-create-applications.js) and Sequelize model (models/application.js) contain a
+ *   legacy 7-state ENUM: "Inquiry", "Applied", "UnderReview", "InterviewScheduled", "Approved", "Rejected", "Enrolled"
+ *   with defaultValue: "Inquiry".
+ *
+ * This function standardizes both into the active domain lifecycle.
+ */
+export function normalizeApplicationStatus(raw: string): ApplicationStatus {
+  switch (raw) {
+    case "Inquiry":
+    case "Applied":
+    case "New":
+      return "New"
+    case "UnderReview":
+    case "InterviewScheduled":
+    case "Approved":
+    case "Review":
+      return "Review"
+    case "Waitlist":
+      return "Waitlist"
+    case "Enrolled":
+      return "Enrolled"
+    case "Rejected":
+      return "Rejected"
+    default:
+      return "New"
+  }
+}
 
 export type ClassSection = {
   id: string
@@ -106,7 +150,11 @@ export type FeeMonth = {
   dueDate: string
 }
 
-export type FeeAllocation = { feeMonthId: string; month: string; amount: number }
+export type FeeAllocation = {
+  feeMonthId: string
+  month: string
+  amount: number
+}
 
 export type Payment = {
   /** Receipt number generated when the payment is recorded. */
@@ -359,17 +407,14 @@ export type SchoolState = {
 }
 
 export const DEFAULT_SETTINGS: SchoolSettings = {
-  dailyTestRules: { passPercent: 40, maxFailsPerMonth: 1, lowMarksEnabled: true, lowMarksMinPassed: 3, lowMarksBelowPercent: 55 },
+  dailyTestRules: {
+    passPercent: 40,
+    maxFailsPerMonth: 1,
+    lowMarksEnabled: true,
+    lowMarksMinPassed: 3,
+    lowMarksBelowPercent: 55,
+  },
   resultVisibility: { feeRule: "all_due_paid", requireOverrideReason: true },
 }
-
-function localDate() {
-  const now = new Date()
-  const month = String(now.getMonth() + 1).padStart(2, "0")
-  const day = String(now.getDate()).padStart(2, "0")
-  return `${now.getFullYear()}-${month}-${day}`
-}
-
-/** Calendar date used for "today" on teacher and parent screens. */
-export const TODAY = localDate()
+export { getToday } from "@/lib/dates"
 export const PAGE_SIZE = 8

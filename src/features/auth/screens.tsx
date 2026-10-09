@@ -1,4 +1,3 @@
-import { useEffect, useState, type FormEvent } from "react"
 import {
   AlertCircle,
   ArrowLeft,
@@ -11,7 +10,13 @@ import {
   Mail,
   ShieldCheck,
 } from "lucide-react"
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom"
+import { type FormEvent, useEffect, useState } from "react"
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -50,10 +55,16 @@ export function LoginScreen() {
       saveAuth({ role: res.user.role, token: res.token, user: res.user })
       window.dispatchEvent(new Event("eduvia:auth-changed"))
       toast.success(`Welcome back, ${res.user.firstName} ${res.user.lastName}!`)
-      const target = redirectTo && redirectTo !== "/login" ? redirectTo : portalPath(res.user.role)
+      const target =
+        redirectTo && redirectTo !== "/login"
+          ? redirectTo
+          : portalPath(res.user.role)
       navigate(target, { replace: true })
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Sign-in failed. Please check your credentials."
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Sign-in failed. Please check your credentials."
       setError(msg)
     } finally {
       setSubmitting(false)
@@ -137,7 +148,11 @@ export function LoginScreen() {
                 className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 aria-label={showPassword ? "Hide password" : "Show password"}
               >
-                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                {showPassword ? (
+                  <EyeOff className="size-4" />
+                ) : (
+                  <Eye className="size-4" />
+                )}
               </button>
             </div>
           </div>
@@ -200,7 +215,10 @@ export function ForgotPasswordScreen() {
       }
       toast.success("Instructions sent if the account exists.")
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unable to process password reset request."
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Unable to process password reset request."
       setError(msg)
     } finally {
       setSubmitting(false)
@@ -226,21 +244,32 @@ export function ForgotPasswordScreen() {
           <div className="space-y-4">
             <div className="flex flex-col items-center rounded-xl border border-border/80 bg-muted/40 p-5 text-center">
               <CheckCircle2 className="mb-2 size-10 text-emerald-500" />
-              <h3 className="text-base font-semibold text-foreground">Check your email</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                Check your email
+              </h3>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 If an account with{" "}
-                <span className="font-medium text-foreground">{email}</span> exists, we have sent a link to reset your password.
+                <span className="font-medium text-foreground">{email}</span>{" "}
+                exists, we have sent a link to reset your password.
               </p>
             </div>
 
             {devResetUrl ? (
               <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 text-xs">
-                <p className="font-semibold text-primary">Development Mode Link Preview:</p>
+                <p className="font-semibold text-primary">
+                  Development Mode Link Preview:
+                </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
-                  Since Resend email simulation is active, you can open the reset link directly:
+                  Since Resend email simulation is active, you can open the
+                  reset link directly:
                 </p>
                 <div className="mt-2">
-                  <Button variant="outline" size="sm" asChild className="w-full text-xs">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="w-full text-xs"
+                  >
                     <a href={devResetUrl}>Open Reset Screen</a>
                   </Button>
                 </div>
@@ -256,7 +285,8 @@ export function ForgotPasswordScreen() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Enter your email address below. If your account exists, we will send you a secure link to choose a new password.
+              Enter your email address below. If your account exists, we will
+              send you a secure link to choose a new password.
             </p>
 
             <div className="grid gap-1.5">
@@ -341,7 +371,8 @@ export function ResetPasswordScreen() {
     if (!token) {
       return {
         status: "invalid",
-        message: "Missing security token in link. Please use the complete link provided.",
+        message:
+          "Missing security token in link. Please use the complete link provided.",
       }
     }
     return { status: "verifying" }
@@ -408,7 +439,8 @@ export function ResetPasswordScreen() {
       setValidation({ status: "success" })
       toast.success("Password updated successfully!")
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Failed to update password."
+      const msg =
+        err instanceof Error ? err.message : "Failed to update password."
       setFormError(msg)
     } finally {
       setSubmitting(false)
@@ -423,7 +455,8 @@ export function ResetPasswordScreen() {
             <Lock className="size-6" />
           </div>
           <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            {validation.status === "valid" && validation.data.purpose === "invitation"
+            {validation.status === "valid" &&
+            validation.data.purpose === "invitation"
               ? "Activate Account"
               : "Set Password"}
           </h1>
@@ -448,7 +481,9 @@ export function ResetPasswordScreen() {
           <div className="space-y-4 text-center">
             <div className="flex flex-col items-center rounded-xl border border-destructive/20 bg-destructive/10 p-5">
               <AlertCircle className="mb-2 size-10 text-destructive" />
-              <h3 className="text-base font-semibold text-destructive">Link Invalid or Expired</h3>
+              <h3 className="text-base font-semibold text-destructive">
+                Link Invalid or Expired
+              </h3>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
                 {validation.message}
               </p>
@@ -471,9 +506,12 @@ export function ResetPasswordScreen() {
           <div className="space-y-4 text-center">
             <div className="flex flex-col items-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-5">
               <CheckCircle2 className="mb-2 size-10 text-emerald-600" />
-              <h3 className="text-base font-semibold text-foreground">Password Updated!</h3>
+              <h3 className="text-base font-semibold text-foreground">
+                Password Updated!
+              </h3>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                Your password has been set successfully. You can now log in to your portal.
+                Your password has been set successfully. You can now log in to
+                your portal.
               </p>
             </div>
             <Button
@@ -488,7 +526,9 @@ export function ResetPasswordScreen() {
         {validation.status === "valid" && (
           <form onSubmit={handleResetSubmit} className="space-y-4">
             <div className="rounded-xl border border-border/80 bg-muted/40 p-3 text-xs">
-              <p className="font-semibold text-foreground">{validation.data.name}</p>
+              <p className="font-semibold text-foreground">
+                {validation.data.name}
+              </p>
               <p className="text-muted-foreground">{validation.data.email}</p>
               <div className="mt-1.5 inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary capitalize">
                 {validation.data.role.replace(/_/g, " ")}
@@ -496,7 +536,10 @@ export function ResetPasswordScreen() {
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="reset-new-password" className="text-xs font-medium">
+              <Label
+                htmlFor="reset-new-password"
+                className="text-xs font-medium"
+              >
                 New password
               </Label>
               <div className="relative">
@@ -520,13 +563,20 @@ export function ResetPasswordScreen() {
                   className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                  {showPassword ? (
+                    <EyeOff className="size-4" />
+                  ) : (
+                    <Eye className="size-4" />
+                  )}
                 </button>
               </div>
             </div>
 
             <div className="grid gap-1.5">
-              <Label htmlFor="reset-confirm-password" className="text-xs font-medium">
+              <Label
+                htmlFor="reset-confirm-password"
+                className="text-xs font-medium"
+              >
                 Confirm new password
               </Label>
               <div className="relative">
