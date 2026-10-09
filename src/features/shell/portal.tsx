@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react"
+import { useMemo, useState, type ComponentType, type ReactNode } from "react"
 import {
-  Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, Check, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
+  Bell, BookOpen, Building2, Calculator, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, FileCheck2, GraduationCap,
   Landmark, LayoutDashboard, LibraryBig, LogOut, Menu, MessageSquareText, Moon, ReceiptText, Search, Settings2, ShieldAlert, ShieldCheck,
-  Sparkles, Sun, UserCheck, UserRound, Users, WalletCards,
+  Sun, UserCheck, UserRound, Users, WalletCards,
 } from "lucide-react"
 import {
   BrowserRouter,
@@ -16,10 +16,7 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { useTheme } from "@/components/theme-provider"
 import { useSchool } from "@/data/store"
@@ -27,19 +24,19 @@ import { AcademicSetup, Admissions, Examinations, Fees, Finance, ManagementDashb
 import { AccountantPortal, AbsencesPanel, CurriculumPanel, LessonReviewPanel, OperationsOverview, ResultsGatePanel, SettingsPanel, WeeklyTestsPanel } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
-import { DEMO_USERS } from "@/lib/actor"
-import { ALL_ROLES, clearAuth, defaultSection, loadAuth, portalPath, roleFromSlug, saveAuth, type Role } from "@/lib/auth"
+import { ForgotPasswordScreen, LoginScreen, ResetPasswordScreen } from "@/features/auth/screens"
+import { ALL_ROLES, clearAuth, defaultSection, loadAuth, portalPath, roleFromSlug, type Role } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
 
 type Icon = ComponentType<{ className?: string }>
 
-const roles: Record<Role, { label: string; short: string; description: string; user: string; email: string; initials: string; icon: Icon }> = {
-  super_admin: { label: "Super Admin Portal", short: "Super Admin", description: "Full control, including overall fee totals", user: DEMO_USERS.super_admin, email: "admin@cls.edu.pk", initials: "AK", icon: Building2 },
-  operations_manager: { label: "Operations Portal", short: "Operations Manager", description: "Academics, people, absences and results — no fee totals", user: DEMO_USERS.operations_manager, email: "operations@cls.edu.pk", initials: "IS", icon: ShieldCheck },
-  accountant: { label: "Accountant Portal", short: "Accountant", description: "Record payments and print your daily receipts", user: DEMO_USERS.accountant, email: "accountant@cls.edu.pk", initials: "NI", icon: Calculator },
-  teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", user: DEMO_USERS.teacher, email: "hassan@cls.edu.pk", initials: "HA", icon: BookOpen },
-  parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", user: DEMO_USERS.parent, email: "parent@cls.edu.pk", initials: "SA", icon: UserRound },
+const roles: Record<Role, { label: string; short: string; description: string; icon: Icon }> = {
+  super_admin: { label: "Super Admin Portal", short: "Super Admin", description: "Full control, including overall fee totals", icon: Building2 },
+  operations_manager: { label: "Operations Portal", short: "Operations Manager", description: "Academics, people, absences and results — no fee totals", icon: ShieldCheck },
+  accountant: { label: "Accountant Portal", short: "Accountant", description: "Record payments and print your daily receipts", icon: Calculator },
+  teacher: { label: "Teacher Portal", short: "Teacher", description: "Classes, attendance and academic delivery", icon: BookOpen },
+  parent: { label: "Parent Portal", short: "Parent", description: "A clear view of your child’s school journey", icon: UserRound },
 }
 
 /** Shared by the super admin and the operations manager; fee sections are super-admin only. */
@@ -138,87 +135,6 @@ function Logo({ compact = false, inverted = false }: { compact?: boolean; invert
   )
 }
 
-function LoginScreen() {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const redirectTo = (location.state as { from?: string } | null)?.from
-  const [role, setRole] = useState<Role>("super_admin")
-  const [email, setEmail] = useState(roles.super_admin.email)
-  const [password, setPassword] = useState("password")
-  const [error, setError] = useState("")
-  const [forgot, setForgot] = useState(false)
-
-  function enter(next = role) {
-    if (!email.trim() || !password.trim()) {
-      setError("Email and password are required.")
-      return
-    }
-    if (password !== "password") {
-      setError("Use the demo password: password")
-      return
-    }
-    setError("")
-    saveAuth({ role: next })
-    const target = redirectTo && redirectTo !== "/login" ? redirectTo : portalPath(next)
-    navigate(target, { replace: true })
-  }
-
-  return (
-    <main className="login-canvas min-h-svh p-4 md:p-7">
-      <div className="mx-auto flex min-h-[calc(100svh-2rem)] max-w-[1500px] overflow-hidden rounded-[2rem] border bg-card shadow-[0_32px_100px_-42px_rgba(16,38,54,.45)] md:min-h-[calc(100svh-3.5rem)]">
-        <section className="relative hidden w-[56%] overflow-hidden bg-primary p-12 text-primary-foreground lg:flex lg:flex-col">
-          <div className="school-grid absolute inset-0 opacity-20" />
-          <div className="relative z-10 flex items-center gap-3"><Logo /><Badge className="border-primary-foreground/20 bg-primary-foreground/10 text-primary-foreground">SRS v2</Badge></div>
-          <div className="relative z-10 my-auto max-w-2xl py-16">
-            <p className="mb-5 flex items-center gap-2 text-xs font-semibold tracking-[0.22em] text-primary-foreground/65 uppercase"><Sparkles className="size-4" /> One connected campus</p>
-            <h1 className="font-heading text-5xl leading-[1.05] font-semibold tracking-[-0.045em] xl:text-7xl">Every school day,<br /><span className="text-accent">beautifully organised.</span></h1>
-            <p className="mt-7 max-w-xl text-lg leading-8 text-primary-foreground/70">A complete operating system for super admins, operations managers, accountants, teachers and parents—from admissions to verified receipts and published report cards.</p>
-          </div>
-        </section>
-        <section className="flex flex-1 items-center justify-center p-6 sm:p-10 lg:p-14">
-          <div className="w-full max-w-md">
-            <div className="mb-8 lg:hidden"><Logo /></div>
-            <Badge variant="secondary" className="mb-4">Portal access</Badge>
-            <h2 className="font-heading text-3xl font-semibold tracking-tight md:text-4xl">Welcome back</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">Choose a portal. Demo password is <span className="font-medium text-foreground">password</span>.</p>
-            <div className="mt-7 grid gap-2">
-              {ALL_ROLES.map((roleKey) => {
-                const item = roles[roleKey]
-                const Icon = item.icon
-                const selected = role === roleKey
-                return (
-                  <button key={roleKey} onClick={() => { setRole(roleKey); setEmail(item.email); setError("") }} className={`flex items-center gap-4 rounded-2xl border p-4 text-left transition-all ${selected ? "border-primary bg-primary/4 shadow-sm ring-2 ring-primary/10" : "hover:border-primary/25 hover:bg-muted/50"}`}>
-                    <span className={`grid size-11 place-items-center rounded-xl ${selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"}`}><Icon className="size-5" /></span>
-                    <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">{item.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{item.description}</span></span>
-                    <span className={`grid size-5 place-items-center rounded-full border ${selected ? "border-primary bg-primary text-primary-foreground" : "border-border"}`}>{selected ? <Check className="size-3" /> : null}</span>
-                  </button>
-                )
-              })}
-            </div>
-            <div className="mt-6 grid gap-1.5">
-              <label className="text-sm font-medium" htmlFor="portal-email">Email or user ID</label>
-              <Input id="portal-email" aria-invalid={Boolean(error)} value={email} onChange={(event) => setEmail(event.target.value)} />
-            </div>
-            <div className="mt-4 grid gap-1.5">
-              <div className="flex items-center justify-between"><label className="text-sm font-medium" htmlFor="portal-password">Password</label><button className="text-xs font-medium text-primary" onClick={() => setForgot(true)}>Forgot password?</button></div>
-              <Input id="portal-password" aria-invalid={Boolean(error)} type="password" value={password} onChange={(event) => setPassword(event.target.value)} />
-              {error ? <p className="text-xs text-destructive">{error}</p> : null}
-            </div>
-            <Button size="lg" className="mt-6 w-full" onClick={() => enter()}>Explore {roles[role].short} portal</Button>
-            <p className="mt-5 text-center text-xs text-muted-foreground"><ShieldCheck className="mr-1 inline size-3.5" />Role-based demo · Changes stay in this browser</p>
-          </div>
-        </section>
-      </div>
-      <Dialog open={forgot} onOpenChange={setForgot}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Reset password</DialogTitle><DialogDescription>A reset link would be sent to {email || "your school email"}. In this demo, keep using password.</DialogDescription></DialogHeader>
-          <DialogFooter><Button onClick={() => { setForgot(false); toast.success("Reset instructions noted for the demo account") }}>Close</Button></DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </main>
-  )
-}
-
 function RequireAuth({ children }: { children: ReactNode }) {
   const location = useLocation()
   const auth = loadAuth()
@@ -255,11 +171,10 @@ function PortalShell() {
   const sectionValid = Boolean(sectionParam && sectionIds[role].has(sectionParam))
   const section = sectionValid && sectionParam ? sectionParam : defaultSection[role]
   const current = navigation[role].find((item) => item.id === section) ?? navigation[role][0]
-  const authRole = loadAuth()?.role
-
-  useEffect(() => {
-    if (roleOk && authRole && authRole !== role) saveAuth({ role })
-  }, [authRole, role, roleOk])
+  const session = loadAuth()
+  const authRole = session?.role
+  const signedInName = session?.user ? `${session.user.firstName} ${session.user.lastName}`.trim() : roles[role].short
+  const initials = signedInName.split(" ").map((part) => part[0]).join("").slice(0, 2).toUpperCase()
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase()
@@ -269,18 +184,11 @@ function PortalShell() {
     return [...students, ...payments]
   }, [query, role, state.payments, state.students])
 
-  if (!roleOk) {
-    return <Navigate to="/login" replace />
+  if (!roleOk || (authRole && authRole !== role)) {
+    return <Navigate to={authRole ? portalPath(authRole) : "/login"} replace />
   }
   if (!sectionValid || roleParam !== portalPath(role).split("/")[1]) {
     return <Navigate to={portalPath(role, section)} replace />
-  }
-
-  function changeRole(next: Role) {
-    saveAuth({ role: next })
-    setQuery("")
-    setMobileNavOpen(false)
-    navigate(portalPath(next))
   }
 
   function openSection(id: string) {
@@ -313,14 +221,14 @@ function PortalShell() {
     if (section === "finance") return <Finance />
     if (section === "messages") return <MessagesDesk />
     if (section === "settings") return <SettingsPanel />
-    if (section === "reports") return <Reports onReset={() => { resetDemo(); toast.success("Demo data restored") }} />
+    if (section === "reports") return <Reports onReset={() => { resetDemo(); toast.success("School data reloaded") }} />
     return <ManagementDashboard onOpen={openSection} />
   })()
 
   return (
     <div className="min-h-svh bg-[var(--page-wash)]">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
-        <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={logout} />
+        <Sidebar role={role} userName={signedInName} initials={initials} active={section} onNavigate={openSection} onLogout={logout} />
       </aside>
       <div className="lg:pl-64">
         <div className="flex items-center gap-3 border-b bg-background px-4 py-3 lg:hidden">
@@ -328,7 +236,7 @@ function PortalShell() {
             <SheetTrigger asChild><Button variant="outline" size="icon" aria-label="Open navigation"><Menu /></Button></SheetTrigger>
             <SheetContent side="left" className="w-72 border-sidebar-border bg-sidebar p-0 text-sidebar-foreground">
               <SheetHeader className="sr-only"><SheetTitle>Portal navigation</SheetTitle><SheetDescription>Choose a section of the school portal.</SheetDescription></SheetHeader>
-              <Sidebar role={role} active={section} onNavigate={openSection} onRole={changeRole} onLogout={logout} />
+              <Sidebar role={role} userName={signedInName} initials={initials} active={section} onNavigate={openSection} onLogout={logout} />
             </SheetContent>
           </Sheet>
           <Logo />
@@ -371,7 +279,7 @@ function PortalShell() {
   )
 }
 
-function Sidebar({ role, active, onNavigate, onRole, onLogout }: { role: Role; active: string; onNavigate: (id: string) => void; onRole: (role: Role) => void; onLogout: () => void }) {
+function Sidebar({ role, userName, initials, active, onNavigate, onLogout }: { role: Role; userName: string; initials: string; active: string; onNavigate: (id: string) => void; onLogout: () => void }) {
   const { theme, setTheme } = useTheme()
   return (
     <div className="flex h-full flex-col bg-sidebar p-3 text-sidebar-foreground">
@@ -390,14 +298,10 @@ function Sidebar({ role, active, onNavigate, onRole, onLogout }: { role: Role; a
       </nav>
       <div className="rounded-2xl border border-white/15 bg-white/10 p-3">
         <div className="flex items-center gap-3">
-          <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">{roles[role].initials}</div>
-          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white">{roles[role].user}</p><p className="truncate text-[11px] text-[var(--sidebar-inactive)]">{roles[role].label}</p></div>
+          <div className="grid size-9 place-items-center rounded-full bg-white/15 text-xs font-semibold text-white">{initials}</div>
+          <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold text-white">{userName}</p><p className="truncate text-[11px] text-[var(--sidebar-inactive)]">{roles[role].label}</p></div>
           <Button variant="ghost" size="icon-sm" className="text-white hover:bg-white/10 hover:text-white" aria-label="Sign out" onClick={onLogout}><LogOut /></Button>
         </div>
-        <Select value={role} onValueChange={(value) => onRole(value as Role)}>
-          <SelectTrigger className="mt-3 h-10 w-full border-white/20 bg-white/10 text-xs text-white"><SelectValue /></SelectTrigger>
-          <SelectContent><SelectGroup>{ALL_ROLES.map((item) => <SelectItem key={item} value={item}>{roles[item].short} demo</SelectItem>)}</SelectGroup></SelectContent>
-        </Select>
         <Button variant="ghost" size="sm" className="mt-2 w-full text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white" onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>{theme === "dark" ? "Light theme" : "Dark theme"}</Button>
       </div>
     </div>
@@ -408,6 +312,9 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<GuestOnly><LoginScreen /></GuestOnly>} />
+      <Route path="/forgot-password" element={<GuestOnly><ForgotPasswordScreen /></GuestOnly>} />
+      <Route path="/reset-password" element={<GuestOnly><ResetPasswordScreen /></GuestOnly>} />
+      <Route path="/set-password" element={<GuestOnly><ResetPasswordScreen /></GuestOnly>} />
       <Route path="/" element={<HomeRedirect />} />
       <Route
         path="/:role/:section/*"

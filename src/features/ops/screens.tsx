@@ -372,7 +372,10 @@ function ClassSubjectPicker({ classId, subject, onClass, onSubject }: { classId:
 export function CurriculumPanel() {
   const { state, addPlannedChapter, removePlannedChapter } = useSchool()
   const actor = useActor()
-  const [classId, setClassId] = useState("g7b")
+  const [selectedClassId, setClassId] = useState("")
+  const classId = (selectedClassId && state.classes.some((c) => c.id === selectedClassId))
+    ? selectedClassId
+    : (state.classes.find((c) => c.label.includes("Grade 7") || c.id === "g7b")?.id ?? state.classes[0]?.id ?? "g7b")
   const [subject, setSubject] = useState("Mathematics")
   const [form, setForm] = useState({ title: "", targetDate: "", description: "" })
   const chapters = state.plannedChapters.filter((row) => row.classId === classId && row.subject === subject).sort((a, b) => a.sequence - b.sequence)
@@ -520,10 +523,13 @@ function ScoreCell({ test, studentId }: { test: WeeklyTest; studentId: string })
 export function WeeklyTestsPanel() {
   const { state, saveTestSchedule, generateMonthTests, publishWeeklyTest } = useSchool()
   const actor = useActor()
-  const [month, setMonth] = useState(CURRENT_MONTH)
-  const [classId, setClassId] = useState("g7b")
-  const [form, setForm] = useState({ classId: "g7b", subject: "Mathematics", weekday: "Thursday", periodIndex: "4", max: "20" })
+  const [selectedClassId, setClassId] = useState("")
+  const classId = (selectedClassId && state.classes.some((c) => c.id === selectedClassId))
+    ? selectedClassId
+    : (state.classes.find((c) => c.label.includes("Grade 7") || c.id === "g7b")?.id ?? state.classes[0]?.id ?? "g7b")
+  const [form, setForm] = useState({ classId, subject: "Mathematics", weekday: "Thursday", periodIndex: "4", max: "20" })
   const [marking, setMarking] = useState<WeeklyTest | null>(null)
+  const [month, setMonth] = useState(CURRENT_MONTH)
   const rules = state.settings.dailyTestRules
   const tests = state.weeklyTests.filter((test) => test.month === month).sort((a, b) => a.date.localeCompare(b.date) || a.classId.localeCompare(b.classId))
   const summaries = useMemo(() => monthlySummaries(state.weeklyTests, month, rules), [state.weeklyTests, month, rules])

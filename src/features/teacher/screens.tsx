@@ -15,31 +15,45 @@ import { Separator } from "@/components/ui/separator"
 import { Textarea } from "@/components/ui/textarea"
 import { MarksDialog } from "@/features/ops/screens"
 import { studentName, useSchool } from "@/data/store"
-import { TEACHER_ID, TODAY, type AttendanceStatus, type WeeklyTest } from "@/data/types"
+import { TODAY, type AttendanceStatus, type WeeklyTest } from "@/data/types"
 import { teacherDuties, weekdayOf } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
+import { loadAuth } from "@/lib/auth"
 import { monthLabel } from "@/lib/fees"
 import { classLabel, formatDate } from "@/lib/format"
 
 const attendanceConfig = { value: { label: "Attendance", color: "var(--chart-1)" } } satisfies ChartConfig
-const week = [
-  ["2026-09-21", "Mon"],
-  ["2026-09-22", "Tue"],
-  ["2026-09-23", "Wed"],
-  ["2026-09-24", "Thu"],
-  ["2026-09-25", "Fri"],
-] as const
+
+function signedInTeacher<T extends { email: string }>(staff: T[]) {
+  const email = loadAuth()?.user?.email
+  return staff.find((person) => person.email === email)
+}
+
+function schoolWeek(today: string) {
+  const date = new Date(`${today}T00:00:00`)
+  const weekday = date.getDay()
+  const monday = new Date(date)
+  monday.setDate(date.getDate() - (weekday === 0 ? 6 : weekday - 1))
+  return Array.from({ length: 5 }, (_, index) => {
+    const day = new Date(monday)
+    day.setDate(monday.getDate() + index)
+    const month = String(day.getMonth() + 1).padStart(2, "0")
+    const dateNumber = String(day.getDate()).padStart(2, "0")
+    return [`${day.getFullYear()}-${month}-${dateNumber}`, ["Mon", "Tue", "Wed", "Thu", "Fri"][index]] as const
+  })
+}
 
 export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) {
   const { state } = useSchool()
-  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
+  const teacher = signedInTeacher(state.staff)
+  const teacherId = teacher?.id ?? ""
   const day = weekdayOf(TODAY)
   // Own timetable plus any class assigned to this teacher as a substitute today (UR-03).
-  const periods = teacherDuties(TEACHER_ID, TODAY, state.slots, state.substitutions)
+  const periods = teacherDuties(teacherId, TODAY, state.slots, state.substitutions)
   const timeOf = (classId: string, periodIndex: number) => state.slots.find((slot) => slot.classId === classId && slot.day === day && slot.periodIndex === periodIndex)
   const covering = periods.filter((duty) => duty.substitute).length
   const classIds = teacher?.classIds ?? []
-  const weekly = week.map(([date, label]) => {
+  const weekly = schoolWeek(TODAY).map(([date, label]) => {
     const marks = state.attendance.filter((mark) => classIds.includes(mark.classId) && mark.date === date)
     const present = marks.filter((mark) => mark.status === "Present").length
     return { day: label, value: marks.length ? Math.round((present / marks.length) * 100) : 0 }
@@ -50,7 +64,7 @@ export function TeacherToday({ onOpen }: { onOpen: (section: string) => void }) 
         <div className="school-grid absolute inset-0 opacity-10" />
         <div className="relative z-10 max-w-xl">
           <p className="text-xs font-semibold tracking-[0.18em] text-primary-foreground/60 uppercase">{day} · {formatDate(TODAY)}</p>
-          <h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight">Good morning, Hassan.</h2>
+          <h2 className="mt-3 font-heading text-3xl font-semibold tracking-tight">Good morning, {teacher?.name.split(" ")[0] ?? "teacher"}.</h2>
           <p className="mt-2 text-sm text-primary-foreground/70">You have {periods.length} periods today{covering ? `, including ${covering} substitute ${covering === 1 ? "class" : "classes"}` : ""}. You teach {teacher?.subject}.</p>
           <Button variant="secondary" className="mt-6" onClick={() => onOpen("attendance")}><UserCheck data-icon="inline-start" />Start attendance</Button>
         </div>
@@ -90,7 +104,8 @@ export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }
   const navigate = useNavigate()
   const params = useParams()
   const classFromUrl = params["*"] ?? ""
-  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
+  const teacher = signedInTeacher(state.staff)
+  const teacherId = teacher?.id ?? ""
   const [classId, setClassId] = useState(classFromUrl || teacher?.classIds[0] || "")
   const students = state.students.filter((student) => student.classId === classId && student.status !== "Withdrawn")
 
@@ -135,7 +150,8 @@ export function TeacherClasses({ onOpen }: { onOpen: (section: string) => void }
 export function TeacherAttendance() {
   const { state, saveAttendance } = useSchool()
   const actor = useActor()
-  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
+  const teacher = signedInTeacher(state.staff)
+  const teacherId = teacher?.id ?? ""
   const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
   const [date, setDate] = useState(TODAY)
   const students = state.students.filter((student) => student.classId === classId && student.status !== "Withdrawn")
@@ -191,12 +207,13 @@ export function TeacherAttendance() {
 export function TeacherDailyUpdate() {
   const { state, submitDailyLesson } = useSchool()
   const actor = useActor()
-  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
+  const teacher = signedInTeacher(state.staff)
+  const teacherId = teacher?.id ?? ""
   const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
   const [chapterId, setChapterId] = useState("")
   const [form, setForm] = useState({ classwork: "", homework: "", remarks: "" })
   const chapters = state.plannedChapters.filter((row) => row.classId === classId && row.subject === teacher?.subject).sort((a, b) => a.sequence - b.sequence)
-  const mine = state.dailyLessons.filter((row) => row.teacherId === TEACHER_ID).sort((a, b) => b.date.localeCompare(a.date))
+  const mine = state.dailyLessons.filter((row) => row.teacherId === teacherId).sort((a, b) => b.date.localeCompare(a.date))
   const today = mine.find((row) => row.classId === classId && row.date === TODAY)
 
   function submit() {
@@ -247,7 +264,8 @@ export function TeacherDailyUpdate() {
 /** Scheduled weekly tests for the teacher's own subject and classes (UR-05). */
 export function TeacherWeeklyTests() {
   const { state } = useSchool()
-  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
+  const teacher = signedInTeacher(state.staff)
+  const teacherId = teacher?.id ?? ""
   const [marking, setMarking] = useState<WeeklyTest | null>(null)
   const month = TODAY.slice(0, 7)
   const tests = state.weeklyTests
@@ -280,8 +298,12 @@ export function TeacherWeeklyTests() {
 export function TeacherUpdates() {
   const { state, addUpdate, setUpdateStatus } = useSchool()
   const actor = useActor()
-  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
-  const [classId, setClassId] = useState("g7b")
+  const teacher = signedInTeacher(state.staff)
+  const teacherId = teacher?.id ?? ""
+  const [selectedClassId, setClassId] = useState("")
+  const classId = (selectedClassId && (teacher?.classIds ?? []).includes(selectedClassId))
+    ? selectedClassId
+    : (teacher?.classIds?.[0] ?? state.classes[0]?.id ?? "g7b")
   const [kind, setKind] = useState<"Homework" | "Classwork" | "Notice">("Notice")
   const [subject, setSubject] = useState(teacher?.subject ?? "")
   const [text, setText] = useState("")
@@ -321,7 +343,8 @@ export function TeacherUpdates() {
 export function TeacherMarks() {
   const { state, saveScores, setSheetStatus } = useSchool()
   const actor = useActor()
-  const teacher = state.staff.find((person) => person.id === TEACHER_ID)
+  const teacher = signedInTeacher(state.staff)
+  const teacherId = teacher?.id ?? ""
   const sheets = state.sheets.filter((sheet) => teacher?.classIds.includes(sheet.classId) && teacher.subject === sheet.subject && !sheet.examName.includes("August"))
   const [sheetId, setSheetId] = useState(sheets[0]?.id ?? "")
   const sheet = state.sheets.find((item) => item.id === sheetId) ?? sheets[0]
