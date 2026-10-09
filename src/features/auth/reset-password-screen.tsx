@@ -1,20 +1,20 @@
-import {
-  AlertCircle,
-  ArrowLeft,
-  CheckCircle2,
-  Eye,
-  EyeOff,
-  Lock,
-} from "lucide-react"
 import { type FormEvent, useEffect, useState } from "react"
 import { Link, useNavigate, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Spinner } from "@/components/ui/spinner"
 import { api } from "@/lib/api"
+
+import {
+  AuthCanvas,
+  AuthCard,
+  AuthError,
+  AuthLabel,
+  AuthSubmit,
+  authInputClassName,
+  BackToLogin,
+  RequiredMark,
+} from "./auth-shell"
 
 type TokenValidation =
   | { status: "verifying" }
@@ -47,9 +47,11 @@ export function ResetPasswordScreen() {
   })
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState("")
+
+  const creating =
+    validation.status === "valid" && validation.data.purpose === "invitation"
 
   useEffect(() => {
     if (!token) return
@@ -115,190 +117,132 @@ export function ResetPasswordScreen() {
     }
   }
 
+  const title = creating ? "Create new password" : "Update password"
+  const description = creating
+    ? "Choose a password for your account."
+    : "Choose a new password for your account."
+
   return (
-    <main className="login-canvas flex min-h-svh items-center justify-center p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border bg-card/95 p-6 shadow-2xl backdrop-blur-md sm:p-8">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <div className="brand-mark mb-3 grid size-12 place-items-center rounded-2xl text-primary-foreground shadow-md">
-            <Lock className="size-6" />
-          </div>
-          <h1 className="font-heading text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-            {validation.status === "valid" &&
-            validation.data.purpose === "invitation"
-              ? "Activate Account"
-              : "Set Password"}
-          </h1>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Creative Leaders School Management Portal
-          </p>
-        </div>
+    <AuthCanvas>
+      <AuthCard>
+        <BackToLogin />
 
         {validation.status === "verifying" && (
           <div className="flex flex-col items-center py-8 text-center">
-            <Spinner className="size-8 text-primary" />
-            <p className="mt-4 text-sm font-medium text-foreground">
+            <Spinner className="size-5 text-[#1a5c3a]" />
+            <p className="mt-4 text-[12.25px] font-medium text-[#1b2430]">
               Verifying security link...
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Please wait while we validate your credentials.
             </p>
           </div>
         )}
 
         {validation.status === "invalid" && (
-          <div className="space-y-4 text-center">
-            <div className="flex flex-col items-center rounded-xl border border-destructive/20 bg-destructive/10 p-5">
-              <AlertCircle className="mb-2 size-10 text-destructive" />
-              <h3 className="text-base font-semibold text-destructive">
-                Link Invalid or Expired
-              </h3>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                {validation.message}
-              </p>
-            </div>
-            <Button asChild className="w-full">
-              <Link to="/forgot-password">Request a New Link</Link>
-            </Button>
-            <div>
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="size-3.5" /> Back to sign in
-              </Link>
-            </div>
+          <div className="pt-[21px]">
+            <h1 className="text-[17.5px] leading-[24.5px] font-semibold text-[#1a5c3a]">
+              Link unavailable
+            </h1>
+            <p className="pt-[3.5px] text-[12.25px] leading-[17.5px] text-[#667085]">
+              {validation.message}
+            </p>
+            <Link
+              to="/forgot-password"
+              className="mt-[21px] flex h-[38px] w-full items-center justify-center rounded-lg border border-[#1a5c3a] bg-[#1a5c3a] text-[12.25px] font-medium text-white hover:bg-[#144a2f]"
+            >
+              Request a new link
+            </Link>
           </div>
         )}
 
         {validation.status === "success" && (
-          <div className="space-y-4 text-center">
-            <div className="flex flex-col items-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-5">
-              <CheckCircle2 className="mb-2 size-10 text-emerald-600" />
-              <h3 className="text-base font-semibold text-foreground">
-                Password Updated!
-              </h3>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                Your password has been set successfully. You can now log in to
-                your portal.
-              </p>
-            </div>
-            <Button
-              className="w-full font-semibold"
+          <div className="pt-[21px]">
+            <h1 className="text-[17.5px] leading-[24.5px] font-semibold text-[#1a5c3a]">
+              Password updated
+            </h1>
+            <p className="pt-[3.5px] text-[12.25px] leading-[17.5px] text-[#667085]">
+              Your password has been set. You can now sign in to your portal.
+            </p>
+            <button
+              type="button"
+              className="mt-[21px] flex h-[38px] w-full items-center justify-center rounded-lg border border-[#1a5c3a] bg-[#1a5c3a] text-[12.25px] font-medium text-white hover:bg-[#144a2f]"
               onClick={() => navigate("/login", { replace: true })}
             >
-              Sign In to Your Portal
-            </Button>
+              Back to login
+            </button>
           </div>
         )}
 
         {validation.status === "valid" && (
-          <form onSubmit={handleResetSubmit} className="space-y-4">
-            <div className="rounded-xl border border-border/80 bg-muted/40 p-3 text-xs">
-              <p className="font-semibold text-foreground">
-                {validation.data.name}
-              </p>
-              <p className="text-muted-foreground">{validation.data.email}</p>
-              <div className="mt-1.5 inline-block rounded-md bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary capitalize">
-                {validation.data.role.replace(/_/g, " ")}
-              </div>
-            </div>
+          <>
+            <h1 className="pt-[21px] text-[17.5px] leading-[24.5px] font-semibold text-[#1a5c3a]">
+              {title}
+            </h1>
+            <p className="pt-[3.5px] text-[12.25px] leading-[17.5px] text-[#667085]">
+              {description}
+            </p>
+            <p className="pt-2 text-[10.5px] leading-[14px] text-[#667085]">
+              {validation.data.name} · {validation.data.email}
+            </p>
 
-            <div className="grid gap-1.5">
-              <Label
-                htmlFor="reset-new-password"
-                className="text-xs font-medium"
-              >
-                New password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
+            <form onSubmit={handleResetSubmit} className="pt-[21px]">
+              <div className="flex flex-col gap-[5.25px]">
+                <AuthLabel htmlFor="reset-new-password" tone="green">
+                  New password
+                  <RequiredMark />
+                </AuthLabel>
+                <input
                   id="reset-new-password"
-                  type={showPassword ? "text" : "password"}
+                  type="password"
                   placeholder="At least 8 characters"
                   value={password}
                   onChange={(event) => {
                     setPassword(event.target.value)
                     if (formError) setFormError("")
                   }}
-                  className="pr-9 pl-9 text-sm"
+                  className={authInputClassName}
                   autoComplete="new-password"
                   autoFocus
+                  disabled={submitting}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                  aria-label={showPassword ? "Hide password" : "Show password"}
-                >
-                  {showPassword ? (
-                    <EyeOff className="size-4" />
-                  ) : (
-                    <Eye className="size-4" />
-                  )}
-                </button>
               </div>
-            </div>
 
-            <div className="grid gap-1.5">
-              <Label
-                htmlFor="reset-confirm-password"
-                className="text-xs font-medium"
-              >
-                Confirm new password
-              </Label>
-              <div className="relative">
-                <Lock className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
+              <div className="flex flex-col gap-[5.25px] py-3.5">
+                <AuthLabel htmlFor="reset-confirm-password" tone="green">
+                  Confirm password
+                  <RequiredMark />
+                </AuthLabel>
+                <input
                   id="reset-confirm-password"
-                  type={showPassword ? "text" : "password"}
+                  type="password"
                   placeholder="Re-enter your password"
                   value={confirmPassword}
                   onChange={(event) => {
                     setConfirmPassword(event.target.value)
                     if (formError) setFormError("")
                   }}
-                  className="pr-9 pl-9 text-sm"
+                  className={authInputClassName}
                   autoComplete="new-password"
+                  disabled={submitting}
                 />
               </div>
-            </div>
 
-            {formError ? (
-              <div className="flex items-start gap-2.5 rounded-xl border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <span>{formError}</span>
-              </div>
-            ) : null}
+              {formError ? (
+                <div className="pb-3">
+                  <AuthError>{formError}</AuthError>
+                </div>
+              ) : null}
 
-            <Button
-              type="submit"
-              size="lg"
-              className="w-full text-sm font-semibold"
-              disabled={submitting}
-            >
-              {submitting ? (
-                <>
-                  <Spinner className="mr-2 size-4" /> Saving password...
-                </>
-              ) : validation.data.purpose === "invitation" ? (
-                "Activate Account & Continue"
-              ) : (
-                "Reset Password"
-              )}
-            </Button>
-
-            <div className="pt-2 text-center">
-              <Link
-                to="/login"
-                className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
-              >
-                <ArrowLeft className="size-3.5" /> Back to sign in
-              </Link>
-            </div>
-          </form>
+              <AuthSubmit disabled={submitting}>
+                {submitting ? <Spinner className="size-4 text-white" /> : null}
+                {creating ? "Create password" : "Update password"}
+              </AuthSubmit>
+            </form>
+          </>
         )}
-      </div>
-    </main>
+
+        <p className="pt-3.5 text-center text-[10.5px] leading-[14px] text-[#667085]">
+          Your school administrator will assist you.
+        </p>
+      </AuthCard>
+    </AuthCanvas>
   )
 }
