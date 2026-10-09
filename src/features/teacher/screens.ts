@@ -1,0 +1,8 @@
+export { TeacherAttendance } from "./teacher-attendance"
+export { TeacherClasses } from "./teacher-classes"
+export { TeacherDailyUpdate } from "./teacher-daily-update"
+export { TeacherMarks } from "./teacher-marks"
+export { TeacherPortal } from "./teacher-portal"
+export { TeacherToday } from "./teacher-today"
+export { TeacherUpdates } from "./teacher-updates"
+export { TeacherWeeklyTests } from "./teacher-weekly-tests"

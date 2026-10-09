@@ -1,4 +1,3 @@
-import { Printer } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
@@ -14,17 +13,9 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import { useSchool } from "@/data/store"
 import type { Payment } from "@/data/types"
-import { feeMonthsLabel, printReceipt } from "@/features/fees/receipts"
+import { feeMonthsLabel } from "@/features/fees/receipts"
 import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
 import {
@@ -33,58 +24,13 @@ import {
   outstanding,
   planOldestFirst,
 } from "@/lib/fees"
-import { classLabel, formatDate, pkr } from "@/lib/format"
+import { classLabel, pkr } from "@/lib/format"
 import { can } from "@/lib/permissions"
 
 function newKey() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
     : `k-${Date.now()}-${Math.random().toString(36).slice(2)}`
-}
-
-/** Month-by-month fee status for one student (Paid / Partially Paid / Unpaid / Advance). */
-export function FeeMonthTable({ studentId }: { studentId: string }) {
-  const currentMonth = getToday().slice(0, 7)
-  const { state } = useSchool()
-  const months = state.feeMonths
-    .filter((month) => month.studentId === studentId)
-    .sort((a, b) => a.month.localeCompare(b.month))
-  if (!months.length)
-    return (
-      <p className="text-sm text-muted-foreground">
-        No fee months generated yet.
-      </p>
-    )
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Month</TableHead>
-          <TableHead>Due date</TableHead>
-          <TableHead>Fee</TableHead>
-          <TableHead>Paid</TableHead>
-          <TableHead>Balance</TableHead>
-          <TableHead>Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {months.map((month) => (
-          <TableRow key={month.id}>
-            <TableCell className="font-medium">
-              {monthLabel(month.month)}
-            </TableCell>
-            <TableCell>{formatDate(month.dueDate)}</TableCell>
-            <TableCell>{pkr(month.amountDue)}</TableCell>
-            <TableCell>{pkr(month.amountPaid)}</TableCell>
-            <TableCell>{pkr(outstanding(month))}</TableCell>
-            <TableCell>
-              <StatusBadge value={feeMonthStatus(month, currentMonth)} />
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  )
 }
 
 /**
@@ -318,19 +264,5 @@ export function RecordPaymentForm({
         </Button>
       </div>
     </div>
-  )
-}
-
-export function PrintReceiptButton({ payment }: { payment: Payment }) {
-  const { state } = useSchool()
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      onClick={() => printReceipt(state, payment)}
-    >
-      <Printer data-icon="inline-start" />
-      Receipt
-    </Button>
   )
 }
