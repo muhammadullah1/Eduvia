@@ -89,7 +89,7 @@ export function AdmissionsPipeline({ applications, classes, onOpen }: Props) {
                     />
                   </div>
                   <span className="text-xs text-[var(--cls-muted)]">
-                    {classLabel(classes, item.classId)}
+                    {classLabel(classes, item.classId, item.classDisplay)}
                   </span>
                   <span className="text-xs text-[var(--cls-muted)]">
                     {item.guardian} · {item.phone}

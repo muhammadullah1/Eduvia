@@ -129,9 +129,13 @@ export function formatDate(iso: string) {
 
 export function classLabel(
   classes: { id: string; label: string }[],
-  id: string
+  id: string,
+  fallback?: string
 ) {
-  return classes.find((item) => item.id === id)?.label ?? id
+  const fromCatalog = classes.find((item) => item.id === id)?.label
+  if (fromCatalog) return fromCatalog
+  if (fallback?.trim()) return fallback.trim()
+  return id || "—"
 }
 
 export function gradeFromScore(score: number, max: number) {

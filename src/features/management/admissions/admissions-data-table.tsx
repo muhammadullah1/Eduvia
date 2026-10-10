@@ -24,6 +24,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  PaginationComponent,
+  type PaginationWithHandlers,
+} from "@/components/common/pagination-component"
 import type { Application, ClassSection } from "@/data/types"
 import { classLabel, formatDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -44,6 +48,8 @@ type Props = {
   onPrint?: () => void
   /** When true, omits outer card chrome (used inside AdmissionsPanel). */
   embedded?: boolean
+  loading?: boolean
+  pagination?: PaginationWithHandlers
 }
 
 function SortHint() {
@@ -64,6 +70,8 @@ export function AdmissionsDataTable({
   onExport,
   onPrint,
   embedded = false,
+  loading = false,
+  pagination,
 }: Props) {
   return (
     <div
@@ -138,6 +146,16 @@ export function AdmissionsDataTable({
             </TableRow>
           </TableHeader>
           <TableBody>
+            {loading && rows.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className="h-24 text-center text-sm text-[var(--cls-muted)]"
+                >
+                  Loading applications…
+                </TableCell>
+              </TableRow>
+            ) : null}
             {rows.map((item) => {
               const uiStatus = resolveAdmissionUiStatus(item)
               return (
@@ -163,7 +181,7 @@ export function AdmissionsDataTable({
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-[var(--cls-ink)]">
-                    {classLabel(classes, item.classId)}
+                    {classLabel(classes, item.classId, item.classDisplay)}
                   </TableCell>
                   <TableCell>
                     <div className="flex flex-col gap-0.5">
@@ -210,6 +228,7 @@ export function AdmissionsDataTable({
           </TableBody>
         </Table>
       </div>
+      {pagination ? <PaginationComponent pagination={pagination} /> : null}
     </div>
   )
 }

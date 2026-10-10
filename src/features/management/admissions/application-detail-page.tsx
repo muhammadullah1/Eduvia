@@ -90,7 +90,7 @@ export function ApplicationDetailPage({
                   {formatRegistrationNo(application.id)}
                 </span>
                 {" · "}
-                {classLabel(classes, application.classId)}
+                {classLabel(classes, application.classId, application.classDisplay)}
                 {" · "}
                 Session {sessionLabel}
               </p>

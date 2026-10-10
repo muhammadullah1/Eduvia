@@ -18,7 +18,9 @@ import { FeeMonthTable } from "@/features/fees/components"
 import { AdmissionWizard } from "@/features/management/admission-wizard"
 import { ApplicationDetailPage } from "@/features/management/admissions/application-detail-page"
 import { AdmissionsListPage } from "@/features/management/admissions/admissions-list-page"
+import { useGetApplication } from "@/features/management/admissions/hooks/use-admissions"
 import { useActor } from "@/lib/actor"
+import { applicationNumericId } from "@/lib/applications-api"
 import { portalPath } from "@/lib/auth"
 import { classLabel, formatDate } from "@/lib/format"
 import { can } from "@/lib/permissions"
@@ -45,19 +47,28 @@ export function Admissions({ query }: { query: string }) {
     id: string
     status: Application["status"]
   }>(null)
+  const [statusBusy, setStatusBusy] = useState(false)
 
   const activeAppId =
     selectedAppId !== null ? selectedAppId : appFromUrl || null
   const activeStudentId =
     selectedStudentId !== null ? selectedStudentId : studentFromUrl || null
 
-  const selectedApp = useMemo(
-    () =>
-      activeAppId
-        ? (state.applications.find((item) => item.id === activeAppId) ?? null)
-        : null,
-    [activeAppId, state.applications]
-  )
+  const activeAppNumericId = useMemo(() => {
+    if (!activeAppId) return undefined
+    return applicationNumericId(activeAppId) ?? undefined
+  }, [activeAppId])
+
+  const { data: selectedAppFromApi, isLoading: selectedAppLoading } =
+    useGetApplication(activeAppNumericId)
+
+  const selectedApp = useMemo(() => {
+    if (!activeAppId) return null
+    if (selectedAppFromApi) return selectedAppFromApi
+    return (
+      state.applications.find((item) => item.id === activeAppId) ?? null
+    )
+  }, [activeAppId, selectedAppFromApi, state.applications])
   const selectedStudent = useMemo(
     () =>
       activeStudentId
@@ -83,13 +94,15 @@ export function Admissions({ query }: { query: string }) {
     navigate(portalPath(actor.role, "admissions"))
   }
 
-  function handleConfirm() {
-    if (!confirm) return
-    const message = setApplicationStatus(
+  async function handleConfirm() {
+    if (!confirm || statusBusy) return
+    setStatusBusy(true)
+    const message = await setApplicationStatus(
       confirm.id,
       confirm.status,
       actor.name
     )
+    setStatusBusy(false)
     if (message) toast.error(message)
     else
       toast.success(
@@ -99,19 +112,27 @@ export function Admissions({ query }: { query: string }) {
             ? "Moved to waitlist"
             : "Application rejected"
       )
+    const rejected = confirm.status === "Rejected"
     setConfirm(null)
-    if (confirm.status === "Rejected") closeDetails()
+    if (rejected) closeDetails()
   }
 
-  function handleReview(id: string) {
-    const message = setApplicationStatus(id, "Review", actor.name)
+  async function handleReview(id: string) {
+    if (statusBusy) return
+    setStatusBusy(true)
+    const message = await setApplicationStatus(id, "Review", actor.name)
+    setStatusBusy(false)
     if (message) toast.error(message)
     else toast.success("Marked under review")
   }
 
   return (
     <>
-      {selectedApp ? (
+      {activeAppId && selectedAppLoading && !selectedApp ? (
+        <div className="flex min-h-[40vh] items-center justify-center text-sm text-[var(--cls-muted)]">
+          Loading application…
+        </div>
+      ) : selectedApp ? (
         <ApplicationDetailPage
           application={selectedApp}
           classes={state.classes}
@@ -123,11 +144,10 @@ export function Admissions({ query }: { query: string }) {
           onReject={(id) => setConfirm({ id, status: "Rejected" })}
           confirm={confirm}
           onConfirmClose={() => setConfirm(null)}
-          onConfirm={handleConfirm}
+          onConfirm={() => void handleConfirm()}
         />
       ) : (
         <AdmissionsListPage
-          applications={state.applications}
           classes={state.classes}
           sessionLabel={sessionLabel}
           globalQuery={query}

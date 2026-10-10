@@ -1,9 +1,10 @@
 import { Check, Plus, X } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -81,13 +82,20 @@ type Props = {
 }
 
 export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
-  const { state, addApplication, setApplicationStatus } = useSchool()
+  const {
+    state,
+    ensureAdmissionWizardData,
+    persistApplicationDraft,
+    patchApplicationRecord,
+    finalizeApplication,
+  } = useSchool()
   const actor = useActor()
   const [step, setStep] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [refNo] = useState(genRef)
   const [done, setDone] = useState(false)
   const [createdId, setCreatedId] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
 
   const [student, setStudent] = useState({
     name: "",
@@ -126,6 +134,32 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
     () => state.sessions.find((session) => session.current),
     [state.sessions]
   )
+
+  useEffect(() => {
+    if (!open) return
+    void ensureAdmissionWizardData()
+  }, [open, ensureAdmissionWizardData])
+
+  useEffect(() => {
+    if (!createdId) return
+    const app = state.applications.find((item) => item.id === createdId)
+    if (!app?.documents?.length) return
+    setDocuments(app.documents.map((item) => ({ ...item })))
+  }, [createdId, state.applications])
+
+  useEffect(() => {
+    if (!open || state.classes.length === 0) return
+    setStudent((current) =>
+      current.classId
+        ? current
+        : { ...current, classId: state.classes[0]?.id ?? "" }
+    )
+    setEnrollment((current) =>
+      current.classId
+        ? current
+        : { ...current, classId: state.classes[0]?.id ?? "" }
+    )
+  }, [open, state.classes])
 
   function reset() {
     setStep(0)
@@ -184,8 +218,12 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
       if (!primary?.name.trim()) next.guardian = "Guardian name is required."
       if (!primary?.phone.trim()) next.guardianPhone = "Guardian phone is required."
     }
-    if (index === 4 && !decision.choice) {
-      next.decision = "Choose Admit, Reject, or Waitlist."
+    if (index === 4) {
+      if (!decision.choice) {
+        next.decision = "Choose Admit, Reject, or Waitlist."
+      } else if (decision.choice === "Admit" && !student.email.trim()) {
+        next.email = "Guardian email is required to enroll after admission."
+      }
     }
     if (index === 5) {
       if (decision.choice === "Admit") {
@@ -200,51 +238,114 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
     return Object.keys(next).length === 0
   }
 
-  function submit() {
-    if (!validateStep(step)) return
+  function buildPayload(classIdOverride?: string) {
     const primary = primaryGuardian()
-    const notes = [decision.remarks, interview.remarks, student.email]
+    const notes = [decision.remarks, interview.remarks]
       .filter(Boolean)
       .join("\n")
-    const result = addApplication(
+    return {
+      name: student.name,
+      dob: student.dob,
+      gender: student.gender,
+      address: student.address,
+      previousSchool: student.previousSchool,
+      previousClass: student.previousClass,
+      classId: classIdOverride || enrollment.classId || student.classId,
+      guardian: primary?.name ?? "",
+      guardianRelation: primary?.type,
+      phone: student.phone || primary?.phone || "",
+      guardianAddress: primary?.address || student.address,
+      email: student.email.trim(),
+      documents,
+      interviewType: interview.waived ? "Waived" : interview.type,
+      interviewDate: interview.waived ? "" : interview.date,
+      interviewScore: interview.score,
+      interviewResult: interview.result,
+      notes,
+    }
+  }
+
+  async function persistStepProgress() {
+    const payload = buildPayload(student.classId)
+    if (!createdId) {
+      const result = await persistApplicationDraft(payload, actor.name)
+      if ("error" in result) return result
+      setCreatedId(result.id)
+      return {}
+    }
+    const patch = await patchApplicationRecord(createdId, payload, actor.name)
+    if (patch) return { error: patch }
+    return {}
+  }
+
+  async function continueStep() {
+    if (!validateStep(step)) return
+    setSaving(true)
+    const save = await persistStepProgress()
+    setSaving(false)
+    if ("error" in save && save.error) {
+      toast.error(save.error)
+      return
+    }
+    setStep((value) => value + 1)
+  }
+
+  async function submit() {
+    if (!validateStep(step)) return
+    if (!decision.choice) {
+      toast.error("Choose Admit, Reject, or Waitlist.")
+      return
+    }
+    if (decision.choice === "Admit" && !student.email.trim()) {
+      toast.error("Guardian email is required to enroll after admission.")
+      return
+    }
+    setSaving(true)
+    let appId = createdId
+    if (!appId) {
+      const draft = await persistApplicationDraft(
+        buildPayload(enrollment.classId || student.classId),
+        actor.name
+      )
+      if ("error" in draft) {
+        setSaving(false)
+        toast.error(draft.error)
+        return
+      }
+      appId = draft.id
+      setCreatedId(appId)
+    } else {
+      const patch = await patchApplicationRecord(
+        appId,
+        buildPayload(enrollment.classId || student.classId),
+        actor.name
+      )
+      if (patch) {
+        setSaving(false)
+        toast.error(patch)
+        return
+      }
+    }
+    const finalize = await finalizeApplication(
+      appId,
       {
-        name: student.name,
-        dob: student.dob,
-        gender: student.gender,
-        address: student.address,
-        previousSchool: student.previousSchool,
-        previousClass: student.previousClass,
-        classId: enrollment.classId || student.classId,
-        guardian: primary.name,
-        guardianRelation: primary.type,
-        phone: student.phone || primary.phone,
-        guardianAddress: primary.address || student.address,
-        documents,
-        interviewType: interview.waived ? "Waived" : interview.type,
-        interviewDate: interview.waived ? "" : interview.date,
-        interviewScore: interview.score,
-        interviewResult: interview.result,
         decision: decision.choice,
-        notes,
+        remarks: decision.remarks,
+        payload: buildPayload(enrollment.classId || student.classId),
       },
       actor.name
     )
-    if ("error" in result) {
-      toast.error(result.error)
+    setSaving(false)
+    if (finalize) {
+      toast.error(finalize)
       return
     }
-    const status =
+    toast.success(
       decision.choice === "Admit"
-        ? "Enrolled"
-        : decision.choice === "Waitlist"
-          ? "Waitlist"
-          : decision.choice === "Reject"
-            ? "Rejected"
-            : "Review"
-    const statusError = setApplicationStatus(result.id, status, actor.name)
-    if (statusError) toast.error(statusError)
-    else toast.success("Application saved.")
-    setCreatedId(result.id)
+        ? "Application submitted and student enrolled."
+        : "Application submitted."
+    )
+    setCreatedId(appId)
     setDone(true)
   }
 
@@ -268,7 +369,7 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
         className="flex max-h-[min(92vh,820px)] w-[min(100vw-2rem,48rem)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[48rem]"
       >
         <DialogTitle className="sr-only">New Admission Application</DialogTitle>
-        <div className="flex items-start justify-between border-b border-[var(--cls-border)] bg-white px-6 py-4">
+        <div className="flex shrink-0 items-start justify-between border-b border-[var(--cls-border)] bg-white px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-[var(--cls-ink)]">
               New admission application
@@ -293,12 +394,17 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
         </div>
 
         {!done ? (
-          <div className="overflow-x-auto border-b border-[var(--cls-border)] bg-[var(--page-wash)]/40 px-6 py-4">
+          <div className="shrink-0 overflow-x-auto overflow-y-hidden border-b border-[var(--cls-border)] bg-[var(--page-wash)]/40 px-6 py-4">
             <AdmissionStepper step={step} />
           </div>
         ) : null}
 
-        <div className="flex-1 overflow-y-auto bg-white px-6 py-5">
+        <div
+          className={cn(
+            "min-h-0 flex-1 bg-white px-6 py-5",
+            step >= 2 || done ? "overflow-y-auto" : "overflow-hidden"
+          )}
+        >
           {done ? (
             <div className="flex flex-col items-center py-8 text-center">
               <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-[#e8f7ee]">
@@ -313,9 +419,9 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
                   "the selected class"}
               </p>
               <p className="mt-1 text-xs text-[var(--cls-muted)]">
-                Reference:{" "}
+                Application:{" "}
                 <span className="font-mono font-medium text-[var(--cls-brand)]">
-                  {refNo}
+                  {createdId ?? refNo}
                 </span>
               </p>
               <div className="mt-6 flex gap-2">
@@ -363,14 +469,12 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
                       Date of Birth
                     </AdmissionFieldLabel>
                   </Label>
-                  <Input
-                    type="date"
+                  <DatePicker
                     value={student.dob}
-                    onChange={(e) =>
-                      setStudent({ ...student, dob: e.target.value })
-                    }
+                    onChange={(dob) => setStudent({ ...student, dob })}
                     aria-invalid={Boolean(errors.dob)}
                   />
+                  <FieldError message={errors.dob} />
                 </div>
                 <div>
                   <Label className="mb-1.5 block">
@@ -763,12 +867,12 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div>
                       <Label className="mb-1.5 block">Interview / Test Date</Label>
-                      <Input
-                        type="date"
+                      <DatePicker
                         value={interview.date}
-                        onChange={(e) =>
-                          setInterview({ ...interview, date: e.target.value })
+                        onChange={(date) =>
+                          setInterview({ ...interview, date })
                         }
+                        placeholder="Interview date"
                       />
                     </div>
                     <div>
@@ -926,16 +1030,13 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
               </div>
               <div>
                 <Label className="mb-1.5 block">Enrollment Date</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={enrollment.enrollDate}
-                  onChange={(e) =>
-                    setEnrollment({
-                      ...enrollment,
-                      enrollDate: e.target.value,
-                    })
+                  onChange={(enrollDate) =>
+                    setEnrollment({ ...enrollment, enrollDate })
                   }
                   aria-invalid={Boolean(errors.enrollDate)}
+                  placeholder="Enrollment date"
                 />
               </div>
               <div className="rounded-lg border border-[#a8d5bc] bg-[#e8f7ee] p-3 text-xs text-[var(--cls-brand)]">
@@ -965,7 +1066,7 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
         </div>
 
         {!done ? (
-          <div className="flex items-center justify-between border-t border-[var(--cls-border)] bg-[var(--page-wash)]/60 px-6 py-4">
+          <div className="flex shrink-0 items-center justify-between border-t border-[var(--cls-border)] bg-[var(--page-wash)]/60 px-6 py-4">
             <div>
               {step > 0 ? (
                 <Button
@@ -978,29 +1079,30 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
               ) : null}
             </div>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={close}>
+              <Button type="button" variant="outline" onClick={close} disabled={saving}>
                 Cancel
               </Button>
               {step < 5 ? (
                 <Button
                   type="button"
                   className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-                  onClick={() => {
-                    if (!validateStep(step)) return
-                    setStep((value) => value + 1)
-                  }}
+                  disabled={saving}
+                  onClick={() => void continueStep()}
                 >
-                  Continue →
+                  {saving ? "Saving…" : "Continue →"}
                 </Button>
               ) : (
                 <Button
                   type="button"
                   className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-                  onClick={submit}
+                  disabled={saving}
+                  onClick={() => void submit()}
                 >
-                  {decision.choice === "Admit"
-                    ? "Complete Enrollment"
-                    : "Submit Application"}
+                  {saving
+                    ? "Submitting…"
+                    : decision.choice === "Admit"
+                      ? "Complete Enrollment"
+                      : "Submit Application"}
                 </Button>
               )}
             </div>

@@ -1,5 +1,5 @@
 import { Bell, Menu, Search } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -58,7 +58,7 @@ const CLS_SHELL_ROLES = new Set<Role>(["super_admin", "operations_manager"])
 export function PortalShell() {
   const { role: roleParam, section: sectionParam } = useParams()
   const navigate = useNavigate()
-  const { state } = useSchool()
+  const { state, syncPortalForRoute } = useSchool()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState("")
   const [notesOpen, setNotesOpen] = useState(false)
@@ -71,6 +71,11 @@ export function PortalShell() {
   )
   const section =
     sectionValid && sectionParam ? sectionParam : defaultSection[role]
+
+  useEffect(() => {
+    void syncPortalForRoute(role, section)
+  }, [role, section, syncPortalForRoute])
+
   const current =
     navigation[role].find((item) => item.id === section) ?? navigation[role][0]
   const sessionLabel = useMemo(() => {
