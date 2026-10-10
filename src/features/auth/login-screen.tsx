@@ -4,32 +4,22 @@ import { toast } from "sonner"
 
 import { Spinner } from "@/components/ui/spinner"
 import { api } from "@/lib/api"
-import { portalPath, saveAuth, type Role } from "@/lib/auth"
-import { cn } from "@/lib/utils"
+import { ALL_ROLES, portalPath, saveAuth, type Role } from "@/lib/auth"
 
 import {
   AuthBrand,
   AuthCanvas,
   AuthCard,
   AuthError,
-  AuthLabel,
-  AuthSubmit,
   authInputClassName,
+  AuthLabel,
+  AuthPoweredBy,
+  AuthSubmit,
   RequiredMark,
 } from "./auth-shell"
 
-const PORTALS = [
-  { id: "management", label: "Management" },
-  { id: "teacher", label: "Teacher" },
-  { id: "parent", label: "Parent" },
-] as const
-
-type PortalId = (typeof PORTALS)[number]["id"]
-
-const PORTAL_ROLES: Record<PortalId, Role[]> = {
-  management: ["super_admin", "operations_manager", "accountant"],
-  teacher: ["teacher"],
-  parent: ["parent"],
+function isPortalRole(role: string): role is Role {
+  return (ALL_ROLES as string[]).includes(role)
 }
 
 export function LoginScreen() {
@@ -37,13 +27,10 @@ export function LoginScreen() {
   const location = useLocation()
   const redirectTo = (location.state as { from?: string } | null)?.from
 
-  const [portal, setPortal] = useState<PortalId>("management")
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
-
-  const portalLabel = PORTALS.find((item) => item.id === portal)?.label
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -60,10 +47,8 @@ export function LoginScreen() {
 
     try {
       const res = await api.login(cleanUsername, cleanPassword)
-      if (!PORTAL_ROLES[portal].includes(res.user.role)) {
-        setError(
-          `This account is not in the ${portalLabel} workspace. Choose the matching workspace and try again.`
-        )
+      if (!isPortalRole(res.user.role)) {
+        setError("This account cannot sign in to the school portal.")
         return
       }
 
@@ -90,43 +75,15 @@ export function LoginScreen() {
     <AuthCanvas>
       <AuthBrand />
       <AuthCard>
-        <h2 className="text-sm leading-[21px] font-semibold text-[#1b2430]">
+        <h2 className="text-sm leading-[21px] font-semibold text-[#1b2430] md:text-[15px] md:leading-[22px]">
           Sign in to your account
         </h2>
-        <p className="pt-[3.5px] text-[10.5px] leading-[14px] text-[#667085]">
-          Choose your workspace, then enter your credentials.
+        <p className="pt-[3.5px] text-[10.5px] leading-[14px] text-[#667085] md:pt-2 md:text-xs md:leading-[18px]">
+          Enter your credentials to open your portal.
         </p>
 
-        <div
-          className="mt-3.5 grid grid-cols-3 gap-[3.5px] rounded-lg border border-[#e3e8ee] bg-[#f6f8fa] p-[3.5px]"
-          role="radiogroup"
-          aria-label="Choose portal"
-        >
-          {PORTALS.map((item) => {
-            const selected = portal === item.id
-            return (
-              <button
-                key={item.id}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                disabled={submitting}
-                onClick={() => setPortal(item.id)}
-                className={cn(
-                  "rounded-md px-[10.5px] py-[7px] text-center text-[10.5px] leading-[14px] font-semibold",
-                  selected
-                    ? "bg-white text-[#1a5c3a] shadow-[0_1px_1.5px_rgba(0,0,0,0.1),0_1px_1px_rgba(0,0,0,0.1)]"
-                    : "text-[#667085] hover:text-[#1b2430]"
-                )}
-              >
-                {item.label}
-              </button>
-            )
-          })}
-        </div>
-
-        <form onSubmit={handleSubmit} className="pt-[17.5px]">
-          <div className="flex flex-col gap-[5.25px]">
+        <form onSubmit={handleSubmit} className="pt-[17.5px] md:pt-8">
+          <div className="flex flex-col gap-[5.25px] md:gap-2">
             <AuthLabel htmlFor="login-username">
               Username
               <RequiredMark />
@@ -147,15 +104,15 @@ export function LoginScreen() {
             />
           </div>
 
-          <div className="py-3.5">
-            <div className="mb-[5.25px] flex items-center justify-between">
+          <div className="py-3.5 md:py-6">
+            <div className="mb-[5.25px] flex items-center justify-between md:mb-2">
               <AuthLabel htmlFor="login-password">
                 Password
                 <RequiredMark />
               </AuthLabel>
               <Link
                 to="/forgot-password"
-                className="text-[10.5px] leading-[14px] text-[#1a5c3a] hover:underline"
+                className="text-[10.5px] leading-[14px] text-[#1a5c3a] hover:underline md:text-xs md:leading-4"
               >
                 Forgot password?
               </Link>
@@ -176,20 +133,20 @@ export function LoginScreen() {
           </div>
 
           {error ? (
-            <div className="pb-3">
+            <div className="pb-3 md:pb-4">
               <AuthError>{error}</AuthError>
             </div>
           ) : null}
 
-          <AuthSubmit disabled={submitting}>
+          <div className="md:pt-1">
+            <AuthSubmit disabled={submitting}>
             {submitting ? <Spinner className="size-4 text-white" /> : null}
-            Sign In to {portalLabel}
-          </AuthSubmit>
+            Sign In
+            </AuthSubmit>
+          </div>
         </form>
       </AuthCard>
-      <p className="pt-[17.5px] text-center text-[11px] leading-[16.5px] text-[#667085]">
-        Powered by <span className="font-medium text-[#1a5c3a]">Abler</span>
-      </p>
+      <AuthPoweredBy />
     </AuthCanvas>
   )
 }

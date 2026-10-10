@@ -24,7 +24,7 @@ export function Logo({
           <p
             className={`text-[11px] ${inverted ? "text-[var(--sidebar-inactive)]" : "text-muted-foreground"}`}
           >
-            School operating system
+            Schools
           </p>
         </div>
       ) : null}

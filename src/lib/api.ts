@@ -73,23 +73,40 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return body as T
 }
 
+const inFlightGet = new Map<string, Promise<unknown>>()
+
+function getCacheKey(
+  path: string,
+  query?: Record<string, string | number | undefined | null>
+) {
+  let url = path
+  if (query) {
+    const q = new URLSearchParams()
+    for (const [k, v] of Object.entries(query)) {
+      if (v !== undefined && v !== null && v !== "") {
+        q.append(k, String(v))
+      }
+    }
+    const qs = q.toString()
+    if (qs) url += (url.includes("?") ? "&" : "?") + qs
+  }
+  return url
+}
+
 export const api = {
   get: <T>(
     path: string,
     query?: Record<string, string | number | undefined | null>
   ) => {
-    let url = path
-    if (query) {
-      const q = new URLSearchParams()
-      for (const [k, v] of Object.entries(query)) {
-        if (v !== undefined && v !== null && v !== "") {
-          q.append(k, String(v))
-        }
-      }
-      const qs = q.toString()
-      if (qs) url += (url.includes("?") ? "&" : "?") + qs
-    }
-    return request<T>(url, { method: "GET" })
+    const cacheKey = getCacheKey(path, query)
+    const pending = inFlightGet.get(cacheKey)
+    if (pending) return pending as Promise<T>
+
+    const promise = request<T>(cacheKey, { method: "GET" }).finally(() => {
+      inFlightGet.delete(cacheKey)
+    })
+    inFlightGet.set(cacheKey, promise)
+    return promise
   },
 
   post: <T>(path: string, body?: unknown) =>

@@ -27,7 +27,13 @@
   --secondary-color: #F0FDFA;
   --blue: #2563EB;
   --blue-light: #EFF6FF;
-  --page-wash: #F8FAFC;
+  --page-wash: #f6f8fa;
+  /* CLS admissions / main content (Figma) — sidebar tokens unchanged */
+  --cls-brand: #1a5c3a;
+  --cls-brand-hover: #144a2f;
+  --cls-border: #e3e8ee;
+  --cls-ink: #1f3027;
+  --cls-muted: #667085;
   --heading: #0F172A;
   --placeholder: #64748B;
   --warning: #D97706;
@@ -42,9 +48,16 @@
   --accent: #EFF6FF; --accent-foreground: #2563EB; --destructive: #DC2626; --success: #16A34A;
   --border: #E2E8F0; --input: #E2E8F0; --ring: #0F766E; --chart-1: #0F766E;
   --chart-2: #2563EB; --chart-3: #D97706; --chart-4: #DC2626; --chart-5: #16A34A; --radius: .5rem;
-  /* Teal brand sidebar */
-  --sidebar: #0F766E; --sidebar-foreground: #CCFBF1; --sidebar-primary: #FFFFFF; --sidebar-primary-foreground: #0F766E;
-  --sidebar-accent: #115E59; --sidebar-accent-foreground: #FFFFFF; --sidebar-border: #0D9488; --sidebar-ring: #FFFFFF;
+  /* CLS management shell (Figma Admissions) */
+  --sidebar: #1a5c3a;
+  --sidebar-foreground: #bacec4;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #1a5c3a;
+  --sidebar-accent: rgba(255, 255, 255, 0.1);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #ffffff;
+  --sidebar-inactive: #bacec4;
 }
 @layer base { * { @apply border-border outline-ring/50; } html { @apply font-sans antialiased; } body { @apply bg-background text-foreground; } button, [role="button"] { cursor: pointer; } ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); } }
 .login-canvas { background: radial-gradient(circle at 8% 15%, color-mix(in srgb, var(--primary-color) 14%, transparent), transparent 33%), radial-gradient(circle at 92% 85%, color-mix(in srgb, var(--blue-light) 70%, transparent), transparent 34%), var(--page-wash); }

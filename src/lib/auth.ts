@@ -25,6 +25,12 @@ const LEGACY_ROLES: Record<string, Role> = {
   controller: "operations_manager",
 }
 
+import {
+  clearAuthSession,
+  readAuthSession,
+  writeAuthSession,
+} from "@/stores/auth-store"
+
 const AUTH_KEY = "eduvia-auth"
 
 export type AuthUser = {
@@ -56,27 +62,17 @@ export function roleFromSlug(slug: string | undefined): Role | null {
 }
 
 export function loadAuth(): AuthSession | null {
-  try {
-    const raw = localStorage.getItem(AUTH_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as {
-      role?: unknown
-      token?: string
-      user?: AuthUser
-    }
-    const role = normalizeRole(parsed.role)
-    return role ? { role, token: parsed.token, user: parsed.user } : null
-  } catch {
-    return null
-  }
+  const fromStore = readAuthSession()
+  if (fromStore?.token) return fromStore
+  return null
 }
 
 export function saveAuth(session: AuthSession) {
-  localStorage.setItem(AUTH_KEY, JSON.stringify(session))
+  writeAuthSession(session)
 }
 
 export function clearAuth() {
-  localStorage.removeItem(AUTH_KEY)
+  clearAuthSession()
 }
 
 export const defaultSection: Record<Role, string> = {

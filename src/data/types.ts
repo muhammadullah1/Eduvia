@@ -116,6 +116,8 @@ export type Application = {
   id: string
   name: string
   classId: string
+  /** Grade/class label from API when class list is not loaded yet. */
+  classDisplay?: string
   guardian: string
   phone: string
   dob: string
