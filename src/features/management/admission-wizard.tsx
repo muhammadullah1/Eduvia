@@ -1,15 +1,12 @@
+import { Check, Plus, X } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import { Field } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -25,59 +22,106 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useSchool } from "@/data/store"
 import type { AdmissionDocument, Application } from "@/data/types"
+import {
+  AdmissionFieldLabel,
+  AdmissionStepper,
+  FieldError,
+  MandatoryNotice,
+  ReadOnlyRefCard,
+  WizardStepHeader,
+} from "@/features/management/admissions/admission-ui"
 import { useActor } from "@/lib/actor"
 import { cn } from "@/lib/utils"
 
-const STEPS = [
-  { id: "student", title: "Student details" },
-  { id: "guardian", title: "Guardian" },
-  { id: "documents", title: "Documents" },
-  { id: "interview", title: "Interview / test" },
-  { id: "decision", title: "Decision" },
-  { id: "enrollment", title: "Enrollment" },
-] as const
-
 const DOC_DEFAULTS: AdmissionDocument[] = [
-  { id: "birth", label: "Birth certificate", status: "Pending" },
-  { id: "slc", label: "School leaving certificate", status: "Pending" },
-  { id: "cnic", label: "Guardian CNIC copy", status: "Pending" },
-  { id: "photo", label: "Student photograph", status: "Pending" },
+  { id: "birth", label: "Birth Certificate / B-Form", status: "Pending" },
+  { id: "slc", label: "Previous School Leaving Certificate", status: "Pending" },
+  { id: "cnic", label: "Guardian ID Copy (CNIC)", status: "Pending" },
+  { id: "photos", label: "Photographs (2 passport size)", status: "Pending" },
+  { id: "medical", label: "Medical / Vaccination Record", status: "Pending" },
 ]
 
-function emptyForm(classId: string) {
+type GuardianRow = {
+  id: string
+  type: string
+  name: string
+  phone: string
+  whatsapp: string
+  cnic: string
+  occupation: string
+  address: string
+  isPrimary: boolean
+  isEmergency: boolean
+}
+
+function genRef() {
+  const year = new Date().getFullYear()
+  return `CLS-${year}-${String(Math.floor(1000 + Math.random() * 9000))}`
+}
+
+function emptyGuardian(): GuardianRow {
   return {
+    id: `g-${Date.now()}`,
+    type: "Father",
     name: "",
-    dob: "",
-    gender: "Female" as "Female" | "Male",
-    address: "",
-    previousSchool: "",
-    previousClass: "",
-    classId,
-    guardian: "",
-    guardianRelation: "Father",
     phone: "",
-    guardianAddress: "",
-    documents: DOC_DEFAULTS.map((item) => ({ ...item })),
-    interviewType: "Interview",
-    interviewDate: "",
-    interviewScore: "",
-    interviewResult: "",
-    decision: "" as Application["decision"],
-    notes: "",
+    whatsapp: "",
+    cnic: "",
+    occupation: "",
+    address: "",
+    isPrimary: true,
+    isEmergency: false,
   }
 }
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onCompleted?: (applicationId: string) => void
 }
 
-export function AdmissionWizard({ open, onOpenChange }: Props) {
+export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
   const { state, addApplication, setApplicationStatus } = useSchool()
   const actor = useActor()
   const [step, setStep] = useState(0)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [form, setForm] = useState(() => emptyForm(state.classes[0]?.id ?? ""))
+  const [refNo] = useState(genRef)
+  const [done, setDone] = useState(false)
+  const [createdId, setCreatedId] = useState<string | null>(null)
+
+  const [student, setStudent] = useState({
+    name: "",
+    dob: "",
+    gender: "Male" as "Female" | "Male",
+    phone: "",
+    email: "",
+    address: "",
+    previousSchool: "",
+    previousClass: "",
+    classId: state.classes[0]?.id ?? "",
+  })
+  const [guardians, setGuardians] = useState<GuardianRow[]>([emptyGuardian()])
+  const [documents, setDocuments] = useState(() =>
+    DOC_DEFAULTS.map((item) => ({ ...item }))
+  )
+  const [interview, setInterview] = useState({
+    waived: false,
+    date: "",
+    type: "Interview",
+    evaluator: "",
+    score: "",
+    remarks: "",
+    result: "",
+  })
+  const [decision, setDecision] = useState({
+    choice: "" as Application["decision"],
+    remarks: "",
+  })
+  const [enrollment, setEnrollment] = useState({
+    classId: state.classes[0]?.id ?? "",
+    enrollDate: "",
+  })
+
   const currentSession = useMemo(
     () => state.sessions.find((session) => session.current),
     [state.sessions]
@@ -86,7 +130,35 @@ export function AdmissionWizard({ open, onOpenChange }: Props) {
   function reset() {
     setStep(0)
     setErrors({})
-    setForm(emptyForm(state.classes[0]?.id ?? ""))
+    setDone(false)
+    setCreatedId(null)
+    setStudent({
+      name: "",
+      dob: "",
+      gender: "Male",
+      phone: "",
+      email: "",
+      address: "",
+      previousSchool: "",
+      previousClass: "",
+      classId: state.classes[0]?.id ?? "",
+    })
+    setGuardians([emptyGuardian()])
+    setDocuments(DOC_DEFAULTS.map((item) => ({ ...item })))
+    setInterview({
+      waived: false,
+      date: "",
+      type: "Interview",
+      evaluator: "",
+      score: "",
+      remarks: "",
+      result: "",
+    })
+    setDecision({ choice: "", remarks: "" })
+    setEnrollment({
+      classId: state.classes[0]?.id ?? "",
+      enrollDate: "",
+    })
   }
 
   function close() {
@@ -94,66 +166,66 @@ export function AdmissionWizard({ open, onOpenChange }: Props) {
     reset()
   }
 
+  function primaryGuardian() {
+    return guardians.find((g) => g.isPrimary) ?? guardians[0]
+  }
+
   function validateStep(index: number) {
     const next: Record<string, string> = {}
     if (index === 0) {
-      if (!form.name.trim()) next.name = "Student name is required."
-      if (!form.dob) next.dob = "Date of birth is required."
-      if (!form.classId) next.classId = "Choose a class."
+      if (!student.name.trim()) next.name = "Full name is required."
+      if (!student.dob) next.dob = "Date of birth is required."
+      if (!student.phone.trim()) next.phone = "Contact number is required."
+      if (!student.address.trim()) next.address = "Home address is required."
+      if (!student.classId) next.classId = "Choose a class."
     }
     if (index === 1) {
-      if (!form.guardian.trim()) next.guardian = "Guardian name is required."
-      if (!form.phone.trim()) next.phone = "Phone is required."
+      const primary = primaryGuardian()
+      if (!primary?.name.trim()) next.guardian = "Guardian name is required."
+      if (!primary?.phone.trim()) next.guardianPhone = "Guardian phone is required."
     }
-    if (index === 4 && !form.decision)
+    if (index === 4 && !decision.choice) {
       next.decision = "Choose Admit, Reject, or Waitlist."
-    if (index === 5 && form.decision === "Admit" && !form.classId)
-      next.classId = "Choose the enrollment class."
+    }
+    if (index === 5) {
+      if (decision.choice === "Admit") {
+        if (!enrollment.classId) next.classId = "Choose the enrollment class."
+        if (!enrollment.enrollDate)
+          next.enrollDate = "Enrollment date is required."
+      } else if (!decision.choice) {
+        next.decision = "Choose a decision on the previous step."
+      }
+    }
     setErrors(next)
     return Object.keys(next).length === 0
   }
 
-  function goNext() {
+  function submit() {
     if (!validateStep(step)) return
-    setStep((value) => Math.min(value + 1, STEPS.length - 1))
-  }
-
-  function goBack() {
-    setErrors({})
-    setStep((value) => Math.max(value - 1, 0))
-  }
-
-  function setDocStatus(id: string, status: AdmissionDocument["status"]) {
-    setForm((current) => ({
-      ...current,
-      documents: current.documents.map((item) =>
-        item.id === id ? { ...item, status } : item
-      ),
-    }))
-  }
-
-  function submitWizard() {
-    if (!validateStep(step)) return
+    const primary = primaryGuardian()
+    const notes = [decision.remarks, interview.remarks, student.email]
+      .filter(Boolean)
+      .join("\n")
     const result = addApplication(
       {
-        name: form.name,
-        dob: form.dob,
-        gender: form.gender,
-        address: form.address,
-        previousSchool: form.previousSchool,
-        previousClass: form.previousClass,
-        classId: form.classId,
-        guardian: form.guardian,
-        guardianRelation: form.guardianRelation,
-        phone: form.phone,
-        guardianAddress: form.guardianAddress || form.address,
-        documents: form.documents,
-        interviewType: form.interviewType,
-        interviewDate: form.interviewDate,
-        interviewScore: form.interviewScore,
-        interviewResult: form.interviewResult,
-        decision: form.decision,
-        notes: form.notes,
+        name: student.name,
+        dob: student.dob,
+        gender: student.gender,
+        address: student.address,
+        previousSchool: student.previousSchool,
+        previousClass: student.previousClass,
+        classId: enrollment.classId || student.classId,
+        guardian: primary.name,
+        guardianRelation: primary.type,
+        phone: student.phone || primary.phone,
+        guardianAddress: primary.address || student.address,
+        documents,
+        interviewType: interview.waived ? "Waived" : interview.type,
+        interviewDate: interview.waived ? "" : interview.date,
+        interviewScore: interview.score,
+        interviewResult: interview.result,
+        decision: decision.choice,
+        notes,
       },
       actor.name
     )
@@ -162,22 +234,24 @@ export function AdmissionWizard({ open, onOpenChange }: Props) {
       return
     }
     const status =
-      form.decision === "Admit"
+      decision.choice === "Admit"
         ? "Enrolled"
-        : form.decision === "Waitlist"
+        : decision.choice === "Waitlist"
           ? "Waitlist"
-          : form.decision === "Reject"
+          : decision.choice === "Reject"
             ? "Rejected"
             : "Review"
     const statusError = setApplicationStatus(result.id, status, actor.name)
     if (statusError) toast.error(statusError)
-    else
-      toast.success(
-        status === "Enrolled"
-          ? "Applicant enrolled into the register"
-          : `Application saved as ${status}`
-      )
-    close()
+    else toast.success("Application saved.")
+    setCreatedId(result.id)
+    setDone(true)
+  }
+
+  function setDocStatus(id: string, status: AdmissionDocument["status"]) {
+    setDocuments((current) =>
+      current.map((item) => (item.id === id ? { ...item, status } : item))
+    )
   }
 
   return (
@@ -188,363 +262,224 @@ export function AdmissionWizard({ open, onOpenChange }: Props) {
         else onOpenChange(true)
       }}
     >
-      <DialogContent className="gap-0 p-0 sm:max-w-2xl">
-        <DialogHeader className="border-b px-6 py-5">
-          <DialogTitle className="text-[20px] font-semibold text-[var(--heading)]">
-            New admission
-          </DialogTitle>
-          <DialogDescription>
-            SRS intake wizard · dummy data ·{" "}
-            {currentSession?.name ?? "No active session"}
-          </DialogDescription>
-          <ol className="mt-4 flex flex-wrap gap-2">
-            {STEPS.map((item, index) => (
-              <li
-                key={item.id}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-medium",
-                  index === step && "bg-[var(--primary-color)] text-white",
-                  index < step &&
-                    "bg-[var(--secondary-color)] text-[var(--primary-color)]",
-                  index > step && "bg-muted text-muted-foreground"
-                )}
-              >
-                {index + 1}. {item.title}
-              </li>
-            ))}
-          </ol>
-        </DialogHeader>
+      <DialogContent
+        showCloseButton={false}
+        overlayClassName="bg-black/30"
+        className="flex max-h-[min(92vh,820px)] w-[min(100vw-2rem,48rem)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[48rem]"
+      >
+        <DialogTitle className="sr-only">New Admission Application</DialogTitle>
+        <div className="flex items-start justify-between border-b border-[var(--cls-border)] bg-white px-6 py-4">
+          <div>
+            <h2 className="text-lg font-semibold text-[var(--cls-ink)]">
+              New admission application
+            </h2>
+            <p className="mt-1 text-sm text-[var(--cls-muted)]">
+              Reference{" "}
+              <span className="font-mono font-medium text-[var(--cls-brand)]">
+                {refNo}
+              </span>
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-[var(--cls-muted)]"
+            onClick={close}
+            aria-label="Close"
+          >
+            <X />
+          </Button>
+        </div>
 
-        <div className="max-h-[60vh] space-y-4 overflow-y-auto px-6 py-5">
-          {step === 0 ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Student name" error={errors.name}>
-                <Input
-                  aria-invalid={Boolean(errors.name)}
-                  value={form.name}
-                  onChange={(event) =>
-                    setForm({ ...form, name: event.target.value })
-                  }
-                  placeholder="Full name"
-                />
-              </Field>
-              <Field label="Date of birth" error={errors.dob}>
-                <Input
-                  aria-invalid={Boolean(errors.dob)}
-                  type="date"
-                  value={form.dob}
-                  onChange={(event) =>
-                    setForm({ ...form, dob: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Gender">
-                <Select
-                  value={form.gender}
-                  onValueChange={(gender: "Female" | "Male") =>
-                    setForm({ ...form, gender })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="Female">Female</SelectItem>
-                      <SelectItem value="Male">Male</SelectItem>
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Applying for" error={errors.classId}>
-                <Select
-                  value={form.classId}
-                  onValueChange={(classId) => setForm({ ...form, classId })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {state.classes.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Address">
-                  <Input
-                    value={form.address}
-                    onChange={(event) =>
-                      setForm({ ...form, address: event.target.value })
-                    }
-                    placeholder="Home address"
-                  />
-                </Field>
+        {!done ? (
+          <div className="overflow-x-auto border-b border-[var(--cls-border)] bg-[var(--page-wash)]/40 px-6 py-4">
+            <AdmissionStepper step={step} />
+          </div>
+        ) : null}
+
+        <div className="flex-1 overflow-y-auto bg-white px-6 py-5">
+          {done ? (
+            <div className="flex flex-col items-center py-8 text-center">
+              <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-[#e8f7ee]">
+                <Check className="size-7 text-[var(--cls-brand)]" />
               </div>
-              <Field label="Previous school">
-                <Input
-                  value={form.previousSchool}
-                  onChange={(event) =>
-                    setForm({ ...form, previousSchool: event.target.value })
-                  }
-                  placeholder="School last attended"
-                />
-              </Field>
-              <Field label="Last class completed">
-                <Input
-                  value={form.previousClass}
-                  onChange={(event) =>
-                    setForm({ ...form, previousClass: event.target.value })
-                  }
-                  placeholder="Grade 5"
-                />
-              </Field>
-            </div>
-          ) : null}
-
-          {step === 1 ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Guardian name" error={errors.guardian}>
-                <Input
-                  aria-invalid={Boolean(errors.guardian)}
-                  value={form.guardian}
-                  onChange={(event) =>
-                    setForm({ ...form, guardian: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Relationship">
-                <Select
-                  value={form.guardianRelation}
-                  onValueChange={(guardianRelation) =>
-                    setForm({ ...form, guardianRelation })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {["Father", "Mother", "Guardian", "Other"].map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Phone" error={errors.phone}>
-                <Input
-                  aria-invalid={Boolean(errors.phone)}
-                  value={form.phone}
-                  onChange={(event) =>
-                    setForm({ ...form, phone: event.target.value })
-                  }
-                  placeholder="03xx-xxxxxxx"
-                />
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Guardian address">
-                  <Input
-                    value={form.guardianAddress}
-                    onChange={(event) =>
-                      setForm({ ...form, guardianAddress: event.target.value })
-                    }
-                    placeholder="Same as student if shared"
-                  />
-                </Field>
-              </div>
-            </div>
-          ) : null}
-
-          {step === 2 ? (
-            <div className="grid gap-3">
-              <p className="text-sm text-muted-foreground">
-                Mark each required document. Uploads are simulated with dummy
-                statuses.
+              <h3 className="text-lg font-semibold text-[var(--cls-ink)]">
+                Student Profile Created
+              </h3>
+              <p className="mt-1 text-sm text-[var(--cls-muted)]">
+                {student.name} has been processed for{" "}
+                {state.classes.find((c) => c.id === enrollment.classId)?.label ??
+                  "the selected class"}
               </p>
-              {form.documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="flex flex-col gap-3 rounded-xl border px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              <p className="mt-1 text-xs text-[var(--cls-muted)]">
+                Reference:{" "}
+                <span className="font-mono font-medium text-[var(--cls-brand)]">
+                  {refNo}
+                </span>
+              </p>
+              <div className="mt-6 flex gap-2">
+                <Button type="button" variant="outline" onClick={close}>
+                  Close
+                </Button>
+                <Button
+                  type="button"
+                  className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+                  onClick={() => {
+                    if (createdId) onCompleted?.(createdId)
+                    close()
+                  }}
                 >
-                  <div className="flex items-center gap-3">
-                    <Checkbox
-                      checked={doc.status !== "Pending"}
-                      onCheckedChange={(checked) =>
-                        setDocStatus(doc.id, checked ? "Uploaded" : "Pending")
-                      }
-                    />
-                    <Label className="font-medium">{doc.label}</Label>
-                  </div>
+                  View application →
+                </Button>
+              </div>
+            </div>
+          ) : step === 0 ? (
+            <div className="flex flex-col gap-4">
+              <WizardStepHeader
+                step={step}
+                title="Student information"
+                description="Enter the applicant’s personal details and the class they are applying for."
+              />
+              <MandatoryNotice />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel required>Full Name</AdmissionFieldLabel>
+                  </Label>
+                  <Input
+                    value={student.name}
+                    onChange={(e) =>
+                      setStudent({ ...student, name: e.target.value })
+                    }
+                    placeholder="e.g. Zainab Mirza"
+                    aria-invalid={Boolean(errors.name)}
+                  />
+                  <FieldError message={errors.name} />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel required>
+                      Date of Birth
+                    </AdmissionFieldLabel>
+                  </Label>
+                  <Input
+                    type="date"
+                    value={student.dob}
+                    onChange={(e) =>
+                      setStudent({ ...student, dob: e.target.value })
+                    }
+                    aria-invalid={Boolean(errors.dob)}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel required>Gender</AdmissionFieldLabel>
+                  </Label>
                   <Select
-                    value={doc.status}
-                    onValueChange={(status: AdmissionDocument["status"]) =>
-                      setDocStatus(doc.id, status)
+                    value={student.gender}
+                    onValueChange={(gender: "Female" | "Male") =>
+                      setStudent({ ...student, gender })
                     }
                   >
-                    <SelectTrigger className="w-40">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
-                        <SelectItem value="Pending">Pending</SelectItem>
-                        <SelectItem value="Uploaded">Uploaded</SelectItem>
-                        <SelectItem value="Verified">Verified</SelectItem>
+                        <SelectItem value="Male">Male</SelectItem>
+                        <SelectItem value="Female">Female</SelectItem>
                       </SelectGroup>
                     </SelectContent>
                   </Select>
                 </div>
-              ))}
-            </div>
-          ) : null}
-
-          {step === 3 ? (
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Type">
-                <Select
-                  value={form.interviewType}
-                  onValueChange={(interviewType) =>
-                    setForm({ ...form, interviewType })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {[
-                        "Interview",
-                        "Written test",
-                        "Interview + written test",
-                      ].map((item) => (
-                        <SelectItem key={item} value={item}>
-                          {item}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Date">
-                <Input
-                  type="date"
-                  value={form.interviewDate}
-                  onChange={(event) =>
-                    setForm({ ...form, interviewDate: event.target.value })
-                  }
-                />
-              </Field>
-              <Field label="Score / marks">
-                <Input
-                  value={form.interviewScore}
-                  onChange={(event) =>
-                    setForm({ ...form, interviewScore: event.target.value })
-                  }
-                  placeholder="78"
-                />
-              </Field>
-              <Field label="Result">
-                <Select
-                  value={form.interviewResult || "none"}
-                  onValueChange={(value) =>
-                    setForm({
-                      ...form,
-                      interviewResult: value === "none" ? "" : value,
-                    })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select result" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      <SelectItem value="none">Not recorded</SelectItem>
-                      {["Pass", "Fail", "Recommended", "Not recommended"].map(
-                        (item) => (
-                          <SelectItem key={item} value={item}>
-                            {item}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <div className="sm:col-span-2">
-                <Field label="Remarks">
-                  <Textarea
-                    value={form.notes}
-                    onChange={(event) =>
-                      setForm({ ...form, notes: event.target.value })
+                <div>
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel required>
+                      Contact Number
+                    </AdmissionFieldLabel>
+                  </Label>
+                  <Input
+                    value={student.phone}
+                    onChange={(e) =>
+                      setStudent({ ...student, phone: e.target.value })
                     }
-                    placeholder="Evaluator notes"
+                    placeholder="0300-1234567"
+                    aria-invalid={Boolean(errors.phone)}
                   />
-                </Field>
-              </div>
-            </div>
-          ) : null}
-
-          {step === 4 ? (
-            <div className="grid gap-4">
-              <Field label="Admission decision" error={errors.decision}>
-                <div className="grid gap-2 sm:grid-cols-3">
-                  {(["Admit", "Reject", "Waitlist"] as const).map((option) => (
-                    <button
-                      key={option}
-                      type="button"
-                      onClick={() => setForm({ ...form, decision: option })}
-                      className={cn(
-                        "rounded-xl border px-4 py-3 text-sm font-medium transition-colors",
-                        form.decision === option
-                          ? "border-[var(--primary-color)] bg-[var(--secondary-color)] text-[var(--primary-color)]"
-                          : "hover:bg-muted"
-                      )}
-                    >
-                      {option}
-                    </button>
-                  ))}
                 </div>
-              </Field>
-              <Field label="Decision notes">
-                <Textarea
-                  value={form.notes}
-                  onChange={(event) =>
-                    setForm({ ...form, notes: event.target.value })
-                  }
-                  placeholder="Reason for admit, reject or waitlist"
-                />
-              </Field>
-            </div>
-          ) : null}
-
-          {step === 5 ? (
-            <div className="grid gap-4">
-              <div className="rounded-xl border bg-[var(--secondary-color)]/50 px-4 py-3 text-sm">
-                <p className="font-medium text-[var(--heading)]">
-                  {form.name || "Applicant"}
-                </p>
-                <p className="text-muted-foreground">
-                  Decision: {form.decision || "—"} · Session:{" "}
-                  {currentSession?.name ?? "—"} · Class:{" "}
-                  {state.classes.find((item) => item.id === form.classId)
-                    ?.label ?? "—"}
-                </p>
-              </div>
-              {form.decision === "Admit" ? (
-                <Field label="Enroll into class" error={errors.classId}>
+                <div>
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel>Email (optional)</AdmissionFieldLabel>
+                  </Label>
+                  <Input
+                    type="email"
+                    value={student.email}
+                    onChange={(e) =>
+                      setStudent({ ...student, email: e.target.value })
+                    }
+                    placeholder="parent@example.com"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel required>Home Address</AdmissionFieldLabel>
+                  </Label>
+                  <Input
+                    value={student.address}
+                    onChange={(e) =>
+                      setStudent({ ...student, address: e.target.value })
+                    }
+                    placeholder="House No, Street, City"
+                    aria-invalid={Boolean(errors.address)}
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel>Previous School</AdmissionFieldLabel>
+                  </Label>
+                  <Input
+                    value={student.previousSchool}
+                    onChange={(e) =>
+                      setStudent({
+                        ...student,
+                        previousSchool: e.target.value,
+                      })
+                    }
+                    placeholder="Name of last school attended"
+                  />
+                </div>
+                <div>
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel>
+                      Last Class Completed
+                    </AdmissionFieldLabel>
+                  </Label>
+                  <Input
+                    value={student.previousClass}
+                    onChange={(e) =>
+                      setStudent({
+                        ...student,
+                        previousClass: e.target.value,
+                      })
+                    }
+                    placeholder="e.g. Class 4"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <Label className="mb-1.5 block">
+                    <AdmissionFieldLabel required>
+                      Applying for
+                    </AdmissionFieldLabel>
+                  </Label>
                   <Select
-                    value={form.classId}
-                    onValueChange={(classId) => setForm({ ...form, classId })}
+                    value={student.classId}
+                    onValueChange={(classId) =>
+                      setStudent({ ...student, classId })
+                    }
                   >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select class" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
@@ -556,32 +491,521 @@ export function AdmissionWizard({ open, onOpenChange }: Props) {
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                </Field>
+                </div>
+              </div>
+              <ReadOnlyRefCard refNo={refNo} />
+            </div>
+          ) : step === 1 ? (
+            <div className="flex flex-col gap-4">
+              <WizardStepHeader
+                step={step}
+                title="Guardian information"
+                description="Add at least one guardian. Mark who is the primary contact for school communication."
+              />
+              {guardians.map((guardian, index) => (
+                <div
+                  key={guardian.id}
+                  className="rounded-[10px] border border-[var(--cls-border)] p-4"
+                >
+                  <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                    <div className="min-w-[160px] flex-1">
+                      <Label className="mb-1.5 block">
+                        <AdmissionFieldLabel required>
+                          Relationship
+                        </AdmissionFieldLabel>
+                      </Label>
+                      <Select
+                        value={guardian.type}
+                        onValueChange={(type) =>
+                          setGuardians((rows) =>
+                            rows.map((row, i) =>
+                              i === index ? { ...row, type } : row
+                            )
+                          )
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            {["Father", "Mother", "Guardian", "Other"].map(
+                              (item) => (
+                                <SelectItem key={item} value={item}>
+                                  {item}
+                                </SelectItem>
+                              )
+                            )}
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-wrap gap-3 pb-1">
+                      <label className="flex items-center gap-1.5 text-xs">
+                        <input
+                          type="radio"
+                          name="primary-guardian"
+                          checked={guardian.isPrimary}
+                          onChange={() =>
+                            setGuardians((rows) =>
+                              rows.map((row, i) => ({
+                                ...row,
+                                isPrimary: i === index,
+                              }))
+                            )
+                          }
+                        />
+                        Primary Contact
+                      </label>
+                      <label className="flex items-center gap-1.5 text-xs">
+                        <Checkbox
+                          checked={guardian.isEmergency}
+                          onCheckedChange={(checked) =>
+                            setGuardians((rows) =>
+                              rows.map((row, i) =>
+                                i === index
+                                  ? { ...row, isEmergency: Boolean(checked) }
+                                  : row
+                              )
+                            )
+                          }
+                        />
+                        Emergency
+                      </label>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Input
+                        placeholder="Guardian full name"
+                        value={guardian.name}
+                        onChange={(e) =>
+                          setGuardians((rows) =>
+                            rows.map((row, i) =>
+                              i === index
+                                ? { ...row, name: e.target.value }
+                                : row
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                    <Input
+                      placeholder="Phone"
+                      value={guardian.phone}
+                      onChange={(e) =>
+                        setGuardians((rows) =>
+                          rows.map((row, i) =>
+                            i === index ? { ...row, phone: e.target.value } : row
+                          )
+                        )
+                      }
+                    />
+                    <Input
+                      placeholder="WhatsApp"
+                      value={guardian.whatsapp}
+                      onChange={(e) =>
+                        setGuardians((rows) =>
+                          rows.map((row, i) =>
+                            i === index
+                              ? { ...row, whatsapp: e.target.value }
+                              : row
+                          )
+                        )
+                      }
+                    />
+                    <Input
+                      placeholder="CNIC"
+                      value={guardian.cnic}
+                      onChange={(e) =>
+                        setGuardians((rows) =>
+                          rows.map((row, i) =>
+                            i === index ? { ...row, cnic: e.target.value } : row
+                          )
+                        )
+                      }
+                    />
+                    <Input
+                      placeholder="Occupation"
+                      value={guardian.occupation}
+                      onChange={(e) =>
+                        setGuardians((rows) =>
+                          rows.map((row, i) =>
+                            i === index
+                              ? { ...row, occupation: e.target.value }
+                              : row
+                          )
+                        )
+                      }
+                    />
+                    <div className="sm:col-span-2">
+                      <Input
+                        placeholder="Address (if different)"
+                        value={guardian.address}
+                        onChange={(e) =>
+                          setGuardians((rows) =>
+                            rows.map((row, i) =>
+                              i === index
+                                ? { ...row, address: e.target.value }
+                                : row
+                            )
+                          )
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {errors.guardian ? (
+                <p className="text-xs text-destructive">{errors.guardian}</p>
+              ) : null}
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 text-sm font-medium text-[var(--cls-brand)]"
+                onClick={() =>
+                  setGuardians((rows) => [
+                    ...rows,
+                    { ...emptyGuardian(), isPrimary: false },
+                  ])
+                }
+              >
+                <Plus className="size-4" />
+                Add another guardian
+              </button>
+            </div>
+          ) : step === 2 ? (
+            <div className="flex flex-col gap-4">
+              <WizardStepHeader
+                step={step}
+                title="Required documents"
+                description="Track each document through upload and verification. File storage connects when the API is ready."
+              />
+              {documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="flex flex-col gap-3 rounded-lg border border-[var(--cls-border)] p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="text-sm font-medium text-[var(--cls-ink)]">
+                      {doc.label}
+                    </p>
+                    <p className="text-[10.5px] text-[var(--cls-muted)]">
+                      {doc.status}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {doc.status === "Pending" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+                        onClick={() => setDocStatus(doc.id, "Uploaded")}
+                      >
+                        Upload
+                      </Button>
+                    ) : null}
+                    {doc.status === "Uploaded" ? (
+                      <>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDocStatus(doc.id, "Verified")}
+                        >
+                          Verify
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setDocStatus(doc.id, "Rejected")}
+                        >
+                          Reject
+                        </Button>
+                      </>
+                    ) : null}
+                    {doc.status !== "Pending" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setDocStatus(doc.id, "Pending")}
+                      >
+                        Replace
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : step === 3 ? (
+            <div className="flex flex-col gap-4">
+              <WizardStepHeader
+                step={step}
+                title="Interview or entrance test"
+                description="Record assessment details or mark the step as waived if not required."
+              />
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={interview.waived}
+                  onCheckedChange={(checked) =>
+                    setInterview({ ...interview, waived: Boolean(checked) })
+                  }
+                />
+                Not required / Waived
+              </label>
+              {interview.waived ? (
+                <div className="rounded-lg border border-[#a8d5bc] bg-[#e8f7ee] p-3 text-sm text-[var(--cls-brand)]">
+                  Interview / Test has been waived. Proceed to Decision.
+                </div>
               ) : (
-                <p className="text-sm text-muted-foreground">
-                  {form.decision === "Waitlist"
-                    ? "Applicant will be saved on the waitlist. No student record is created yet."
-                    : "Applicant will be marked rejected. No student record is created."}
-                </p>
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <Label className="mb-1.5 block">Interview / Test Date</Label>
+                      <Input
+                        type="date"
+                        value={interview.date}
+                        onChange={(e) =>
+                          setInterview({ ...interview, date: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1.5 block">Type</Label>
+                      <Select
+                        value={interview.type}
+                        onValueChange={(type) =>
+                          setInterview({ ...interview, type })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="Interview">Interview</SelectItem>
+                            <SelectItem value="Written">Written Test</SelectItem>
+                            <SelectItem value="Both">Both</SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label className="mb-1.5 block">Evaluator</Label>
+                      <Input
+                        value={interview.evaluator}
+                        onChange={(e) =>
+                          setInterview({
+                            ...interview,
+                            evaluator: e.target.value,
+                          })
+                        }
+                        placeholder="Staff member name"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1.5 block">Score</Label>
+                      <Input
+                        value={interview.score}
+                        onChange={(e) =>
+                          setInterview({ ...interview, score: e.target.value })
+                        }
+                        placeholder="38/50"
+                      />
+                    </div>
+                    <div>
+                      <Label className="mb-1.5 block">Result</Label>
+                      <Select
+                        value={interview.result || "none"}
+                        onValueChange={(value) =>
+                          setInterview({
+                            ...interview,
+                            result: value === "none" ? "" : value,
+                          })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select result" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectGroup>
+                            <SelectItem value="none">Not recorded</SelectItem>
+                            <SelectItem value="Pass">Pass / Recommended</SelectItem>
+                            <SelectItem value="Fail">
+                              Fail / Not Recommended
+                            </SelectItem>
+                          </SelectGroup>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Textarea
+                    value={interview.remarks}
+                    onChange={(e) =>
+                      setInterview({ ...interview, remarks: e.target.value })
+                    }
+                    placeholder="Evaluator remarks"
+                    rows={3}
+                  />
+                </>
               )}
             </div>
-          ) : null}
+          ) : step === 4 ? (
+            <div className="flex flex-col gap-4">
+              <WizardStepHeader
+                step={step}
+                title="Admission decision"
+                description="Choose whether to admit, waitlist, or reject this applicant."
+              />
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                {(["Admit", "Waitlist", "Reject"] as const).map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => setDecision({ ...decision, choice: option })}
+                    className={cn(
+                      "rounded-[10px] border-2 p-4 text-center text-sm font-semibold transition-colors",
+                      decision.choice === option
+                        ? option === "Admit"
+                          ? "border-[var(--cls-brand)] bg-[#e8f7ee] text-[var(--cls-brand)]"
+                          : option === "Reject"
+                            ? "border-[#d64545] bg-[#fff0f0] text-[#d64545]"
+                            : "border-[#e8a317] bg-[#fef9ec] text-[#e8a317]"
+                        : "border-[var(--cls-border)] hover:bg-[var(--page-wash)]"
+                    )}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+              {errors.decision ? (
+                <p className="text-xs text-destructive">{errors.decision}</p>
+              ) : null}
+              <Textarea
+                value={decision.remarks}
+                onChange={(e) =>
+                  setDecision({ ...decision, remarks: e.target.value })
+                }
+                placeholder="Decision remarks"
+                rows={3}
+              />
+            </div>
+          ) : decision.choice === "Admit" ? (
+            <div className="flex flex-col gap-4">
+              <WizardStepHeader
+                step={step}
+                title="Enrollment"
+                description="Assign the student to a class and record the enrollment date."
+              />
+              <Select
+                value={enrollment.classId}
+                onValueChange={(classId) =>
+                  setEnrollment({ ...enrollment, classId })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Assign to class" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {state.classes.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+              <div>
+                <Label className="mb-1.5 block">Academic Session</Label>
+                <Input
+                  readOnly
+                  value={currentSession?.label ?? "2026–2027"}
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block">Enrollment Date</Label>
+                <Input
+                  type="date"
+                  value={enrollment.enrollDate}
+                  onChange={(e) =>
+                    setEnrollment({
+                      ...enrollment,
+                      enrollDate: e.target.value,
+                    })
+                  }
+                  aria-invalid={Boolean(errors.enrollDate)}
+                />
+              </div>
+              <div className="rounded-lg border border-[#a8d5bc] bg-[#e8f7ee] p-3 text-xs text-[var(--cls-brand)]">
+                Completing enrollment creates the student profile and preserves
+                admission history.
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4 text-sm text-[var(--cls-muted)]">
+              <WizardStepHeader
+                step={step}
+                title="Review & submit"
+                description="Confirm the decision before saving this application."
+              />
+              <p>
+                Decision:{" "}
+                <span className="font-semibold text-[var(--cls-ink)]">
+                  {decision.choice}
+                </span>
+              </p>
+              <p>
+                Submit to save this application. No class assignment is required
+                for waitlist or reject decisions.
+              </p>
+            </div>
+          )}
         </div>
 
-        <DialogFooter className="border-t px-6 py-4">
-          <Button variant="outline" onClick={step === 0 ? close : goBack}>
-            {step === 0 ? "Cancel" : "Back"}
-          </Button>
-          {step < STEPS.length - 1 ? (
-            <Button onClick={goNext}>Continue</Button>
-          ) : (
-            <Button onClick={submitWizard}>
-              {form.decision === "Admit"
-                ? "Enroll student"
-                : "Save application"}
-            </Button>
-          )}
-        </DialogFooter>
+        {!done ? (
+          <div className="flex items-center justify-between border-t border-[var(--cls-border)] bg-[var(--page-wash)]/60 px-6 py-4">
+            <div>
+              {step > 0 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep((value) => value - 1)}
+                >
+                  ← Back
+                </Button>
+              ) : null}
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={close}>
+                Cancel
+              </Button>
+              {step < 5 ? (
+                <Button
+                  type="button"
+                  className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+                  onClick={() => {
+                    if (!validateStep(step)) return
+                    setStep((value) => value + 1)
+                  }}
+                >
+                  Continue →
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+                  onClick={submit}
+                >
+                  {decision.choice === "Admit"
+                    ? "Complete Enrollment"
+                    : "Submit Application"}
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : null}
       </DialogContent>
     </Dialog>
   )
