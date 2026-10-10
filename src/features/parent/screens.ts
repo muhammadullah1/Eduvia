@@ -1,0 +1,8 @@
+export { ParentAttendance } from "./parent-attendance"
+export { ParentFees } from "./parent-fees"
+export { ParentHome } from "./parent-home"
+export { ParentPortal } from "./parent-portal"
+export { ParentResults } from "./parent-results"
+export { ParentTests } from "./parent-tests"
+export { ParentTimetable } from "./parent-timetable"
+export { ParentUpdates } from "./parent-updates"
