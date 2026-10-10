@@ -4,7 +4,7 @@ import { toast } from "sonner"
 
 import { Spinner } from "@/components/ui/spinner"
 import { api } from "@/lib/api"
-import { portalPath, saveAuth, type Role } from "@/lib/auth"
+import { portalPath, type Role, saveAuth } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 import {
@@ -12,9 +12,9 @@ import {
   AuthCanvas,
   AuthCard,
   AuthError,
+  authInputClassName,
   AuthLabel,
   AuthSubmit,
-  authInputClassName,
   RequiredMark,
 } from "./auth-shell"
 

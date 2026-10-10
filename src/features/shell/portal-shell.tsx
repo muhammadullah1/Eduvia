@@ -135,7 +135,8 @@ export function PortalShell() {
       return <TeacherPortal section={section} onOpen={openSection} />
     if (role === "parent") return <ParentPortal section={section} />
     if (role === "accountant") return <AccountantPortal section={section} />
-    if (section === "overview") return <OperationsOverview onOpen={openSection} />
+    if (section === "overview")
+      return <OperationsOverview onOpen={openSection} />
     if (section === "academic") return <AcademicSetup />
     if (section === "curriculum") return <CurriculumPanel />
     if (section === "lesson-review") return <LessonReviewPanel />

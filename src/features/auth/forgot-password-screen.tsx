@@ -9,9 +9,9 @@ import {
   AuthCanvas,
   AuthCard,
   AuthError,
+  authInputClassName,
   AuthLabel,
   AuthSubmit,
-  authInputClassName,
   BackToLogin,
 } from "./auth-shell"
 
@@ -65,9 +65,8 @@ export function ForgotPasswordScreen() {
         {submitted ? (
           <div className="pt-[21px]">
             <p className="text-[12.25px] leading-[17.5px] text-[#1b2430]">
-              If an account for{" "}
-              <span className="font-medium">{username}</span> exists, a reset
-              link has been sent.
+              If an account for <span className="font-medium">{username}</span>{" "}
+              exists, a reset link has been sent.
             </p>
             {devResetUrl ? (
               <Button
