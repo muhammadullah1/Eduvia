@@ -1,5 +1,5 @@
 import { History, Trash2 } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -31,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { useSchool } from "@/data/store"
 import { type Staff } from "@/data/types"
 import { WEEKDAYS } from "@/lib/academics"
@@ -46,7 +46,7 @@ import {
 import { TeacherSubjectDialog } from "./teacher-subject-dialog"
 
 export function AcademicSetup({
-  focusTab,
+  focusTab = "sessions",
 }: {
   focusTab?: AcademicFocusTab
 }) {
@@ -95,20 +95,8 @@ export function AcademicSetup({
       ? classFromUrl
       : ""
   const classId = selectedClassId || validUrlClass || state.classes[0]?.id || ""
-  const [selectedTab, setSelectedTab] = useState<string | null>(null)
-  const portalSection = focusTab
-    ? academicPortalSectionForTab(focusTab)
-    : "sessions"
-  const tab =
-    focusTab ??
-    selectedTab ??
-    (classFromUrl ? "timetable" : "sessions")
-
-  useEffect(() => {
-    if (focusTab) {
-      setSelectedTab(null)
-    }
-  }, [focusTab])
+  const portalSection = academicPortalSectionForTab(focusTab)
+  const tab = classFromUrl && focusTab === "timetable" ? "timetable" : focusTab
   const teachers = state.staff.filter((person) => person.role === "Teacher")
   const [slotForm, setSlotForm] = useState({
     day: "Monday",
@@ -134,28 +122,11 @@ export function AcademicSetup({
 
   function selectClass(id: string) {
     setSelectedClassId(id)
-    setSelectedTab("timetable")
     navigate(portalPath(actor.role, portalSection, `classes/${id}`))
   }
 
-  function handleTabChange(nextTab: string) {
-    setSelectedTab(nextTab)
-    if (nextTab !== "timetable" && classFromUrl) {
-      navigate(portalPath(actor.role, portalSection))
-    }
-  }
-
   return (
-    <Tabs value={tab} onValueChange={handleTabChange} className="grid gap-5">
-      {!focusTab ? (
-        <TabsList className="h-10 flex-wrap">
-          <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          <TabsTrigger value="classes">Classes</TabsTrigger>
-          <TabsTrigger value="subjects">Subjects</TabsTrigger>
-          <TabsTrigger value="teachers">Teachers</TabsTrigger>
-          <TabsTrigger value="timetable">Timetable</TabsTrigger>
-        </TabsList>
-      ) : null}
+    <Tabs value={tab} className="grid gap-5">
       <TabsContent
         value="sessions"
         className="grid gap-4 lg:grid-cols-[320px_1fr]"

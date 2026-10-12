@@ -173,17 +173,14 @@ export function AdmissionsListPage({
       </div>
 
       <AdmissionsPanel noPadding>
-        <div className="space-y-3 border-b border-[var(--cls-border)] px-4 py-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-sm font-medium text-[var(--cls-ink)]">
-              Filter by status
-            </p>
-            <AdmissionsViewToggle value={viewMode} onChange={setViewMode} />
-          </div>
+        <div className="border-b border-[var(--cls-border)] px-4 pt-4 pb-1">
           <AdmissionStatusFilters
             value={statusFilter}
             onChange={setStatusFilter}
             counts={counts}
+            trailing={
+              <AdmissionsViewToggle value={viewMode} onChange={setViewMode} />
+            }
           />
         </div>
 

@@ -20,7 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { useSchool } from "@/data/store"
 import { isAttendancePresent } from "@/data/types"
 import { useActor } from "@/lib/actor"
@@ -32,6 +32,7 @@ export function Reports() {
   const { state } = useSchool()
   const actor = useActor()
   const [preview, setPreview] = useState<string | null>(null)
+  const [view, setView] = useState("reports")
   const financial = can(actor.role, "fees.totals")
   const catalogs = [
     {
@@ -65,15 +66,18 @@ export function Reports() {
     },
   ]
   return (
-    <Tabs defaultValue="reports">
-      <TabsList>
-        <TabsTrigger value="reports">Report library</TabsTrigger>
-        <TabsTrigger value="audit">Audit trail</TabsTrigger>
-      </TabsList>
-      <TabsContent
-        value="reports"
-        className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3"
-      >
+    <div className="grid gap-5">
+      <ClsSubTabs
+        aria-label="Reports"
+        value={view}
+        onValueChange={setView}
+        items={[
+          { value: "reports", label: "Report library" },
+          { value: "audit", label: "Audit trail" },
+        ]}
+      />
+      {view === "reports" ? (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {catalogs.map((item) => (
           <Card
             key={item.id}
@@ -91,8 +95,9 @@ export function Reports() {
             </CardHeader>
           </Card>
         ))}
-      </TabsContent>
-      <TabsContent value="audit" className="mt-5">
+      </div>
+      ) : null}
+      {view === "audit" ? (
         <Card>
           <CardHeader>
             <CardTitle>Security audit trail</CardTitle>
@@ -122,7 +127,7 @@ export function Reports() {
             ))}
           </CardContent>
         </Card>
-      </TabsContent>
+      ) : null}
       <Dialog
         open={Boolean(preview)}
         onOpenChange={(value) => !value && setPreview(null)}
@@ -204,6 +209,6 @@ export function Reports() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </Tabs>
+    </div>
   )
 }
