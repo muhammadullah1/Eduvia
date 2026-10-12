@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 export type CreateClassForm = {
   grade: string
   section: string
@@ -152,6 +153,7 @@ export function CreateClassModal({
                 type="number"
                 min={1}
                 max={16}
+                inputMode="numeric"
                 value={form.periodCount}
                 onChange={(e) =>
                   setForm({ ...form, periodCount: e.target.value })
@@ -166,6 +168,7 @@ export function CreateClassModal({
             <Input
               type="number"
               min={0}
+              inputMode="numeric"
               value={form.monthlyFee}
               onChange={(e) =>
                 setForm({ ...form, monthlyFee: e.target.value })
@@ -176,10 +179,11 @@ export function CreateClassModal({
             <p className="text-sm text-destructive">{error}</p>
           ) : null}
         </div>
-        <DialogFooter className="gap-2 border-t border-[var(--cls-border)] bg-[var(--page-wash)]/50 px-6 py-4 sm:justify-end">
+        <DialogFooter className={CLS_MODAL_FOOTER}>
           <Button
             type="button"
             variant="outline"
+            className="shrink-0"
             onClick={() => onOpenChange(false)}
             disabled={saving}
           >
@@ -187,7 +191,7 @@ export function CreateClassModal({
           </Button>
           <Button
             type="button"
-            className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+            className="shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
             disabled={saving}
             onClick={() => void handleSubmit()}
           >

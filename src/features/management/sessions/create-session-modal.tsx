@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -11,6 +12,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 
 export type CreateSessionForm = {
   name: string
@@ -101,24 +103,22 @@ export function CreateSessionModal({
               <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
                 Start date <span className="text-destructive">*</span>
               </Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={form.start}
-                onChange={(event) =>
-                  setForm({ ...form, start: event.target.value })
-                }
+                onChange={(value) => setForm({ ...form, start: value })}
+                placeholder="Start date"
+                defaultMonthKind="today"
               />
             </div>
             <div>
               <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
                 End date <span className="text-destructive">*</span>
               </Label>
-              <Input
-                type="date"
+              <DatePicker
                 value={form.end}
-                onChange={(event) =>
-                  setForm({ ...form, end: event.target.value })
-                }
+                onChange={(value) => setForm({ ...form, end: value })}
+                placeholder="End date"
+                defaultMonthKind="today"
               />
             </div>
           </div>
@@ -131,10 +131,11 @@ export function CreateSessionModal({
             <p className="text-sm text-destructive">{error}</p>
           ) : null}
         </div>
-        <DialogFooter className="gap-2 border-t border-[var(--cls-border)] bg-[var(--page-wash)]/50 px-6 py-4 sm:justify-end">
+        <DialogFooter className={CLS_MODAL_FOOTER}>
           <Button
             type="button"
             variant="outline"
+            className="shrink-0"
             onClick={() => onOpenChange(false)}
             disabled={saving}
           >
@@ -142,7 +143,7 @@ export function CreateSessionModal({
           </Button>
           <Button
             type="button"
-            className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+            className="shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
             disabled={saving}
             onClick={() => void handleSubmit()}
           >

@@ -1,29 +1,47 @@
 import { CalendarDays, Plus } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 
+import sessionsService from "@/api/sessions/sessions.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
+import type { AcademicSession } from "@/data/types"
 import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
 import { CreateSessionModal } from "./create-session-modal"
+import { EditSessionModal } from "./edit-session-modal"
+import {
+  invalidateSessionsList,
+  useSessionsList,
+} from "./hooks/use-sessions"
 import { SessionsDataTable } from "./sessions-data-table"
 import { toSessionRows } from "./session-status"
 
 export function SessionsPage() {
-  const { state, addSession, activateSession, syncPortalForRoute } = useSchool()
+  const { syncPortalForRoute } = useSchool()
   const actor = useActor()
+  const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
+  const [editSession, setEditSession] = useState<AcademicSession | null>(null)
   const [saving, setSaving] = useState(false)
   const [activateId, setActivateId] = useState<string | null>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "sessions")
   }, [actor.role, syncPortalForRoute])
 
-  const rows = useMemo(() => toSessionRows(state.sessions), [state.sessions])
+  const {
+    data: sessions = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useSessionsList()
+
+  const rows = useMemo(() => toSessionRows(sessions), [sessions])
 
   const needle = search.trim().toLowerCase()
   const filtered = useMemo(() => {
@@ -33,7 +51,22 @@ export function SessionsPage() {
     )
   }, [rows, needle])
 
-  const activating = rows.find((row) => row.id === activateId)
+  const activatingRow = rows.find((row) => row.id === activateId)
+  const deletingRow = rows.find((row) => row.id === deleteId)
+
+  const otherNames = useMemo(
+    () =>
+      sessions
+        .filter((s) => s.id !== editSession?.id)
+        .map((s) => s.name),
+    [sessions, editSession?.id]
+  )
+
+  async function afterMutation(message: string) {
+    await invalidateSessionsList(queryClient)
+    await syncPortalForRoute(actor.role, "sessions")
+    toast.success(message)
+  }
 
   async function handleCreate(payload: {
     name: string
@@ -42,27 +75,72 @@ export function SessionsPage() {
   }) {
     setSaving(true)
     try {
-      const result = addSession(payload, actor.name)
-      if (result.error) {
-        toast.error(result.error)
-        return
-      }
-      toast.success("Session created")
+      await sessionsService.create({
+        name: payload.name,
+        startDate: payload.start,
+        endDate: payload.end,
+        isCurrent: false,
+      })
+      await afterMutation("Session created")
       setModalOpen(false)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not create session."
+      )
     } finally {
       setSaving(false)
     }
   }
 
-  function handleActivateConfirm() {
-    if (!activateId) return
-    const result = activateSession(activateId, actor.name)
-    if (result.error) {
-      toast.error(result.error)
-      return
+  async function handleEdit(
+    id: string,
+    payload: { name: string; start: string; end: string }
+  ) {
+    setSaving(true)
+    try {
+      await sessionsService.update(Number(id), {
+        name: payload.name,
+        startDate: payload.start,
+        endDate: payload.end,
+      })
+      await afterMutation("Session updated")
+      setEditSession(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not update session."
+      )
+    } finally {
+      setSaving(false)
     }
-    toast.success("Session activated")
-    setActivateId(null)
+  }
+
+  async function handleActivateConfirm() {
+    if (!activateId) return
+    try {
+      await sessionsService.activate(Number(activateId))
+      await afterMutation("Session activated")
+      setActivateId(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not activate session."
+      )
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteId) return
+    setSaving(true)
+    try {
+      await sessionsService.remove(Number(deleteId))
+      await afterMutation("Session deleted")
+      setDeleteId(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not delete session."
+      )
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -86,7 +164,16 @@ export function SessionsPage() {
         </Button>
       </div>
 
-      {filtered.length === 0 ? (
+      {isError ? (
+        <div className="flex flex-col items-center gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-6 py-12 text-center">
+          <p className="text-sm text-[var(--cls-muted)]">
+            Could not load sessions.
+          </p>
+          <Button type="button" variant="outline" onClick={() => void refetch()}>
+            Try again
+          </Button>
+        </div>
+      ) : filtered.length === 0 && !isLoading ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-16 text-center">
           <div className="flex size-12 items-center justify-center rounded-full bg-[var(--page-wash)] text-[var(--cls-brand)]">
             <CalendarDays className="size-6" />
@@ -112,7 +199,10 @@ export function SessionsPage() {
           rows={filtered}
           search={search}
           onSearchChange={setSearch}
+          loading={isLoading}
           onActivate={setActivateId}
+          onEdit={(row) => setEditSession(row)}
+          onDelete={setDeleteId}
           onExport={() => toast.message("Export will connect to the API later.")}
           onPrint={() => toast.message("Print will connect to the API later.")}
         />
@@ -121,22 +211,47 @@ export function SessionsPage() {
       <CreateSessionModal
         open={modalOpen}
         onOpenChange={setModalOpen}
-        existingNames={rows.map((row) => row.name)}
+        existingNames={sessions.map((row) => row.name)}
         saving={saving}
         onSubmit={handleCreate}
+      />
+
+      <EditSessionModal
+        open={Boolean(editSession)}
+        onOpenChange={(open) => {
+          if (!open) setEditSession(null)
+        }}
+        session={editSession}
+        existingNames={otherNames}
+        saving={saving}
+        onSubmit={handleEdit}
       />
 
       <ConfirmDialog
         open={Boolean(activateId)}
         title="Activate session"
         description={
-          activating
-            ? `Set "${activating.name}" as the current session? New admissions, fees, and exams will be linked to it. The previous current session will be marked as past.`
+          activatingRow
+            ? `Set "${activatingRow.name}" as the current session? New admissions, fees, and exams will be linked to it. The previous current session will be marked as past.`
             : "Set this session as current?"
         }
         confirmLabel="Activate session"
-        onConfirm={handleActivateConfirm}
+        onConfirm={() => void handleActivateConfirm()}
         onClose={() => setActivateId(null)}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteId)}
+        title="Delete session"
+        description={
+          deletingRow
+            ? `Permanently delete "${deletingRow.name}"? This cannot be undone.`
+            : "Delete this session?"
+        }
+        confirmLabel="Delete session"
+        destructive
+        onConfirm={() => void handleDeleteConfirm()}
+        onClose={() => setDeleteId(null)}
       />
     </div>
   )

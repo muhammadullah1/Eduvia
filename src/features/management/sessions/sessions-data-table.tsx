@@ -35,6 +35,8 @@ type Props = {
   onSearchChange: (value: string) => void
   loading?: boolean
   onActivate?: (id: string) => void
+  onEdit?: (row: SessionRow) => void
+  onDelete?: (id: string) => void
   onExport?: () => void
   onPrint?: () => void
 }
@@ -63,6 +65,8 @@ export function SessionsDataTable({
   onSearchChange,
   loading = false,
   onActivate,
+  onEdit,
+  onDelete,
   onExport,
   onPrint,
 }: Props) {
@@ -194,13 +198,18 @@ export function SessionsDataTable({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuGroup>
-                        <DropdownMenuItem disabled>
-                          View details (soon)
-                        </DropdownMenuItem>
                         <DropdownMenuItem
                           disabled={row.uiStatus === "past"}
+                          onClick={() => onEdit?.(row)}
                         >
-                          Edit (soon)
+                          Edit session
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          disabled={row.current || row.uiStatus === "past"}
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => onDelete?.(row.id)}
+                        >
+                          Delete session
                         </DropdownMenuItem>
                       </DropdownMenuGroup>
                     </DropdownMenuContent>

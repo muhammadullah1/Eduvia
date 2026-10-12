@@ -37,6 +37,8 @@ type Props = {
   onExport?: () => void
   onPrint?: () => void
   loading?: boolean
+  onEdit?: (row: ClassRow) => void
+  onDelete?: (id: string) => void
 }
 
 function SortHint() {
@@ -55,6 +57,8 @@ export function ClassesDataTable({
   onExport,
   onPrint,
   loading = false,
+  onEdit,
+  onDelete,
 }: Props) {
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
@@ -165,8 +169,14 @@ export function ClassesDataTable({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuGroup>
-                        <DropdownMenuItem disabled>
-                          View detail (soon)
+                        <DropdownMenuItem onClick={() => onEdit?.(item)}>
+                          Edit class
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => onDelete?.(item.id)}
+                        >
+                          Delete class
                         </DropdownMenuItem>
                       </DropdownMenuGroup>
                     </DropdownMenuContent>

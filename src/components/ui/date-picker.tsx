@@ -24,6 +24,8 @@ type DatePickerProps = {
   className?: string
   /** Years subtracted from today when no date is selected (default 8). */
   defaultAgeYears?: number
+  /** Which month to show when no date is selected yet. */
+  defaultMonthKind?: "admission" | "today"
 }
 
 function toDate(iso: string) {
@@ -44,13 +46,15 @@ export function DatePicker({
   "aria-invalid": ariaInvalid,
   className,
   defaultAgeYears = DEFAULT_ADMISSION_AGE_YEARS,
+  defaultMonthKind = "admission",
 }: DatePickerProps) {
   const selected = toDate(value)
 
   const defaultMonth = useMemo(() => {
     if (selected) return selected
+    if (defaultMonthKind === "today") return new Date()
     return subYears(new Date(), defaultAgeYears)
-  }, [selected, defaultAgeYears])
+  }, [selected, defaultAgeYears, defaultMonthKind])
 
   return (
     <Popover>

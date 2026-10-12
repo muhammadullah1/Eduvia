@@ -39,7 +39,7 @@
   --cls-role-bg: #fef9ec;
   --cls-role-border: #c9a227;
   --heading: #0F172A;
-  --placeholder: #64748B;
+  --placeholder: #94a3b8;
   --warning: #D97706;
   --warning-light: #FFFBEB;
   --success-light: #F0FDF4;
@@ -79,6 +79,7 @@
   input::placeholder,
   textarea::placeholder {
     color: var(--placeholder);
+    font-weight: 400;
     opacity: 1;
   }
   input::selection,
