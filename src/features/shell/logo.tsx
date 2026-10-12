@@ -1,5 +1,7 @@
 import { GraduationCap } from "lucide-react"
 
+import clsCrest from "@/assets/cls-crest.png"
+
 export function Logo({
   compact = false,
   inverted = false,
@@ -10,9 +12,17 @@ export function Logo({
   return (
     <div className="flex items-center gap-3">
       <div
-        className={`grid size-10 shrink-0 place-items-center rounded-xl shadow-sm ${inverted ? "bg-white text-[var(--primary-color)]" : "brand-mark text-primary-foreground"}`}
+        className={`grid size-9 shrink-0 place-items-center overflow-hidden rounded-sm ${inverted ? "bg-transparent" : "brand-mark size-10 rounded-xl text-primary-foreground shadow-sm"}`}
       >
-        <GraduationCap className="size-5" />
+        {inverted ? (
+          <img
+            src={clsCrest}
+            alt=""
+            className="size-9 object-contain"
+          />
+        ) : (
+          <GraduationCap className="size-5" />
+        )}
       </div>
       {!compact ? (
         <div className="leading-tight">

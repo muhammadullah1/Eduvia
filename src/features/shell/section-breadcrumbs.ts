@@ -1,30 +1,49 @@
 import type { Role } from "@/lib/auth"
 
-const CRUMBS: Record<string, string[]> = {
-  dashboard: ["Dashboard"],
-  overview: ["Operations"],
-  academic: ["Academic Management", "Academic setup"],
-  classes: ["Academic Management", "Classes"],
-  curriculum: ["Academic Management", "Planned chapters"],
-  "lesson-review": ["Academic Management", "Lesson review"],
-  admissions: ["Student Management", "Admissions"],
-  people: ["Student Management", "People"],
-  absences: ["Attendance"],
-  "weekly-tests": ["Examinations", "Weekly tests"],
-  exams: ["Examinations"],
-  "results-gate": ["Examinations", "Result visibility"],
-  fees: ["Fee Management", "Fees & sync"],
-  finance: ["Finance"],
-  messages: ["Communication"],
-  settings: ["Settings"],
-  reports: ["Reports & audit"],
-  collect: ["Fee Management", "Record payment"],
-  collections: ["Fee Management", "My daily receipts"],
+import { navigationLabelForSection } from "./navigation"
+
+const GROUP_FOR_SECTION: Record<string, string> = {
+  dashboard: "Dashboard",
+  overview: "Operations",
+  sessions: "Academic Management",
+  classes: "Academic Management",
+  subjects: "Academic Management",
+  "teachers-assignments": "Academic Management",
+  timetable: "Academic Management",
+  substitutes: "Academic Management",
+  "lesson-plan": "Academic Management",
+  "daily-test-schedule": "Academic Management",
+  academic: "Academic Management",
+  curriculum: "Academic Management",
+  "lesson-review": "Academic Management",
+  admissions: "Student Management",
+  students: "Student Management",
+  "enrollment-promotion": "Student Management",
+  lifecycle: "Student Management",
+  "student-attendance": "Student Management",
+  people: "Student Management",
+  exams: "Student Management",
+  "weekly-tests": "Examinations",
+  "results-gate": "Examinations",
+  fees: "Fee Management",
+  "collect-fee": "Fee Management",
+  "offline-sync": "Fee Management",
+  collect: "Fee Management",
+  collections: "Fee Management",
+  finance: "Finance",
+  reports: "Reports",
+  settings: "Settings",
+  messages: "Communication",
 }
 
 export function breadcrumbsForSection(section: string, role: Role) {
+  const group = GROUP_FOR_SECTION[section]
+  const page = navigationLabelForSection(section, role)
   if (section === "dashboard" && role === "operations_manager") {
     return ["Operations", "Overview"]
   }
-  return CRUMBS[section] ?? ["Portal"]
+  if (group && group !== page) {
+    return [group, page]
+  }
+  return [page]
 }

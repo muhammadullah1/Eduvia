@@ -1,7 +1,25 @@
+import {
+  Sidebar as UiSidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  useSidebar,
+} from "@/components/ui/sidebar"
 import { type Role } from "@/lib/auth"
+import { cn } from "@/lib/utils"
 
 import { Logo } from "./logo"
 import { navigation } from "./navigation"
+import { navigationGroupsForRole } from "./navigation-groups"
+
+const navItemClass =
+  "h-9 rounded-md px-3.5 text-[12.25px] font-normal text-sidebar-foreground hover:bg-white/10 hover:text-white data-[active=true]:bg-white/15 data-[active=true]:font-normal data-[active=true]:text-white"
 
 export function Sidebar({
   role,
@@ -12,31 +30,67 @@ export function Sidebar({
   active: string
   onNavigate: (id: string) => void
 }) {
+  const { isMobile, setOpenMobile } = useSidebar()
+  const itemsById = new Map(navigation[role].map((item) => [item.id, item]))
+  const groups = navigationGroupsForRole(role)
+
+  function navigate(id: string) {
+    onNavigate(id)
+    if (isMobile) {
+      setOpenMobile(false)
+    }
+  }
+
   return (
-    <div className="flex h-full flex-col bg-sidebar p-3 text-sidebar-foreground">
-      <div className="px-2 py-3">
+    <UiSidebar className="border-r border-sidebar-border bg-sidebar">
+      <SidebarHeader className="border-b border-sidebar-border p-3.5">
         <Logo inverted />
-      </div>
-      <p className="mt-4 px-2 text-[10px] font-semibold tracking-[0.18em] text-[var(--sidebar-inactive)]/80 uppercase">
-        Workspace
-      </p>
-      <nav className="mt-2 flex flex-1 flex-col gap-1 overflow-y-auto pb-4">
-        {navigation[role].map((item) => {
-          const Icon = item.icon
-          const selected = active === item.id
-          return (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => onNavigate(item.id)}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors ${selected ? "bg-white text-[var(--sidebar-primary-foreground)] shadow-sm" : "text-[var(--sidebar-inactive)] hover:bg-white/10 hover:text-white"}`}
-            >
-              <Icon className="size-4" />
-              <span>{item.label}</span>
-            </button>
-          )
-        })}
-      </nav>
-    </div>
+      </SidebarHeader>
+      <SidebarContent className="gap-0 py-2.5">
+        {groups.map((group, groupIndex) => (
+          <SidebarGroup key={group.label ?? `group-${groupIndex}`} className="p-0">
+            {group.label ? (
+              <SidebarGroupLabel
+                className="h-auto px-3.5 pt-2.5 pb-1 text-[10px] font-semibold tracking-[1px] text-white/40 uppercase"
+              >
+                {group.label}
+              </SidebarGroupLabel>
+            ) : null}
+            <SidebarGroupContent className="px-0">
+              <SidebarMenu className="gap-0">
+                {group.itemIds.map((id) => {
+                  const item = itemsById.get(id)
+                  if (!item) return null
+                  const Icon = item.icon
+                  const selected = active === id
+                  return (
+                    <SidebarMenuItem key={id} className="relative">
+                      {selected ? (
+                        <span
+                          className="pointer-events-none absolute top-1/2 left-0 z-10 h-7 w-0.5 -translate-y-1/2 rounded-r-sm bg-[#c9a227]"
+                          aria-hidden
+                        />
+                      ) : null}
+                      <SidebarMenuButton
+                        type="button"
+                        isActive={selected}
+                        onClick={() => navigate(id)}
+                        className={cn(navItemClass, selected && "pl-4")}
+                      >
+                        <Icon />
+                        <span>{item.label}</span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
+      </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border px-3.5 py-3">
+        <p className="text-[10px] text-white/40">SMS v1.0 · Abier</p>
+      </SidebarFooter>
+    </UiSidebar>
   )
 }

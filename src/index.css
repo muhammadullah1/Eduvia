@@ -33,6 +33,11 @@
   --cls-border: #e3e8ee;
   --cls-ink: #1f3027;
   --cls-muted: #667085;
+  --cls-profile-ink: #20392c;
+  --cls-session-bg: #e8f7ee;
+  --cls-session-border: #a8d5bc;
+  --cls-role-bg: #fef9ec;
+  --cls-role-border: #c9a227;
   --heading: #0F172A;
   --placeholder: #64748B;
   --warning: #D97706;

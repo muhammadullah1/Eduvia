@@ -7,21 +7,27 @@ import {
   CalendarDays,
   ClipboardCheck,
   ClipboardList,
+  CloudUpload,
+  CreditCard,
   FileCheck2,
+  FolderOpen,
+  GitBranch,
   GraduationCap,
   Landmark,
   LayoutDashboard,
+  LayoutGrid,
   Layers,
-  LibraryBig,
   MessageSquareText,
   ReceiptText,
+  RefreshCw,
   Settings2,
-  ShieldAlert,
   ShieldCheck,
   UserCheck,
   UserRound,
+  UserRoundPlus,
   Users,
   WalletCards,
+  Workflow,
 } from "lucide-react"
 import { type ComponentType } from "react"
 
@@ -67,17 +73,47 @@ export const roles: Record<
 
 /** Shared by the super admin and the operations manager; fee sections are super-admin only. */
 const managementNav: { id: string; label: string; icon: Icon }[] = [
-  { id: "academic", label: "Academic setup", icon: LibraryBig },
+  { id: "sessions", label: "Sessions", icon: CalendarDays },
   { id: "classes", label: "Classes", icon: Layers },
-  { id: "curriculum", label: "Planned chapters", icon: BookOpen },
-  { id: "lesson-review", label: "Lesson review", icon: ClipboardCheck },
-  { id: "admissions", label: "Admissions", icon: Users },
-  { id: "people", label: "People", icon: UserRound },
-  { id: "absences", label: "Absences & cover", icon: CalendarClock },
-  { id: "weekly-tests", label: "Weekly tests", icon: ClipboardList },
+  { id: "subjects", label: "Subjects", icon: BookOpen },
+  {
+    id: "teachers-assignments",
+    label: "Teachers & Assignments",
+    icon: UserRound,
+  },
+  { id: "timetable", label: "Timetable", icon: CalendarClock },
+  { id: "substitutes", label: "Substitutes", icon: RefreshCw },
+  { id: "lesson-plan", label: "Lesson Plan", icon: ClipboardList },
+  {
+    id: "daily-test-schedule",
+    label: "Daily Test Schedule",
+    icon: ClipboardCheck,
+  },
+  { id: "admissions", label: "Admissions", icon: UserRoundPlus },
+  { id: "students", label: "Students", icon: GraduationCap },
+  {
+    id: "enrollment-promotion",
+    label: "Enrollment & Promotion",
+    icon: GitBranch,
+  },
+  { id: "lifecycle", label: "Lifecycle", icon: Workflow },
+  { id: "student-attendance", label: "Attendance", icon: UserCheck },
   { id: "exams", label: "Examinations", icon: FileCheck2 },
-  { id: "results-gate", label: "Result visibility", icon: ShieldAlert },
+  { id: "fees", label: "Fee Management", icon: WalletCards },
+  { id: "collect-fee", label: "Collect Fee", icon: CreditCard },
+  { id: "offline-sync", label: "Offline Sync", icon: CloudUpload },
   { id: "messages", label: "Communication", icon: MessageSquareText },
+]
+
+/** Legacy section ids kept for deep links and redirects. */
+const legacyManagementNav: { id: string; label: string; icon: Icon }[] = [
+  { id: "academic", label: "Sessions", icon: CalendarDays },
+  { id: "curriculum", label: "Lesson Plan", icon: ClipboardList },
+  { id: "lesson-review", label: "Lesson review", icon: ClipboardCheck },
+  { id: "people", label: "Students", icon: GraduationCap },
+  { id: "absences", label: "Substitutes", icon: RefreshCw },
+  { id: "weekly-tests", label: "Daily Test Schedule", icon: ClipboardCheck },
+  { id: "results-gate", label: "Lifecycle", icon: Workflow },
 ]
 
 export const navigation: Record<
@@ -85,18 +121,21 @@ export const navigation: Record<
   { id: string; label: string; icon: Icon }[]
 > = {
   super_admin: [
-    { id: "dashboard", label: "Command center", icon: LayoutDashboard },
+    { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
     ...managementNav,
-    { id: "fees", label: "Fees & sync", icon: WalletCards },
     { id: "finance", label: "Finance", icon: Landmark },
+    { id: "reports", label: "Reports", icon: FolderOpen },
     { id: "settings", label: "Settings", icon: Settings2 },
-    { id: "reports", label: "Reports & audit", icon: ClipboardCheck },
+    ...legacyManagementNav,
   ],
   operations_manager: [
     { id: "overview", label: "Overview", icon: LayoutDashboard },
-    ...managementNav,
-    { id: "settings", label: "Academic rules", icon: Settings2 },
-    { id: "reports", label: "Reports & audit", icon: ClipboardCheck },
+    ...managementNav.filter((item) =>
+      !["fees", "collect-fee", "offline-sync", "finance"].includes(item.id)
+    ),
+    { id: "settings", label: "Settings", icon: Settings2 },
+    { id: "reports", label: "Reports", icon: FolderOpen },
+    ...legacyManagementNav,
   ],
   accountant: [
     { id: "collect", label: "Record payment", icon: WalletCards },
@@ -129,9 +168,29 @@ export const sectionIds = Object.fromEntries(
   ])
 ) as Record<Role, Set<string>>
 
+export function navigationLabelForSection(section: string, role: Role) {
+  const item = navigation[role].find((entry) => entry.id === section)
+  if (item) return item.label
+  if (section === "dashboard" && role === "super_admin") return "Dashboard"
+  return section
+}
+
 export const subtitles: Record<string, string> = {
   dashboard: "A live view of people, learning, fees and school operations.",
   overview: "Today’s academic operations — cover, reviews, tests and results.",
+  sessions: "Academic years, activation and session-scoped setup.",
+  subjects: "Subject catalog for the current session.",
+  "teachers-assignments": "Teachers, subjects and class assignments.",
+  timetable: "Periods, rooms and conflict-aware scheduling.",
+  substitutes: "Mark absences and assign cover teachers.",
+  "lesson-plan": "Planned chapters for daily teacher updates.",
+  "daily-test-schedule": "Weekly test calendar and publishing.",
+  students: "Enrolled students and class registers.",
+  "enrollment-promotion": "Enrollment steps and class promotion.",
+  lifecycle: "Student lifecycle and result visibility rules.",
+  "student-attendance": "School-wide attendance insight.",
+  "collect-fee": "Record fee payments and print receipts.",
+  "offline-sync": "Import fee workbooks and sync offline collections.",
   academic: "Sessions, subjects and a conflict-aware timetable.",
   classes: "Class sections for the current session — students, subjects, and status.",
   curriculum: "Plan the chapters teachers select in their daily updates.",
