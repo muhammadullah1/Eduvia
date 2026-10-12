@@ -1,9 +1,7 @@
 import {
   ChevronDown,
   ChevronUp,
-  Download,
   MoreVertical,
-  Printer,
   Search,
 } from "lucide-react"
 
@@ -24,6 +22,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  PaginationComponent,
+  type PaginationWithHandlers,
+} from "@/components/common/pagination-component"
 import { classDisplayName } from "@/api/classes/map-class"
 import type { ClassRow } from "@/features/management/classes/hooks/use-classes"
 import { cn } from "@/lib/utils"
@@ -34,11 +36,13 @@ type Props = {
   rows: ClassRow[]
   search: string
   onSearchChange: (value: string) => void
-  onExport?: () => void
-  onPrint?: () => void
   loading?: boolean
+  searchActive?: boolean
+  onClearSearch?: () => void
+  onOpenClass?: (row: ClassRow) => void
   onEdit?: (row: ClassRow) => void
   onDelete?: (id: string) => void
+  pagination?: PaginationWithHandlers
 }
 
 function SortHint() {
@@ -54,45 +58,27 @@ export function ClassesDataTable({
   rows,
   search,
   onSearchChange,
-  onExport,
-  onPrint,
   loading = false,
+  searchActive = false,
+  onClearSearch,
+  onOpenClass,
   onEdit,
   onDelete,
+  pagination,
 }: Props) {
+  const showNoMatch = searchActive && !loading && rows.length === 0
+
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
-      <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-b border-[var(--cls-border)] px-4 py-3">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" />
           <Input
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search..."
+            placeholder="Search classes…"
             className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
           />
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-[var(--cls-border)] text-[var(--cls-muted)]"
-            onClick={onExport}
-          >
-            <Download data-icon="inline-start" />
-            Export
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-[var(--cls-border)] text-[var(--cls-muted)]"
-            onClick={onPrint}
-          >
-            <Printer data-icon="inline-start" />
-            Print
-          </Button>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -124,7 +110,7 @@ export function ClassesDataTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && rows.length === 0 ? (
+            {loading && rows.length === 0 && !showNoMatch ? (
               <TableRow>
                 <TableCell
                   colSpan={5}
@@ -134,13 +120,37 @@ export function ClassesDataTable({
                 </TableCell>
               </TableRow>
             ) : null}
+            {showNoMatch ? (
+              <TableRow>
+                <TableCell colSpan={5} className="h-32">
+                  <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+                    <p className="text-sm font-medium text-[var(--cls-ink)]">
+                      No classes match your search
+                    </p>
+                    <p className="max-w-sm text-sm text-[var(--cls-muted)]">
+                      Try another class name or section, or clear the search to
+                      see all classes.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onClearSearch}
+                    >
+                      Clear search
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ) : null}
             {rows.map((item) => (
               <TableRow
                 key={item.id}
                 className={cn(
                   "border-[var(--cls-border)]",
-                  "hover:bg-[var(--page-wash)]/80"
+                  onOpenClass && "cursor-pointer hover:bg-[var(--page-wash)]/80"
                 )}
+                onClick={() => onOpenClass?.(item)}
               >
                 <TableCell className="text-sm font-medium text-[var(--cls-ink)]">
                   {classDisplayName(item)}
@@ -163,18 +173,27 @@ export function ClassesDataTable({
                         size="icon-sm"
                         className="text-[var(--cls-muted)]"
                         aria-label="Row actions"
+                        onClick={(e) => e.stopPropagation()}
                       >
                         <MoreVertical />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuGroup>
-                        <DropdownMenuItem onClick={() => onEdit?.(item)}>
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onEdit?.(item)
+                          }}
+                        >
                           Edit class
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="text-destructive focus:text-destructive"
-                          onClick={() => onDelete?.(item.id)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            onDelete?.(item.id)
+                          }}
                         >
                           Delete class
                         </DropdownMenuItem>
@@ -187,6 +206,9 @@ export function ClassesDataTable({
           </TableBody>
         </Table>
       </div>
+      {pagination && !showNoMatch ? (
+        <PaginationComponent pagination={pagination} />
+      ) : null}
     </div>
   )
 }

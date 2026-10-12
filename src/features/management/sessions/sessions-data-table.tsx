@@ -23,6 +23,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  PaginationComponent,
+  type PaginationWithHandlers,
+} from "@/components/common/pagination-component"
 import { formatDate } from "@/lib/format"
 import { SessionStatusBadge } from "./session-status-badge"
 import type { SessionRow } from "./session-status"
@@ -37,6 +41,7 @@ type Props = {
   onActivate?: (id: string) => void
   onEdit?: (row: SessionRow) => void
   onDelete?: (id: string) => void
+  pagination?: PaginationWithHandlers
 }
 
 function SortHint() {
@@ -67,6 +72,7 @@ export function SessionsDataTable({
   onActivate,
   onEdit,
   onDelete,
+  pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
 
@@ -221,6 +227,9 @@ export function SessionsDataTable({
           </TableBody>
         </Table>
       </div>
+      {pagination && !showNoMatch ? (
+        <PaginationComponent pagination={pagination} />
+      ) : null}
     </div>
   )
 }

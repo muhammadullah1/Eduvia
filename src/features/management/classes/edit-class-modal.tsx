@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react"
 
-import { buildClassLabel } from "@/api/classes/map-class"
+import {
+  buildClassLabel,
+  isDuplicateClassLabel,
+} from "@/api/classes/map-class"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -13,30 +16,21 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ClassSection } from "@/data/types"
+import { ClassSectionField } from "@/features/management/classes/class-section-field"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
-
-type FormState = {
-  grade: string
-  section: string
-  room: string
-  periodCount: string
-  monthlyFee: string
-}
 
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   klass: ClassSection | null
   sessionLabel: string
+  existingClasses: { id: string; label: string }[]
   saving?: boolean
   onSubmit: (payload: {
     id: string
     grade: string
     section: string
     label: string
-    room: string
-    periodCount: number
-    monthlyFee: number
   }) => Promise<void>
 }
 
@@ -45,62 +39,51 @@ export function EditClassModal({
   onOpenChange,
   klass,
   sessionLabel,
+  existingClasses,
   saving = false,
   onSubmit,
 }: Props) {
-  const [form, setForm] = useState<FormState>({
-    grade: "",
-    section: "Main",
-    room: "",
-    periodCount: "8",
-    monthlyFee: "",
-  })
+  const [grade, setGrade] = useState("")
+  const [section, setSection] = useState("Main")
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open || !klass) return
-    setForm({
-      grade: klass.grade,
-      section: klass.section,
-      room: klass.room,
-      periodCount: String(klass.periodCount),
-      monthlyFee: String(klass.monthlyFee),
-    })
+    setGrade(klass.grade)
+    setSection(klass.section)
     setError(null)
   }, [open, klass])
 
-  const previewLabel = useMemo(
-    () => buildClassLabel(form.grade, form.section),
-    [form.grade, form.section]
-  )
-
   async function handleSubmit() {
     if (!klass) return
-    if (!form.grade.trim()) {
+    const gradeTrimmed = grade.trim()
+    if (!gradeTrimmed) {
       setError("Class name is required.")
       return
     }
-    const periodCount = Number(form.periodCount)
-    if (!Number.isFinite(periodCount) || periodCount < 1 || periodCount > 16) {
-      setError("Periods per day must be between 1 and 16.")
+    if (!section.trim()) {
+      setError("Enter a section name or choose Standard.")
       return
     }
-    const monthlyFee = Number(form.monthlyFee)
-    if (!Number.isFinite(monthlyFee) || monthlyFee < 0) {
-      setError("Monthly tuition must be zero or greater.")
+    const sectionTrimmed = section.trim()
+    const label = buildClassLabel(gradeTrimmed, sectionTrimmed)
+    if (isDuplicateClassLabel(existingClasses, label, klass.id)) {
+      setError("A class with this name already exists in the current session.")
       return
     }
     setError(null)
     await onSubmit({
       id: klass.id,
-      grade: form.grade.trim(),
-      section: form.section.trim() || "Main",
-      label: previewLabel,
-      room: form.room.trim() || "Unassigned",
-      periodCount,
-      monthlyFee,
+      grade: gradeTrimmed,
+      section: sectionTrimmed,
+      label,
     })
   }
+
+  const previewLabel = useMemo(
+    () => buildClassLabel(grade, section),
+    [grade, section]
+  )
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -110,7 +93,7 @@ export function EditClassModal({
             Edit class
           </DialogTitle>
           <DialogDescription className="text-sm text-[var(--cls-muted)]">
-            Session {sessionLabel}
+            Session {sessionLabel} · {previewLabel || klass?.label}
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 px-6 py-5">
@@ -119,68 +102,17 @@ export function EditClassModal({
               Class name <span className="text-destructive">*</span>
             </Label>
             <Input
-              value={form.grade}
-              onChange={(e) => setForm({ ...form, grade: e.target.value })}
+              value={grade}
+              onChange={(e) => setGrade(e.target.value)}
               placeholder="e.g. Class 1, Nursery"
             />
           </div>
-          <div>
-            <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
-              Section
-            </Label>
-            <Input
-              value={form.section}
-              onChange={(e) => setForm({ ...form, section: e.target.value })}
-              placeholder="Main (optional)"
-            />
-            <p className="mt-1 text-xs text-[var(--cls-muted)]">
-              Display:{" "}
-              <span className="font-medium text-[var(--cls-ink)]">
-                {previewLabel || "—"}
-              </span>
-            </p>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
-                Room
-              </Label>
-              <Input
-                value={form.room}
-                onChange={(e) => setForm({ ...form, room: e.target.value })}
-                placeholder="B-12"
-              />
-            </div>
-            <div>
-              <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
-                Periods / day
-              </Label>
-              <Input
-                type="number"
-                min={1}
-                max={16}
-                inputMode="numeric"
-                value={form.periodCount}
-                onChange={(e) =>
-                  setForm({ ...form, periodCount: e.target.value })
-                }
-              />
-            </div>
-          </div>
-          <div>
-            <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
-              Monthly tuition (PKR)
-            </Label>
-            <Input
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={form.monthlyFee}
-              onChange={(e) =>
-                setForm({ ...form, monthlyFee: e.target.value })
-              }
-            />
-          </div>
+          <ClassSectionField
+            grade={grade}
+            section={section}
+            onSectionChange={setSection}
+            disabled={saving}
+          />
           {error ? (
             <p className="text-sm text-destructive">{error}</p>
           ) : null}

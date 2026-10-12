@@ -31,3 +31,20 @@ export function buildClassLabel(grade: string, section: string) {
   if (!s || s === "Main" || s === "General") return g
   return `${g} · ${s}`
 }
+
+export function normalizeClassLabel(label: string) {
+  return label.trim().toLowerCase()
+}
+
+export function isDuplicateClassLabel(
+  existing: { id: string; label: string }[],
+  label: string,
+  excludeId?: string
+) {
+  const norm = normalizeClassLabel(label)
+  if (!norm) return false
+  return existing.some(
+    (row) =>
+      row.id !== excludeId && normalizeClassLabel(row.label) === norm
+  )
+}

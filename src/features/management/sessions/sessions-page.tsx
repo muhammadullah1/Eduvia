@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
 import type { AcademicSession } from "@/data/types"
+import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
@@ -53,6 +54,8 @@ export function SessionsPage() {
 
   const activatingRow = rows.find((row) => row.id === activateId)
   const deletingRow = rows.find((row) => row.id === deleteId)
+
+  const { paginatedItems, pagination } = useClientPagination(filtered)
 
   const otherNames = useMemo(
     () =>
@@ -196,7 +199,7 @@ export function SessionsPage() {
         </div>
       ) : (
         <SessionsDataTable
-          rows={filtered}
+          rows={paginatedItems}
           search={search}
           onSearchChange={setSearch}
           loading={isLoading}
@@ -205,6 +208,7 @@ export function SessionsPage() {
           onActivate={setActivateId}
           onEdit={(row) => setEditSession(row)}
           onDelete={setDeleteId}
+          pagination={pagination}
         />
       )}
 

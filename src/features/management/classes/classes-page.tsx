@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import classesService from "@/api/classes/classes.service"
+import { isDuplicateClassLabel } from "@/api/classes/map-class"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
@@ -14,14 +15,23 @@ import {
   invalidateClassesList,
   useClassesList,
 } from "@/features/management/classes/hooks/use-classes"
+import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
-type Props = {
-  globalQuery: string
+/** Backend defaults for fields managed elsewhere (timetable, fee management). */
+const CLASS_API_DEFAULTS = {
+  room: "Unassigned",
+  periodCount: 8,
+  monthlyFee: 0,
 }
 
-export function ClassesPage({ globalQuery }: Props) {
+type Props = {
+  globalQuery: string
+  onOpenClass?: (classId: string) => void
+}
+
+export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   const { state, syncPortalForRoute } = useSchool()
   const actor = useActor()
   const queryClient = useQueryClient()
@@ -68,11 +78,16 @@ export function ClassesPage({ globalQuery }: Props) {
     })
   }, [classes, state.students, state.slots])
 
+  const existingClassLabels = useMemo(
+    () => classes.map((c) => ({ id: c.id, label: c.label })),
+    [classes]
+  )
+
   const needle = (search || globalQuery).trim().toLowerCase()
   const filtered = useMemo(() => {
     if (!needle) return rows
     return rows.filter((row) =>
-      [row.grade, row.section, row.label, row.room]
+      [row.grade, row.section, row.label]
         .join(" ")
         .toLowerCase()
         .includes(needle)
@@ -81,6 +96,8 @@ export function ClassesPage({ globalQuery }: Props) {
 
   const sessionLabel = currentSession?.name ?? "—"
   const deletingRow = rows.find((row) => row.id === deleteId)
+
+  const { paginatedItems, pagination } = useClientPagination(filtered)
 
   async function afterMutation(message: string) {
     await invalidateClassesList(queryClient)
@@ -92,12 +109,13 @@ export function ClassesPage({ globalQuery }: Props) {
     grade: string
     section: string
     label: string
-    room: string
-    periodCount: number
-    monthlyFee: number
   }) {
     if (!sessionNumericId || !Number.isFinite(sessionNumericId)) {
       toast.error("Activate an academic session before adding classes.")
+      return
+    }
+    if (isDuplicateClassLabel(existingClassLabels, payload.label)) {
+      toast.error("A class with this name already exists in the current session.")
       return
     }
     setSaving(true)
@@ -107,9 +125,7 @@ export function ClassesPage({ globalQuery }: Props) {
         grade: payload.grade,
         section: payload.section,
         label: payload.label,
-        room: payload.room,
-        periodCount: payload.periodCount,
-        monthlyFee: payload.monthlyFee,
+        ...CLASS_API_DEFAULTS,
       })
       await afterMutation("Class created")
       setModalOpen(false)
@@ -127,19 +143,17 @@ export function ClassesPage({ globalQuery }: Props) {
     grade: string
     section: string
     label: string
-    room: string
-    periodCount: number
-    monthlyFee: number
   }) {
+    if (isDuplicateClassLabel(existingClassLabels, payload.label, payload.id)) {
+      toast.error("A class with this name already exists in the current session.")
+      return
+    }
     setSaving(true)
     try {
       await classesService.update(Number(payload.id), {
         grade: payload.grade,
         section: payload.section,
         label: payload.label,
-        room: payload.room,
-        periodCount: payload.periodCount,
-        monthlyFee: payload.monthlyFee,
       })
       await afterMutation("Class updated")
       setEditClass(null)
@@ -168,11 +182,15 @@ export function ClassesPage({ globalQuery }: Props) {
     }
   }
 
+  function clearSearch() {
+    setSearch("")
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-[var(--cls-ink)]">
+          <h1 className="text-[28px] font-semibold tracking-tight text-[var(--cls-brand)]">
             Classes
           </h1>
           <p className="mt-1 text-sm text-[var(--cls-muted)]">
@@ -211,7 +229,7 @@ export function ClassesPage({ globalQuery }: Props) {
             Try again
           </Button>
         </div>
-      ) : filtered.length === 0 && !isLoading ? (
+      ) : !isLoading && rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-16 text-center">
           <div className="flex size-12 items-center justify-center rounded-full bg-[var(--page-wash)] text-[var(--cls-brand)]">
             <Layers className="size-6" />
@@ -235,14 +253,18 @@ export function ClassesPage({ globalQuery }: Props) {
         </div>
       ) : (
         <ClassesDataTable
-          rows={filtered}
+          rows={paginatedItems}
           search={search}
           onSearchChange={setSearch}
           loading={isLoading}
+          searchActive={Boolean(needle)}
+          onClearSearch={clearSearch}
+          onOpenClass={
+            onOpenClass ? (row) => onOpenClass(row.id) : undefined
+          }
           onEdit={(row) => setEditClass(row)}
           onDelete={setDeleteId}
-          onExport={() => toast.message("Export will connect to the API later.")}
-          onPrint={() => toast.message("Print will connect to the API later.")}
+          pagination={pagination}
         />
       )}
 
@@ -250,7 +272,7 @@ export function ClassesPage({ globalQuery }: Props) {
         open={modalOpen}
         onOpenChange={setModalOpen}
         sessionLabel={sessionLabel}
-        defaultMonthlyFee={state.classes[0]?.monthlyFee ?? 8500}
+        existingClasses={existingClassLabels}
         saving={saving}
         onSubmit={handleCreate}
       />
@@ -262,6 +284,7 @@ export function ClassesPage({ globalQuery }: Props) {
         }}
         klass={editClass}
         sessionLabel={sessionLabel}
+        existingClasses={existingClassLabels}
         saving={saving}
         onSubmit={handleEdit}
       />

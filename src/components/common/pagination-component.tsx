@@ -51,10 +51,10 @@ export function PaginationComponent({
         className
       )}
     >
-      <p className="text-sm text-[var(--cls-muted)]">
+      <p className="text-[10.5px] text-[var(--cls-muted)]">
         {pagination.total === 0
-          ? "0 of 0"
-          : `${startIndex}-${endIndex} of ${pagination.total}`}
+          ? "Showing 0 of 0"
+          : `Showing ${startIndex}–${endIndex} of ${pagination.total}`}
       </p>
       <div className="flex flex-wrap items-center justify-end gap-4">
         <div className="flex items-center gap-2 text-sm text-[var(--cls-muted)]">
