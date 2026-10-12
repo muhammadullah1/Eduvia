@@ -1011,20 +1011,20 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           .catch(console.error)
 
         const sessions = [
-          ...current.sessions.map((item) => ({ ...item, current: false })),
+          ...current.sessions,
           {
             id: uid("ses"),
             name: input.name.trim(),
             start: input.start,
             end: input.end,
-            current: true,
+            current: false,
           },
         ]
         return {
           next: withAudit(
             { ...current, sessions },
             actor,
-            `Created and activated session ${input.name.trim()}`
+            `Created session ${input.name.trim()}`
           ),
         }
       }),

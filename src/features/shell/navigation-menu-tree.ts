@@ -28,6 +28,7 @@ const ACADEMIC_FOLDER: NavFolder = {
     { type: "link", id: "substitutes" },
     { type: "link", id: "lesson-plan" },
     { type: "link", id: "daily-test-schedule" },
+    { type: "link", id: "exams" },
   ],
 }
 
@@ -42,29 +43,18 @@ const STUDENT_FOLDER: NavFolder = {
     { type: "link", id: "enrollment-promotion" },
     { type: "link", id: "lifecycle" },
     { type: "link", id: "student-attendance" },
-    { type: "link", id: "exams" },
-    { type: "link", id: "fees" },
-    { type: "link", id: "collect-fee" },
-    { type: "link", id: "offline-sync" },
   ],
 }
 
-const FEE_LINK_IDS = new Set(["fees", "collect-fee", "offline-sync"])
-
-const STUDENT_FOLDER_OPS: NavFolder = {
-  ...STUDENT_FOLDER,
-  children: STUDENT_FOLDER.children.filter(
-    (child) => !FEE_LINK_IDS.has(child.id)
-  ),
-}
-
-const SYSTEM_FOLDER: NavFolder = {
+const FINANCE_FOLDER: NavFolder = {
   type: "folder",
-  key: "system",
-  label: "Settings",
+  key: "finance",
+  label: "Finance",
+  defaultOpen: true,
   children: [
-    { type: "link", id: "settings" },
-    { type: "link", id: "messages" },
+    { type: "link", id: "fees" },
+    { type: "link", id: "collect-fee" },
+    { type: "link", id: "offline-sync" },
   ],
 }
 
@@ -72,24 +62,24 @@ const SUPER_ADMIN_TREE: NavNode[] = [
   { type: "link", id: "dashboard" },
   ACADEMIC_FOLDER,
   STUDENT_FOLDER,
-  { type: "link", id: "finance" },
+  FINANCE_FOLDER,
   { type: "link", id: "reports" },
-  SYSTEM_FOLDER,
+  { type: "link", id: "settings" },
 ]
 
 const OPERATIONS_TREE: NavNode[] = [
   { type: "link", id: "overview" },
   ACADEMIC_FOLDER,
-  STUDENT_FOLDER_OPS,
+  STUDENT_FOLDER,
   { type: "link", id: "reports" },
-  SYSTEM_FOLDER,
+  { type: "link", id: "settings" },
 ]
 
 const ACCOUNTANT_TREE: NavNode[] = [
   {
     type: "folder",
-    key: "fees",
-    label: "Fee Management",
+    key: "finance",
+    label: "Finance",
     defaultOpen: true,
     children: [
       { type: "link", id: "collect" },

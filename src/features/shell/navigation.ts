@@ -178,7 +178,7 @@ export function navigationLabelForSection(section: string, role: Role) {
 export const subtitles: Record<string, string> = {
   dashboard: "A live view of people, learning, fees and school operations.",
   overview: "Today’s academic operations — cover, reviews, tests and results.",
-  sessions: "Academic years, activation and session-scoped setup.",
+  sessions: "Only one session can be marked as Current at a time.",
   subjects: "Subject catalog for the current session.",
   "teachers-assignments": "Teachers, subjects and class assignments.",
   timetable: "Periods, rooms and conflict-aware scheduling.",

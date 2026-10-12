@@ -13,6 +13,7 @@ import {
   AcademicSetup,
   Admissions,
   Classes,
+  Sessions,
   Examinations,
   Fees,
   Finance,
@@ -160,9 +161,10 @@ export function PortalShell() {
     if (role === "accountant") return <AccountantPortal section={section} />
     if (section === "overview")
       return <OperationsOverview onOpen={openSection} />
+    if (section === "sessions") return <Sessions />
     {
       const academicFocus = academicFocusForSection(section)
-      if (academicFocus) {
+      if (academicFocus && academicFocus !== "sessions") {
         return <AcademicSetup focusTab={academicFocus} />
       }
     }
