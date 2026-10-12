@@ -6,7 +6,7 @@ export function SectionPlaceholder({ section }: { section: string }) {
   return (
     <EmptyState
       title="Coming soon"
-      description={
+      detail={
         subtitles[section] ??
         "This area is part of the CLS SMS roadmap and will be available in a future release."
       }

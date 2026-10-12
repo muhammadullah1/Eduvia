@@ -31,8 +31,6 @@ import {
   writeAuthSession,
 } from "@/stores/auth-store"
 
-const AUTH_KEY = "eduvia-auth"
-
 export type AuthUser = {
   id: number
   fkSchoolId?: number
@@ -47,12 +45,6 @@ export type AuthSession = {
   role: Role
   token?: string
   user?: AuthUser | null
-}
-
-function normalizeRole(value: unknown): Role | null {
-  if (typeof value !== "string") return null
-  if ((ALL_ROLES as string[]).includes(value)) return value as Role
-  return LEGACY_ROLES[value] ?? null
 }
 
 export function roleFromSlug(slug: string | undefined): Role | null {

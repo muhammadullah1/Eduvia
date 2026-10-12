@@ -47,7 +47,6 @@ import { can } from "@/lib/permissions"
 
 import { academicFocusForSection } from "./academic-section"
 import { HeaderUserMenu } from "./header-user-menu"
-import { Logo } from "./logo"
 import { navigation, roles, sectionIds, subtitles } from "./navigation"
 import { PortalTopbar } from "./portal-topbar"
 import { SectionPlaceholder } from "./section-placeholder"
@@ -90,7 +89,7 @@ export function PortalShell() {
     navigation[role].find((item) => item.id === section) ?? navigation[role][0]
   const sessionLabel = useMemo(() => {
     const current = state.sessions.find((item) => item.current)
-    return current?.label ?? "2026–2027"
+    return current?.name ?? "2026–2027"
   }, [state.sessions])
   const useClsShell = CLS_SHELL_ROLES.has(role)
   const session = loadAuth()

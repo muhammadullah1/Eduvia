@@ -361,7 +361,7 @@ export function AdmissionWizard({
     setSaving(true)
     const save = await persistStepProgress()
     setSaving(false)
-    if ("error" in save && save.error) {
+    if ("error" in save && typeof save.error === "string") {
       toast.error(save.error)
       return
     }
@@ -1098,7 +1098,7 @@ export function AdmissionWizard({
                 <Label className="mb-1.5 block">Academic Session</Label>
                 <Input
                   readOnly
-                  value={currentSession?.label ?? "2026–2027"}
+                  value={currentSession?.name ?? "2026–2027"}
                 />
               </div>
               <div>

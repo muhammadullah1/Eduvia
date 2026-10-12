@@ -375,10 +375,16 @@ export async function fetchSchoolDataSlices(
   if (PORTAL_CORE_SLICES.some((slice) => want.has(slice))) {
     if (wantsOnlyClassesAndSessions(want)) {
       tasks.push(
-        fetchClassesAndSessions().then((slice) => Object.assign(partial, slice))
+        fetchClassesAndSessions().then((slice) => {
+          Object.assign(partial, slice)
+        })
       )
     } else {
-      tasks.push(fetchPortalCore().then((core) => Object.assign(partial, core)))
+      tasks.push(
+        fetchPortalCore().then((core) => {
+          Object.assign(partial, core)
+        })
+      )
     }
   }
   if (want.has("applications")) {

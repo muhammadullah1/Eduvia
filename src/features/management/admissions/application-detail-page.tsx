@@ -275,7 +275,7 @@ export function ApplicationDetailPage({
 
       <ConfirmDialog
         open={Boolean(confirm)}
-        onOpenChange={(open) => !open && onConfirmClose()}
+        onClose={onConfirmClose}
         title={
           confirm?.status === "Enrolled"
             ? "Enroll this student?"

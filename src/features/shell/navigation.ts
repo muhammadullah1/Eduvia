@@ -181,7 +181,8 @@ export const subtitles: Record<string, string> = {
   sessions: "Only one session can be marked as Current at a time.",
   subjects: "Subject catalog for the current session.",
   "teachers-assignments": "Teachers, subjects and class assignments.",
-  timetable: "Periods, rooms and conflict-aware scheduling.",
+  timetable:
+    "Periods, rooms and conflict-aware scheduling; parents see their child's weekly timetable here.",
   substitutes: "Mark absences and assign cover teachers.",
   "lesson-plan": "Planned chapters for daily teacher updates.",
   "daily-test-schedule": "Weekly test calendar and publishing.",
@@ -218,6 +219,5 @@ export const subtitles: Record<string, string> = {
   home: "Everything important about your child, in one place.",
   results: "Published examinations and downloadable report cards.",
   tests: "Published weekly test marks and the monthly outcome.",
-  timetable: "The weekly timetable for the selected child.",
   updates: "Approved lesson updates and school notices.",
 }

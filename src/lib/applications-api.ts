@@ -46,7 +46,7 @@ export function toApplicationApiBody(
     interviewResult: input.interviewResult || undefined,
     decision: input.decision || undefined,
     notes: input.notes || undefined,
-    documents: input.documents?.map((doc) => ({
+    documents: input.documents?.map((doc: Application["documents"][number]) => ({
       id: Number(doc.id) > 0 ? Number(doc.id) : undefined,
       label: doc.label,
       status: doc.status,

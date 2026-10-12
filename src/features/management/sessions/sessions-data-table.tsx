@@ -1,10 +1,8 @@
 import {
   ChevronDown,
   ChevronUp,
-  Download,
   Lock,
   MoreVertical,
-  Printer,
   Search,
 } from "lucide-react"
 
@@ -34,11 +32,11 @@ type Props = {
   search: string
   onSearchChange: (value: string) => void
   loading?: boolean
+  searchActive?: boolean
+  onClearSearch?: () => void
   onActivate?: (id: string) => void
   onEdit?: (row: SessionRow) => void
   onDelete?: (id: string) => void
-  onExport?: () => void
-  onPrint?: () => void
 }
 
 function SortHint() {
@@ -64,45 +62,25 @@ export function SessionsDataTable({
   search,
   onSearchChange,
   loading = false,
+  searchActive = false,
+  onClearSearch,
   onActivate,
   onEdit,
   onDelete,
-  onExport,
-  onPrint,
 }: Props) {
+  const showNoMatch = searchActive && !loading && rows.length === 0
+
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
-      <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-b border-[var(--cls-border)] px-4 py-3">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" />
           <Input
             value={search}
             onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search..."
+            placeholder="Search sessions…"
             className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
           />
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-[var(--cls-border)] text-[var(--cls-muted)]"
-            onClick={onExport}
-          >
-            <Download data-icon="inline-start" />
-            Export
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-[var(--cls-border)] text-[var(--cls-muted)]"
-            onClick={onPrint}
-          >
-            <Printer data-icon="inline-start" />
-            Print
-          </Button>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -131,13 +109,36 @@ export function SessionsDataTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {loading && rows.length === 0 ? (
+            {loading && rows.length === 0 && !showNoMatch ? (
               <TableRow>
                 <TableCell
                   colSpan={6}
                   className="h-24 text-center text-sm text-[var(--cls-muted)]"
                 >
                   Loading sessions…
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {showNoMatch ? (
+              <TableRow>
+                <TableCell colSpan={6} className="h-32">
+                  <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
+                    <p className="text-sm font-medium text-[var(--cls-ink)]">
+                      No sessions match your search
+                    </p>
+                    <p className="max-w-sm text-sm text-[var(--cls-muted)]">
+                      Try a different session name or date, or clear the search
+                      to see all sessions.
+                    </p>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={onClearSearch}
+                    >
+                      Clear search
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ) : null}

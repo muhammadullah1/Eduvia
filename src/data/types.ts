@@ -104,7 +104,7 @@ export type Student = {
   admittedOn: string
 }
 
-export type DocumentStatus = "Pending" | "Uploaded" | "Verified"
+export type DocumentStatus = "Pending" | "Uploaded" | "Verified" | "Rejected"
 
 export type AdmissionDocument = {
   id: string
@@ -138,6 +138,8 @@ export type Application = {
   submittedOn: string
   notes: string
 }
+
+export type ApplicationInput = Omit<Application, "id" | "status" | "submittedOn">
 
 export type FeeMonthStatus = "Paid" | "Partially Paid" | "Unpaid" | "Advance"
 

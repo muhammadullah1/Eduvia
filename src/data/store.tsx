@@ -10,7 +10,6 @@ import {
 } from "react"
 
 import {
-  fetchApplicationsList,
   fetchBackendState,
   fetchSchoolDataSlices,
 } from "@/data/backend-sync"
@@ -572,7 +571,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       actor: string
     ) => {
       if (!loadAuth()?.token) {
-        return { error: "Sign in to update applications." }
+        return "Sign in to update applications."
       }
       try {
         await patchApplication(id, toApplicationApiBody(input))
@@ -581,7 +580,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         commit((current) => ({
           next: withAudit(current, actor, `Updated application ${id}`),
         }))
-        return {}
+        return null
       } catch (err) {
         const message =
           err instanceof ApiHttpError
@@ -589,7 +588,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             : err instanceof Error
               ? err.message
               : "Could not update application."
-        return { error: message }
+        return message
       }
     },
     [commit]
@@ -606,10 +605,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       actor: string
     ) => {
       if (!loadAuth()?.token) {
-        return { error: "Sign in to submit applications." }
+        return "Sign in to submit applications."
       }
       if (!input.decision) {
-        return { error: "Choose Admit, Reject, or Waitlist before submitting." }
+        return "Choose Admit, Reject, or Waitlist before submitting."
       }
       try {
         await patchApplication(
@@ -639,7 +638,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             `Submitted application ${id} (${input.decision})`
           ),
         }))
-        return {}
+        return null
       } catch (err) {
         const message =
           err instanceof ApiHttpError
@@ -647,14 +646,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             : err instanceof Error
               ? err.message
               : "Submission failed."
-        return { error: message }
+        return message
       }
     },
     [commit, syncBackend]
   )
 
   const addApplication = useCallback(
-    (input: ApplicationInput, actor: string) => {
+    (input: ApplicationInput, _actor: string) => {
       if (
         !input.name.trim() ||
         !input.guardian.trim() ||
@@ -692,7 +691,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     async (id: string, status: Application["status"], actor: string) => {
       const application = state.applications.find((item) => item.id === id)
       if (!loadAuth()?.token) {
-        return { error: "Sign in to update application status." }
+        return "Sign in to update application status."
       }
       try {
         if (status === "Review") {
@@ -707,7 +706,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           }
           await enrollApplication(id)
         } else {
-          return { error: "Unsupported status change." }
+          return "Unsupported status change."
         }
         if (status === "Enrolled") {
           await syncBackend()
@@ -721,7 +720,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             `Marked application ${id} as ${status}`
           ),
         }))
-        return {}
+        return null
       } catch (err) {
         const message =
           err instanceof ApiHttpError
@@ -729,7 +728,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             : err instanceof Error
               ? err.message
               : "Could not update status."
-        return { error: message }
+        return message
       }
     },
     [commit, state.applications, syncBackend]

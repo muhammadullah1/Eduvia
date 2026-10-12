@@ -82,7 +82,7 @@ export function Admissions({ query }: { query: string }) {
 
   const sessionLabel = useMemo(() => {
     const current = state.sessions.find((session) => session.current)
-    return current?.label ?? "2026–2027"
+    return current?.name ?? "2026–2027"
   }, [state.sessions])
 
   function openApp(item: Application) {

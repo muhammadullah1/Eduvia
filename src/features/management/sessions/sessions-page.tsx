@@ -173,7 +173,7 @@ export function SessionsPage() {
             Try again
           </Button>
         </div>
-      ) : filtered.length === 0 && !isLoading ? (
+      ) : !isLoading && rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-16 text-center">
           <div className="flex size-12 items-center justify-center rounded-full bg-[var(--page-wash)] text-[var(--cls-brand)]">
             <CalendarDays className="size-6" />
@@ -200,11 +200,11 @@ export function SessionsPage() {
           search={search}
           onSearchChange={setSearch}
           loading={isLoading}
+          searchActive={Boolean(needle)}
+          onClearSearch={() => setSearch("")}
           onActivate={setActivateId}
           onEdit={(row) => setEditSession(row)}
           onDelete={setDeleteId}
-          onExport={() => toast.message("Export will connect to the API later.")}
-          onPrint={() => toast.message("Print will connect to the API later.")}
         />
       )}
 
