@@ -16,6 +16,7 @@ import { useSchool } from "@/data/store"
 import {
   AcademicSetup,
   Admissions,
+  Classes,
   Examinations,
   Fees,
   Finance,
@@ -150,6 +151,7 @@ export function PortalShell() {
     if (section === "overview")
       return <OperationsOverview onOpen={openSection} />
     if (section === "academic") return <AcademicSetup />
+    if (section === "classes") return <Classes query={query} />
     if (section === "curriculum") return <CurriculumPanel />
     if (section === "lesson-review") return <LessonReviewPanel />
     if (section === "admissions") return <Admissions query={query} />
@@ -247,7 +249,7 @@ export function PortalShell() {
                   <span>·</span>
                   <span>{roles[role].short}</span>
                 </div>
-                <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] dark:text-foreground">
+                <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] ">
                   {current.label}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">

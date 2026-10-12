@@ -1,5 +1,6 @@
-import { format, parseISO } from "date-fns"
+import { format, parseISO, subYears } from "date-fns"
 import { CalendarIcon } from "lucide-react"
+import { useMemo } from "react"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -10,6 +11,9 @@ import {
 } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
+/** Typical school admission age: calendar opens around 8 years ago. */
+const DEFAULT_ADMISSION_AGE_YEARS = 8
+
 type DatePickerProps = {
   value: string
   onChange: (value: string) => void
@@ -18,6 +22,8 @@ type DatePickerProps = {
   id?: string
   "aria-invalid"?: boolean
   className?: string
+  /** Years subtracted from today when no date is selected (default 8). */
+  defaultAgeYears?: number
 }
 
 function toDate(iso: string) {
@@ -37,8 +43,14 @@ export function DatePicker({
   id,
   "aria-invalid": ariaInvalid,
   className,
+  defaultAgeYears = DEFAULT_ADMISSION_AGE_YEARS,
 }: DatePickerProps) {
   const selected = toDate(value)
+
+  const defaultMonth = useMemo(() => {
+    if (selected) return selected
+    return subYears(new Date(), defaultAgeYears)
+  }, [selected, defaultAgeYears])
 
   return (
     <Popover>
@@ -50,8 +62,8 @@ export function DatePicker({
           disabled={disabled}
           aria-invalid={ariaInvalid}
           className={cn(
-            "w-full justify-start text-left font-normal",
-            !value && "text-muted-foreground",
+            "h-10 w-full justify-start border-[var(--cls-border)] bg-background text-left font-normal",
+            value ? "text-[var(--cls-ink)]" : "text-muted-foreground",
             className
           )}
         >
@@ -63,6 +75,7 @@ export function DatePicker({
         <Calendar
           mode="single"
           selected={selected}
+          defaultMonth={defaultMonth}
           onSelect={(date) => {
             onChange(date ? format(date, "yyyy-MM-dd") : "")
           }}

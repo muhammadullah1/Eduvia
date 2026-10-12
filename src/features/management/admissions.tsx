@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { toast } from "sonner"
+import { toast } from "@/lib/toast"
 
 import { StatusBadge } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
@@ -39,6 +39,9 @@ export function Admissions({ query }: { query: string }) {
     : ""
 
   const [openWizard, setOpenWizard] = useState(false)
+  const [resumeApplicationId, setResumeApplicationId] = useState<string | null>(
+    null
+  )
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
     null
@@ -138,6 +141,10 @@ export function Admissions({ query }: { query: string }) {
           classes={state.classes}
           sessionLabel={sessionLabel}
           onBack={closeDetails}
+          onContinueDraft={(id) => {
+            setResumeApplicationId(id)
+            setOpenWizard(true)
+          }}
           onReview={handleReview}
           onWaitlist={(id) => setConfirm({ id, status: "Waitlist" })}
           onEnroll={(id) => setConfirm({ id, status: "Enrolled" })}
@@ -152,13 +159,20 @@ export function Admissions({ query }: { query: string }) {
           sessionLabel={sessionLabel}
           globalQuery={query}
           onOpenApplication={openApp}
-          onNewApplication={() => setOpenWizard(true)}
+          onNewApplication={() => {
+            setResumeApplicationId(null)
+            setOpenWizard(true)
+          }}
         />
       )}
 
       <AdmissionWizard
         open={openWizard}
-        onOpenChange={setOpenWizard}
+        resumeApplicationId={resumeApplicationId}
+        onOpenChange={(value) => {
+          setOpenWizard(value)
+          if (!value) setResumeApplicationId(null)
+        }}
         onCompleted={(id) => {
           setSelectedAppId(id)
           setSelectedStudentId(null)

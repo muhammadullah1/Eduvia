@@ -11,6 +11,7 @@ import {
   GraduationCap,
   Landmark,
   LayoutDashboard,
+  Layers,
   LibraryBig,
   MessageSquareText,
   ReceiptText,
@@ -67,6 +68,7 @@ export const roles: Record<
 /** Shared by the super admin and the operations manager; fee sections are super-admin only. */
 const managementNav: { id: string; label: string; icon: Icon }[] = [
   { id: "academic", label: "Academic setup", icon: LibraryBig },
+  { id: "classes", label: "Classes", icon: Layers },
   { id: "curriculum", label: "Planned chapters", icon: BookOpen },
   { id: "lesson-review", label: "Lesson review", icon: ClipboardCheck },
   { id: "admissions", label: "Admissions", icon: Users },
@@ -130,7 +132,8 @@ export const sectionIds = Object.fromEntries(
 export const subtitles: Record<string, string> = {
   dashboard: "A live view of people, learning, fees and school operations.",
   overview: "Today’s academic operations — cover, reviews, tests and results.",
-  academic: "Sessions, classes, subjects and a conflict-aware timetable.",
+  academic: "Sessions, subjects and a conflict-aware timetable.",
+  classes: "Class sections for the current session — students, subjects, and status.",
   curriculum: "Plan the chapters teachers select in their daily updates.",
   "lesson-review": "Approve daily updates before parents can see them.",
   admissions: "Applications, enrollment and the student register.",
@@ -149,7 +152,6 @@ export const subtitles: Record<string, string> = {
   collect: "Record a payment; it clears the oldest unpaid month first.",
   collections: "Only the receipts you recorded, day by day.",
   today: "Your timetable for today, including substitute duties.",
-  classes: "Only the classes allocated to your profile.",
   attendance: "Mark and save attendance for an assigned class.",
   "daily-update": "Pick today’s planned chapter and send it for review.",
   notices: "Draft class notices for approval and parent visibility.",

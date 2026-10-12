@@ -11,7 +11,7 @@ const SUPER_ADMIN_GROUPS: NavGroup[] = [
   { itemIds: ["dashboard"] },
   {
     label: "Academic Management",
-    itemIds: ["academic", "curriculum", "lesson-review"],
+    itemIds: ["academic", "classes", "curriculum", "lesson-review"],
   },
   {
     label: "Student Management",
@@ -30,7 +30,7 @@ const OPERATIONS_GROUPS: NavGroup[] = [
   { itemIds: ["overview"] },
   {
     label: "Academic Management",
-    itemIds: ["academic", "curriculum", "lesson-review"],
+    itemIds: ["academic", "classes", "curriculum", "lesson-review"],
   },
   {
     label: "Student Management",

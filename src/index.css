@@ -3,7 +3,6 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-@custom-variant dark (&:is(.dark *));
 @theme inline {
   --font-heading: "Geist Variable", sans-serif; --font-sans: "Geist Variable", sans-serif;
   --color-success: var(--success); --color-warning: var(--warning); --color-sidebar-ring: var(--sidebar-ring); --color-sidebar-border: var(--sidebar-border);
@@ -59,7 +58,42 @@
   --sidebar-ring: #ffffff;
   --sidebar-inactive: #bacec4;
 }
-@layer base { * { @apply border-border outline-ring/50; } html { @apply font-sans antialiased; } body { @apply bg-background text-foreground; } button, [role="button"] { cursor: pointer; } ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); } }
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { @apply font-sans antialiased; }
+  body { @apply bg-background text-foreground; }
+  button, [role="button"] { cursor: pointer; }
+  input,
+  textarea,
+  select,
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="select-trigger"] {
+    @apply text-foreground caret-foreground;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--placeholder);
+    opacity: 1;
+  }
+  input::selection,
+  textarea::selection {
+    background: color-mix(in srgb, var(--cls-brand) 30%, white);
+    color: var(--cls-ink);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--cls-brand) 28%, white);
+    color: var(--cls-ink);
+  }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill {
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
+    transition: background-color 9999s ease-out 0s;
+  }
+}
 .login-canvas { background: radial-gradient(circle at 8% 15%, color-mix(in srgb, var(--primary-color) 14%, transparent), transparent 33%), radial-gradient(circle at 92% 85%, color-mix(in srgb, var(--blue-light) 70%, transparent), transparent 34%), var(--page-wash); }
 .brand-mark { background: var(--primary-color); }
 .school-grid { background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px); background-size: 42px 42px; mask-image: linear-gradient(to bottom right, black, transparent 75%); }

@@ -1,4 +1,3 @@
-import { useTheme } from "@/components/theme-provider"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import {
   DropdownMenu,
@@ -28,7 +27,6 @@ export function HeaderUserMenu({
   onLogout,
   variant = "cls",
 }: Props) {
-  const { theme, setTheme } = useTheme()
   const isCls = variant === "cls"
 
   return (
@@ -79,11 +77,6 @@ export function HeaderUserMenu({
         <DropdownMenuGroup>
           <DropdownMenuLabel>{userName}</DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          >
-            {theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={onLogout}>Sign out</DropdownMenuItem>
         </DropdownMenuGroup>
       </DropdownMenuContent>

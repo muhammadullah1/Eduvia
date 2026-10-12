@@ -1,6 +1,8 @@
 import { Check, Plus, X } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
-import { toast } from "sonner"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useGetApplication } from "@/features/management/admissions/hooks/use-admissions"
+import { applicationNumericId } from "@/lib/applications-api"
+import { toast } from "@/lib/toast"
 
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -79,9 +81,16 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onCompleted?: (applicationId: string) => void
+  /** When set, wizard loads and continues an existing draft from the API. */
+  resumeApplicationId?: string | null
 }
 
-export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
+export function AdmissionWizard({
+  open,
+  onOpenChange,
+  onCompleted,
+  resumeApplicationId = null,
+}: Props) {
   const {
     state,
     ensureAdmissionWizardData,
@@ -135,10 +144,79 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
     [state.sessions]
   )
 
+  const resumeNumericId = useMemo(() => {
+    if (!resumeApplicationId) return undefined
+    return applicationNumericId(resumeApplicationId) ?? undefined
+  }, [resumeApplicationId])
+
+  const { data: resumeApplication } = useGetApplication(
+    open ? resumeNumericId : undefined
+  )
+  const hydratedResumeIdRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (!open) return
     void ensureAdmissionWizardData()
   }, [open, ensureAdmissionWizardData])
+
+  useEffect(() => {
+    if (!open) {
+      hydratedResumeIdRef.current = null
+      return
+    }
+    if (!resumeApplication) return
+    if (hydratedResumeIdRef.current === resumeApplication.id) return
+    hydratedResumeIdRef.current = resumeApplication.id
+    setCreatedId(resumeApplication.id)
+    setDone(false)
+    setStudent({
+      name: resumeApplication.name,
+      dob: resumeApplication.dob,
+      gender: resumeApplication.gender,
+      phone: resumeApplication.phone,
+      email: resumeApplication.email ?? "",
+      address: resumeApplication.address,
+      previousSchool: resumeApplication.previousSchool,
+      previousClass: resumeApplication.previousClass,
+      classId: (resumeApplication.classId || state.classes[0]?.id) ?? "",
+    })
+    setGuardians([
+      {
+        id: `g-resume-${resumeApplication.id}`,
+        type: resumeApplication.guardianRelation || "Father",
+        name: resumeApplication.guardian || "",
+        phone: resumeApplication.phone,
+        whatsapp: "",
+        cnic: "",
+        occupation: "",
+        address: resumeApplication.guardianAddress || resumeApplication.address,
+        isPrimary: true,
+        isEmergency: false,
+      },
+    ])
+    if (resumeApplication.documents?.length) {
+      setDocuments(resumeApplication.documents.map((item) => ({ ...item })))
+    }
+    setInterview({
+      waived: resumeApplication.interviewType === "Waived",
+      date: resumeApplication.interviewDate,
+      type: resumeApplication.interviewType || "Interview",
+      evaluator: "",
+      score: resumeApplication.interviewScore,
+      remarks: resumeApplication.notes,
+      result: resumeApplication.interviewResult,
+    })
+    setDecision({
+      choice: resumeApplication.decision ?? "",
+      remarks: resumeApplication.notes,
+    })
+    setEnrollment({
+      classId: (resumeApplication.classId || state.classes[0]?.id) ?? "",
+      enrollDate: "",
+    })
+    setStep(0)
+    toast.message("Draft loaded — continue where you left off.")
+  }, [open, resumeApplication, state.classes])
 
   useEffect(() => {
     if (!createdId) return
@@ -399,12 +477,7 @@ export function AdmissionWizard({ open, onOpenChange, onCompleted }: Props) {
           </div>
         ) : null}
 
-        <div
-          className={cn(
-            "min-h-0 flex-1 bg-white px-6 py-5",
-            step >= 2 || done ? "overflow-y-auto" : "overflow-hidden"
-          )}
-        >
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-white px-4 py-4 sm:px-6 sm:py-5">
           {done ? (
             <div className="flex flex-col items-center py-8 text-center">
               <div className="mb-4 flex size-16 items-center justify-center rounded-full bg-[#e8f7ee]">

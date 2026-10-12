@@ -492,18 +492,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     [commit]
   )
 
-  const refreshApplications = useCallback(async () => {
-    try {
-      if (!loadAuth()?.token) return
-      const applications = await fetchApplicationsList()
-      commit((current) => ({
-        next: { ...current, applications },
-      }))
-    } catch (err) {
-      console.warn("Applications refresh failed:", err)
-    }
-  }, [commit])
-
   const syncPortalForRoute = useCallback(
     async (role: Role, section: string) => {
       if (!loadAuth()?.token) return
@@ -1079,27 +1067,30 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       simple((current) => {
         if (!input.grade.trim() || !input.section.trim())
           return { error: "Grade and section are required." }
-        const label = `${input.grade.trim()} · ${input.section.trim()}`
+        const session = current.sessions.find((item) => item.current)
+        const fkSessionId = session ? Number(session.id) : NaN
+        if (!Number.isFinite(fkSessionId)) {
+          return { error: "Activate an academic session before adding classes." }
+        }
+        const grade = input.grade.trim()
+        const section = input.section.trim()
+        const label =
+          section === "Main" || section === "General"
+            ? grade
+            : `${grade} · ${section}`
         if (
           current.classes.some(
             (item) => item.label.toLowerCase() === label.toLowerCase()
           )
         )
           return { error: "That class section already exists." }
-        const klass: ClassSection = {
-          id: uid("cl"),
-          label,
-          grade: input.grade.trim(),
-          section: input.section.trim(),
-          room: input.room.trim() || "Unassigned",
-          periodCount: Math.max(1, Number(input.periodCount) || 8),
-          monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500),
-        }
 
-        api
+        void api
           .post("/classes", {
-            grade: input.grade.trim(),
-            section: input.section.trim(),
+            fkSessionId,
+            grade,
+            section,
+            label,
             room: input.room.trim() || "Unassigned",
             periodCount: Math.max(1, Number(input.periodCount) || 8),
             monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500),
@@ -1109,7 +1100,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
         return {
           next: withAudit(
-            { ...current, classes: [...current.classes, klass] },
+            current,
             actor,
             `Added class ${label}`
           ),

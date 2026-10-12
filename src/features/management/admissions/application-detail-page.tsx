@@ -21,6 +21,7 @@ type Props = {
   classes: ClassSection[]
   sessionLabel: string
   onBack: () => void
+  onContinueDraft?: (id: string) => void
   onReview: (id: string) => void
   onWaitlist: (id: string) => void
   onEnroll: (id: string) => void
@@ -44,6 +45,7 @@ export function ApplicationDetailPage({
   classes,
   sessionLabel,
   onBack,
+  onContinueDraft,
   onReview,
   onWaitlist,
   onEnroll,
@@ -53,6 +55,7 @@ export function ApplicationDetailPage({
   onConfirm,
 }: Props) {
   const uiStatus = resolveAdmissionUiStatus(application)
+  const isDraft = uiStatus === "draft"
   const canAct =
     application.status !== "Enrolled" && application.status !== "Rejected"
 
@@ -100,7 +103,18 @@ export function ApplicationDetailPage({
               </p>
             </div>
           </div>
-          {canAct || application.status === "New" ? (
+          {isDraft && onContinueDraft ? (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+                onClick={() => onContinueDraft(application.id)}
+              >
+                Continue application
+              </Button>
+            </div>
+          ) : null}
+          {!isDraft && (canAct || application.status === "New") ? (
             <div className="flex flex-wrap gap-2">
               {application.status === "New" ? (
                 <Button

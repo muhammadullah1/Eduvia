@@ -120,6 +120,7 @@ export type Application = {
   classDisplay?: string
   guardian: string
   phone: string
+  email?: string
   dob: string
   gender: "Female" | "Male"
   address: string

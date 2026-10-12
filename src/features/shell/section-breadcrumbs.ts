@@ -4,6 +4,7 @@ const CRUMBS: Record<string, string[]> = {
   dashboard: ["Dashboard"],
   overview: ["Operations"],
   academic: ["Academic Management", "Academic setup"],
+  classes: ["Academic Management", "Classes"],
   curriculum: ["Academic Management", "Planned chapters"],
   "lesson-review": ["Academic Management", "Lesson review"],
   admissions: ["Student Management", "Admissions"],

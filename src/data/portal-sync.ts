@@ -47,6 +47,7 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   fees: ["students", "feeMonths", "payments"],
   finance: ["expenses", "payments"],
   academic: ["staff", "slots"],
+  classes: ["students", "slots"],
   curriculum: ["plannedChapters"],
   "lesson-review": ["dailyLessons"],
   absences: ["teacherAbsences", "substitutions"],

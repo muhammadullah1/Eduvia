@@ -1,5 +1,6 @@
 export { AcademicSetup } from "./academic-setup"
 export { Admissions } from "./admissions"
+export { Classes } from "./classes"
 export { ManagementDashboard } from "./dashboard"
 export { Examinations } from "./examinations"
 export { Fees } from "./fees"

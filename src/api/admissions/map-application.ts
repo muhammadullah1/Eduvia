@@ -10,6 +10,7 @@ export function mapApplicationDto(dto: ApplicationDto): Application {
     classDisplay: dto.gradeApplyingFor || undefined,
     guardian: dto.guardian ?? "",
     phone: dto.phone ?? "",
+    email: dto.email ?? "",
     dob: dto.dob ? String(dto.dob).slice(0, 10) : "",
     gender: dto.gender === "Male" ? "Male" : "Female",
     address: dto.address ?? "",
