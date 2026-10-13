@@ -14,6 +14,8 @@ import {
   Admissions,
   Classes,
   Sessions,
+  Subjects,
+  Timetable,
   Examinations,
   Fees,
   Finance,
@@ -161,6 +163,8 @@ export function PortalShell() {
     if (section === "overview")
       return <OperationsOverview onOpen={openSection} />
     if (section === "sessions") return <Sessions />
+    if (section === "subjects") return <Subjects query={query} />
+    if (section === "timetable") return <Timetable />
     {
       const academicFocus = academicFocusForSection(section)
       if (academicFocus && academicFocus !== "sessions") {

@@ -1,36 +1,30 @@
+import { ExternalLink } from "lucide-react"
+
 import type { TimetableSlot } from "@/data/types"
-import { cn } from "@/lib/utils"
-
-const DAY_ORDER = [
-  "Monday",
-  "Tuesday",
-  "Wednesday",
-  "Thursday",
-  "Friday",
-  "Saturday",
-  "Sunday",
-]
-
-function sortDay(a: string, b: string) {
-  const ia = DAY_ORDER.findIndex((d) => d.toLowerCase() === a.toLowerCase())
-  const ib = DAY_ORDER.findIndex((d) => d.toLowerCase() === b.toLowerCase())
-  return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib)
-}
+import { Button } from "@/components/ui/button"
+import { TimetableClassGrid } from "@/features/management/timetable/timetable-class-grid"
+import type { PeriodTimeMap } from "@/lib/timetable-period-times"
 
 type Props = {
+  classId: string
   slots: TimetableSlot[]
   loading?: boolean
   error?: boolean
   onRetry?: () => void
   periodCount: number
+  periodTimes: PeriodTimeMap
+  onManageTimetable?: () => void
 }
 
 export function ClassDetailTimetableTab({
+  classId,
   slots,
   loading,
   error,
   onRetry,
   periodCount,
+  periodTimes,
+  onManageTimetable,
 }: Props) {
   if (loading) {
     return (
@@ -46,9 +40,6 @@ export function ClassDetailTimetableTab({
         <p className="text-sm font-medium text-[var(--cls-ink)]">
           Could not load timetable
         </p>
-        <p className="mt-1 text-sm text-[var(--cls-muted)]">
-          Check your connection and try again.
-        </p>
         {onRetry ? (
           <button
             type="button"
@@ -62,99 +53,33 @@ export function ClassDetailTimetableTab({
     )
   }
 
-  if (slots.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-14 text-center">
-        <p className="text-sm font-medium text-[var(--cls-ink)]">
-          No timetable yet
-        </p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-[var(--cls-muted)]">
-          Add periods for this class under Academic Management → Timetable. This
-          class is configured for {periodCount} periods per day.
-        </p>
-      </div>
-    )
-  }
-
-  const days = [...new Set(slots.map((s) => s.day))].sort(sortDay)
-  const maxPeriod = Math.max(
-    periodCount,
-    ...slots.map((s) => s.periodIndex),
-    1
-  )
-
-  const byDayPeriod = new Map<string, TimetableSlot>()
-  for (const slot of slots) {
-    byDayPeriod.set(`${slot.day}-${slot.periodIndex}`, slot)
-  }
-
   return (
-    <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] border-collapse text-left">
-          <thead>
-            <tr className="border-b border-[var(--cls-border)] bg-[var(--page-wash)]/90">
-              <th className="px-4 py-3 text-xs font-semibold text-[var(--cls-muted)]">
-                Period
-              </th>
-              {days.map((day) => (
-                <th
-                  key={day}
-                  className="px-3 py-3 text-xs font-semibold text-[var(--cls-muted)]"
-                >
-                  {day}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {Array.from({ length: maxPeriod }, (_, i) => i + 1).map(
-              (period) => (
-                <tr
-                  key={period}
-                  className="border-b border-[var(--cls-border)] last:border-0"
-                >
-                  <td className="px-4 py-3 text-xs font-medium text-[var(--cls-muted)]">
-                    {period}
-                  </td>
-                  {days.map((day) => {
-                    const slot = byDayPeriod.get(`${day}-${period}`)
-                    return (
-                      <td key={day} className="px-3 py-2 align-top">
-                        {slot ? (
-                          <div
-                            className={cn(
-                              "rounded-md border border-[var(--cls-border)] bg-[var(--page-wash)]/60 px-2.5 py-2"
-                            )}
-                          >
-                            <p className="text-[13px] font-medium text-[var(--cls-ink)]">
-                              {slot.subject}
-                            </p>
-                            {slot.teacher ? (
-                              <p className="mt-0.5 text-[11px] text-[var(--cls-muted)]">
-                                {slot.teacher}
-                              </p>
-                            ) : null}
-                            {slot.time ? (
-                              <p className="mt-0.5 text-[10px] tabular-nums text-[var(--cls-muted)]">
-                                {slot.time}
-                              </p>
-                            ) : null}
-                          </div>
-                        ) : (
-                          <span className="text-xs text-[var(--cls-muted)]">
-                            —
-                          </span>
-                        )}
-                      </td>
-                    )
-                  })}
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[13px] text-[var(--cls-muted)]">
+          Weekly preview for this class. Edit period times and assign subjects on
+          the Timetable page.
+        </p>
+        {onManageTimetable ? (
+          <Button
+            type="button"
+            size="sm"
+            className="shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+            onClick={onManageTimetable}
+          >
+            <ExternalLink data-icon="inline-start" />
+            Open timetable
+          </Button>
+        ) : null}
       </div>
+      <TimetableClassGrid
+        classId={classId}
+        slots={slots}
+        periodCount={periodCount}
+        periodTimes={periodTimes}
+        onPeriodTimesChange={() => undefined}
+        editablePeriodTimes={false}
+      />
     </div>
   )
 }

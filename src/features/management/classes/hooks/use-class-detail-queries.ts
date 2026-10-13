@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, type QueryClient } from "@tanstack/react-query"
 
 import feesService from "@/api/fees/fees.service"
 import { FEE_MONTHS_QUERY_KEY } from "@/api/fees/constants"
@@ -34,6 +34,17 @@ export function useClassStudentsQuery(
       const rows = data.students ?? []
       return rows.map(mapStudentDto)
     },
+  })
+}
+
+export function invalidateClassTimetable(
+  queryClient: QueryClient,
+  classId: string | undefined
+) {
+  const numericId = classNumericId(classId)
+  if (!numericId) return
+  return queryClient.invalidateQueries({
+    queryKey: [TIMETABLE_QUERY_KEY, "by-class", numericId],
   })
 }
 

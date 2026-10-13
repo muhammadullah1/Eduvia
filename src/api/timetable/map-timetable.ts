@@ -6,10 +6,18 @@ export function mapTimetableSlotDto(dto: ApiTimetableSlot): TimetableSlot {
     id: String(dto.id),
     classId: String(dto.fkClassId),
     day: dto.day || "",
-    time: String(dto.time || "").slice(0, 5),
+    time: String(
+      dto.time ?? (dto as { startTime?: string }).startTime ?? ""
+    ).slice(0, 5),
     periodIndex: Number(dto.periodIndex) || 1,
+    subjectId: dto.subject?.id != null ? String(dto.subject.id) : undefined,
     subject: dto.subject?.name ?? "",
-    teacherId: String(dto.fkTeacherId ?? dto.teacher?.id ?? ""),
+    teacherId:
+      dto.fkTeacherId != null
+        ? String(dto.fkTeacherId)
+        : dto.teacher?.id != null
+          ? String(dto.teacher.id)
+          : "",
     teacher: dto.teacher?.user
       ? `${dto.teacher.user.firstName} ${dto.teacher.user.lastName}`.trim()
       : "",

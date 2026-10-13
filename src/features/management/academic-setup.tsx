@@ -96,7 +96,7 @@ export function AcademicSetup({
       : ""
   const classId = selectedClassId || validUrlClass || state.classes[0]?.id || ""
   const portalSection = academicPortalSectionForTab(focusTab)
-  const tab = classFromUrl && focusTab === "timetable" ? "timetable" : focusTab
+  const tab = focusTab
   const teachers = state.staff.filter((person) => person.role === "Teacher")
   const [slotForm, setSlotForm] = useState({
     day: "Monday",
@@ -709,13 +709,7 @@ export function AcademicSetup({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      {[
-                        "Monday",
-                        "Tuesday",
-                        "Wednesday",
-                        "Thursday",
-                        "Friday",
-                      ].map((day) => (
+                      {WEEKDAYS.map((day) => (
                         <SelectItem key={day} value={day}>
                           {day}
                         </SelectItem>

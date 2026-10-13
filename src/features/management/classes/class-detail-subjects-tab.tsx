@@ -6,14 +6,14 @@ import {
   subjectTeachersLabel,
   type ClassSubjectRow,
 } from "@/api/timetable/map-timetable"
-import { toast } from "@/lib/toast"
-
 type Props = {
   className: string
   subjects: ClassSubjectRow[]
   loading?: boolean
   error?: boolean
   onRetry?: () => void
+  onSchedulePeriod?: () => void
+  onOpenTimetable?: () => void
 }
 
 function StatTile({ label, value }: { label: string; value: string }) {
@@ -108,6 +108,8 @@ export function ClassDetailSubjectsTab({
   loading,
   error,
   onRetry,
+  onSchedulePeriod,
+  onOpenTimetable,
 }: Props) {
   const stats = subjectSummaryStats(subjects)
 
@@ -144,17 +146,29 @@ export function ClassDetailSubjectsTab({
         <p className="text-[13px] text-[var(--cls-muted)]">
           Timetable subjects for {className}
         </p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-9 shrink-0 px-4 text-[13px] font-medium border-[var(--cls-border)] text-[var(--cls-brand)] hover:bg-[var(--cls-brand)]/5 hover:text-[var(--cls-brand)]"
-          onClick={() =>
-            toast.message("Open Academic Management → Timetable to edit slots.")
-          }
-        >
-          Manage timetable
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {onSchedulePeriod ? (
+            <Button
+              type="button"
+              size="sm"
+              className="h-9 shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+              onClick={onSchedulePeriod}
+            >
+              Assign subject
+            </Button>
+          ) : null}
+          {onOpenTimetable ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 px-4 text-[13px] font-medium border-[var(--cls-border)] text-[var(--cls-brand)] hover:bg-[var(--cls-brand)]/5 hover:text-[var(--cls-brand)]"
+              onClick={onOpenTimetable}
+            >
+              Open timetable
+            </Button>
+          ) : null}
+        </div>
       </div>
 
       {subjects.length > 0 ? (
@@ -166,9 +180,23 @@ export function ClassDetailSubjectsTab({
       ) : null}
 
       {subjects.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-12 text-center text-sm text-[var(--cls-muted)]">
-          No subjects on the timetable for this class yet. Add periods in the
-          weekly timetable to see subjects here.
+        <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-12 text-center">
+          <p className="text-sm font-medium text-[var(--cls-ink)]">
+            No subjects assigned yet
+          </p>
+          <p className="mx-auto mt-2 max-w-md text-sm text-[var(--cls-muted)]">
+            Schedule catalog subjects on this class&apos;s weekly timetable to
+            see them here.
+          </p>
+          {onSchedulePeriod ? (
+            <Button
+              type="button"
+              className="mt-4 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+              onClick={onSchedulePeriod}
+            >
+              Assign subject
+            </Button>
+          ) : null}
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">

@@ -352,6 +352,7 @@ export type TimetableSlot = {
   time: string
   /** 1-based period index within the class period_count. */
   periodIndex: number
+  subjectId?: string
   subject: string
   teacherId: string
   /** Display name of the teacher. */
