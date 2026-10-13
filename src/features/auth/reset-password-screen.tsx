@@ -9,9 +9,9 @@ import {
   AuthCanvas,
   AuthCard,
   AuthError,
+  authInputClassName,
   AuthLabel,
   AuthSubmit,
-  authInputClassName,
   BackToLogin,
   RequiredMark,
 } from "./auth-shell"

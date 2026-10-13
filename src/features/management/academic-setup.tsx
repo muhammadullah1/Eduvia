@@ -31,16 +31,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { useSchool } from "@/data/store"
 import { type Staff } from "@/data/types"
 import { WEEKDAYS } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 
+import {
+  academicPortalSectionForTab,
+  type AcademicFocusTab,
+} from "@/features/shell/academic-section"
+
 import { TeacherSubjectDialog } from "./teacher-subject-dialog"
 
-export function AcademicSetup() {
+export function AcademicSetup({
+  focusTab = "sessions",
+}: {
+  focusTab?: AcademicFocusTab
+}) {
   const {
     state,
     addSession,
@@ -86,8 +95,8 @@ export function AcademicSetup() {
       ? classFromUrl
       : ""
   const classId = selectedClassId || validUrlClass || state.classes[0]?.id || ""
-  const [selectedTab, setSelectedTab] = useState<string | null>(null)
-  const tab = selectedTab ?? (classFromUrl ? "timetable" : "sessions")
+  const portalSection = academicPortalSectionForTab(focusTab)
+  const tab = classFromUrl && focusTab === "timetable" ? "timetable" : focusTab
   const teachers = state.staff.filter((person) => person.role === "Teacher")
   const [slotForm, setSlotForm] = useState({
     day: "Monday",
@@ -113,26 +122,11 @@ export function AcademicSetup() {
 
   function selectClass(id: string) {
     setSelectedClassId(id)
-    setSelectedTab("timetable")
-    navigate(portalPath(actor.role, "academic", `classes/${id}`))
-  }
-
-  function handleTabChange(nextTab: string) {
-    setSelectedTab(nextTab)
-    if (nextTab !== "timetable" && classFromUrl) {
-      navigate(portalPath(actor.role, "academic"))
-    }
+    navigate(portalPath(actor.role, portalSection, `classes/${id}`))
   }
 
   return (
-    <Tabs value={tab} onValueChange={handleTabChange} className="grid gap-5">
-      <TabsList className="h-10 flex-wrap">
-        <TabsTrigger value="sessions">Sessions</TabsTrigger>
-        <TabsTrigger value="classes">Classes</TabsTrigger>
-        <TabsTrigger value="subjects">Subjects</TabsTrigger>
-        <TabsTrigger value="teachers">Teachers</TabsTrigger>
-        <TabsTrigger value="timetable">Timetable</TabsTrigger>
-      </TabsList>
+    <Tabs value={tab} className="grid gap-5">
       <TabsContent
         value="sessions"
         className="grid gap-4 lg:grid-cols-[320px_1fr]"

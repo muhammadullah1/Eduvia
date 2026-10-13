@@ -104,7 +104,7 @@ export type Student = {
   admittedOn: string
 }
 
-export type DocumentStatus = "Pending" | "Uploaded" | "Verified"
+export type DocumentStatus = "Pending" | "Uploaded" | "Verified" | "Rejected"
 
 export type AdmissionDocument = {
   id: string
@@ -116,8 +116,11 @@ export type Application = {
   id: string
   name: string
   classId: string
+  /** Grade/class label from API when class list is not loaded yet. */
+  classDisplay?: string
   guardian: string
   phone: string
+  email?: string
   dob: string
   gender: "Female" | "Male"
   address: string
@@ -135,6 +138,8 @@ export type Application = {
   submittedOn: string
   notes: string
 }
+
+export type ApplicationInput = Omit<Application, "id" | "status" | "submittedOn">
 
 export type FeeMonthStatus = "Paid" | "Partially Paid" | "Unpaid" | "Advance"
 

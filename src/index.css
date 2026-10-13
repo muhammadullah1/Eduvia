@@ -3,7 +3,6 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-@custom-variant dark (&:is(.dark *));
 @theme inline {
   --font-heading: "Geist Variable", sans-serif; --font-sans: "Geist Variable", sans-serif;
   --color-success: var(--success); --color-warning: var(--warning); --color-sidebar-ring: var(--sidebar-ring); --color-sidebar-border: var(--sidebar-border);
@@ -27,9 +26,20 @@
   --secondary-color: #F0FDFA;
   --blue: #2563EB;
   --blue-light: #EFF6FF;
-  --page-wash: #F8FAFC;
+  --page-wash: #f6f8fa;
+  /* CLS admissions / main content (Figma) — sidebar tokens unchanged */
+  --cls-brand: #1a5c3a;
+  --cls-brand-hover: #144a2f;
+  --cls-border: #e3e8ee;
+  --cls-ink: #1f3027;
+  --cls-muted: #667085;
+  --cls-profile-ink: #20392c;
+  --cls-session-bg: #e8f7ee;
+  --cls-session-border: #a8d5bc;
+  --cls-role-bg: #fef9ec;
+  --cls-role-border: #c9a227;
   --heading: #0F172A;
-  --placeholder: #64748B;
+  --placeholder: #94a3b8;
   --warning: #D97706;
   --warning-light: #FFFBEB;
   --success-light: #F0FDF4;
@@ -42,11 +52,54 @@
   --accent: #EFF6FF; --accent-foreground: #2563EB; --destructive: #DC2626; --success: #16A34A;
   --border: #E2E8F0; --input: #E2E8F0; --ring: #0F766E; --chart-1: #0F766E;
   --chart-2: #2563EB; --chart-3: #D97706; --chart-4: #DC2626; --chart-5: #16A34A; --radius: .5rem;
-  /* Teal brand sidebar */
-  --sidebar: #0F766E; --sidebar-foreground: #CCFBF1; --sidebar-primary: #FFFFFF; --sidebar-primary-foreground: #0F766E;
-  --sidebar-accent: #115E59; --sidebar-accent-foreground: #FFFFFF; --sidebar-border: #0D9488; --sidebar-ring: #FFFFFF;
+  /* CLS management shell (Figma Admissions) */
+  --sidebar: #1a5c3a;
+  --sidebar-foreground: #bacec4;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #1a5c3a;
+  --sidebar-accent: rgba(255, 255, 255, 0.1);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255, 255, 255, 0.1);
+  --sidebar-ring: #ffffff;
+  --sidebar-inactive: #bacec4;
 }
-@layer base { * { @apply border-border outline-ring/50; } html { @apply font-sans antialiased; } body { @apply bg-background text-foreground; } button, [role="button"] { cursor: pointer; } ::selection { background: color-mix(in oklab, var(--accent) 35%, transparent); } }
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  html { @apply font-sans antialiased; }
+  body { @apply bg-background text-foreground; }
+  button, [role="button"] { cursor: pointer; }
+  input,
+  textarea,
+  select,
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="select-trigger"] {
+    @apply text-foreground caret-foreground;
+  }
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--placeholder);
+    font-weight: 400;
+    opacity: 1;
+  }
+  input::selection,
+  textarea::selection {
+    background: color-mix(in srgb, var(--cls-brand) 30%, white);
+    color: var(--cls-ink);
+  }
+  ::selection {
+    background: color-mix(in srgb, var(--cls-brand) 28%, white);
+    color: var(--cls-ink);
+  }
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill {
+    -webkit-text-fill-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--background) inset;
+    transition: background-color 9999s ease-out 0s;
+  }
+}
 .login-canvas { background: radial-gradient(circle at 8% 15%, color-mix(in srgb, var(--primary-color) 14%, transparent), transparent 33%), radial-gradient(circle at 92% 85%, color-mix(in srgb, var(--blue-light) 70%, transparent), transparent 34%), var(--page-wash); }
 .brand-mark { background: var(--primary-color); }
 .school-grid { background-image: linear-gradient(rgba(255,255,255,.08) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.08) 1px, transparent 1px); background-size: 42px 42px; mask-image: linear-gradient(to bottom right, black, transparent 75%); }

@@ -3,11 +3,18 @@ import "./index.css"
 import { StrictMode } from "react"
 import { createRoot } from "react-dom/client"
 
-import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
 import { TooltipProvider } from "@/components/ui/tooltip"
 
 import App from "./App.tsx"
+
+document.documentElement.classList.remove("dark")
+document.documentElement.classList.add("light")
+try {
+  localStorage.removeItem("creative-leaders-theme")
+} catch {
+  /* ignore */
+}
 
 const rootElement = document.getElementById("root")
 if (!rootElement) {
@@ -16,11 +23,9 @@ if (!rootElement) {
 
 createRoot(rootElement).render(
   <StrictMode>
-    <ThemeProvider defaultTheme="light" storageKey="creative-leaders-theme">
-      <TooltipProvider>
-        <App />
-        <Toaster richColors position="top-right" />
-      </TooltipProvider>
-    </ThemeProvider>
+    <TooltipProvider>
+      <App />
+      <Toaster />
+    </TooltipProvider>
   </StrictMode>
 )

@@ -11,7 +11,7 @@ export function Heading({
 }) {
   return (
     <div className={cn("space-y-1", className)}>
-      <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] dark:text-foreground">
+      <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] ">
         {title}
       </h1>
       {detail ? (

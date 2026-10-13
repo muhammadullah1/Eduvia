@@ -4,13 +4,24 @@ import {
   type ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useMemo,
   useRef,
   useState,
 } from "react"
 
-import { fetchBackendState } from "@/data/backend-sync"
+import {
+  fetchBackendState,
+  fetchSchoolDataSlices,
+} from "@/data/backend-sync"
+import {
+  invalidateAdmissionDetail,
+  invalidateAdmissionsLists,
+} from "@/lib/invalidate-admissions"
+import {
+  ADMISSION_WIZARD_SLICES,
+  resolvePortalSyncPlan,
+} from "@/data/portal-sync"
+import { portalSyncKey, runPortalSyncOnce } from "@/data/portal-sync-flight"
 import {
   type AcademicSession,
   type Application,
@@ -42,8 +53,17 @@ import {
   weekOfMonth,
 } from "@/lib/academics"
 import type { Actor } from "@/lib/actor"
-import { api } from "@/lib/api"
-import { loadAuth } from "@/lib/auth"
+import {
+  createApplicationDraft,
+  decideApplication,
+  enrollApplication,
+  patchApplication,
+  reviewApplication,
+  submitApplication,
+  toApplicationApiBody,
+} from "@/lib/applications-api"
+import { api, ApiHttpError } from "@/lib/api"
+import { type Role, loadAuth } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
 import {
   allocateOldestFirst,
@@ -78,15 +98,38 @@ export type RecordPaymentInput = {
 
 type SchoolContextValue = {
   state: SchoolState
+  syncPortalForRoute: (role: Role, section: string) => Promise<void>
+  ensureAdmissionWizardData: () => Promise<void>
   addApplication: (
     input: ApplicationInput,
     actor: string
   ) => { id: string } | { error: string }
+  persistApplicationDraft: (
+    input: Partial<ApplicationInput> & { email?: string },
+    actor: string
+  ) => Promise<{ id: string } | { error: string }>
+  patchApplicationRecord: (
+    id: string,
+    input: Partial<ApplicationInput> & {
+      email?: string
+      decision?: Application["decision"]
+    },
+    actor: string
+  ) => Promise<Result>
+  finalizeApplication: (
+    id: string,
+    input: {
+      decision: Application["decision"]
+      remarks?: string
+      payload: Partial<ApplicationInput> & { email?: string }
+    },
+    actor: string
+  ) => Promise<Result>
   setApplicationStatus: (
     id: string,
     status: Application["status"],
     actor: string
-  ) => Result
+  ) => Promise<Result>
   updateStudent: (
     id: string,
     patch: Partial<Pick<Student, "status" | "classId" | "phone" | "guardian">>,
@@ -422,19 +465,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  useEffect(() => {
-    let active = true
-    const runSync = () => {
-      if (active) void syncBackend()
-    }
-    runSync()
-    window.addEventListener("eduvia:auth-changed", runSync)
-    return () => {
-      active = false
-      window.removeEventListener("eduvia:auth-changed", runSync)
-    }
-  }, [syncBackend])
-
   /** Runs a pure transition against the latest state and commits it synchronously. */
   const commit = useCallback(
     <T,>(
@@ -461,8 +491,169 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     [commit]
   )
 
+  const syncPortalForRoute = useCallback(
+    async (role: Role, section: string) => {
+      if (!loadAuth()?.token) return
+      const plan = resolvePortalSyncPlan(role, section)
+      const key = portalSyncKey(role, section, plan)
+      await runPortalSyncOnce(key, async () => {
+        try {
+          if (plan.mode === "full") {
+            await syncBackend()
+            return
+          }
+          const partial = await fetchSchoolDataSlices(plan.slices)
+          commit((current) => ({
+            next: { ...current, ...partial },
+          }))
+        } catch (err) {
+          console.warn("Portal sync failed:", err)
+        }
+      })
+    },
+    [commit, syncBackend]
+  )
+
+  const ensureAdmissionWizardData = useCallback(async () => {
+    if (!loadAuth()?.token) return
+    const key = `admission-wizard:${ADMISSION_WIZARD_SLICES.join(",")}`
+    await runPortalSyncOnce(key, async () => {
+      try {
+        const partial = await fetchSchoolDataSlices(ADMISSION_WIZARD_SLICES)
+        commit((current) => ({
+          next: { ...current, ...partial },
+        }))
+      } catch (err) {
+        console.warn("Admission wizard data load failed:", err)
+      }
+    })
+  }, [commit])
+
+  const persistApplicationDraft = useCallback(
+    async (
+      input: Partial<ApplicationInput> & { email?: string },
+      actor: string
+    ) => {
+      if (!loadAuth()?.token) {
+        return { error: "Sign in to save admission applications." }
+      }
+      try {
+        const id = await createApplicationDraft(toApplicationApiBody(input))
+        await invalidateAdmissionsLists()
+        commit((current) => ({
+          next: withAudit(
+            current,
+            actor,
+            `Started admission draft ${id}`
+          ),
+        }))
+        return { id }
+      } catch (err) {
+        const message =
+          err instanceof ApiHttpError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Could not save draft."
+        return { error: message }
+      }
+    },
+    [commit]
+  )
+
+  const patchApplicationRecord = useCallback(
+    async (
+      id: string,
+      input: Partial<ApplicationInput> & {
+        email?: string
+        decision?: Application["decision"]
+      },
+      actor: string
+    ) => {
+      if (!loadAuth()?.token) {
+        return "Sign in to update applications."
+      }
+      try {
+        await patchApplication(id, toApplicationApiBody(input))
+        await invalidateAdmissionsLists()
+        await invalidateAdmissionDetail(id)
+        commit((current) => ({
+          next: withAudit(current, actor, `Updated application ${id}`),
+        }))
+        return null
+      } catch (err) {
+        const message =
+          err instanceof ApiHttpError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Could not update application."
+        return message
+      }
+    },
+    [commit]
+  )
+
+  const finalizeApplication = useCallback(
+    async (
+      id: string,
+      input: {
+        decision: Application["decision"]
+        remarks?: string
+        payload: Partial<ApplicationInput> & { email?: string }
+      },
+      actor: string
+    ) => {
+      if (!loadAuth()?.token) {
+        return "Sign in to submit applications."
+      }
+      if (!input.decision) {
+        return "Choose Admit, Reject, or Waitlist before submitting."
+      }
+      try {
+        await patchApplication(
+          id,
+          toApplicationApiBody({
+            ...input.payload,
+            decision: input.decision,
+            notes: input.remarks,
+          })
+        )
+        await submitApplication(id)
+        await decideApplication(
+          id,
+          input.decision as "Admit" | "Reject" | "Waitlist",
+          input.remarks
+        )
+        if (input.decision === "Admit") {
+          await enrollApplication(id)
+        }
+        await syncBackend()
+        await invalidateAdmissionsLists()
+        await invalidateAdmissionDetail(id)
+        commit((current) => ({
+          next: withAudit(
+            current,
+            actor,
+            `Submitted application ${id} (${input.decision})`
+          ),
+        }))
+        return null
+      } catch (err) {
+        const message =
+          err instanceof ApiHttpError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Submission failed."
+        return message
+      }
+    },
+    [commit, syncBackend]
+  )
+
   const addApplication = useCallback(
-    (input: ApplicationInput, actor: string) => {
+    (input: ApplicationInput, _actor: string) => {
       if (
         !input.name.trim() ||
         !input.guardian.trim() ||
@@ -473,130 +664,74 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           error: "Name, date of birth, guardian and phone are required.",
         }
       }
-      const application: Application = {
-        ...input,
-        name: input.name.trim(),
-        guardian: input.guardian.trim(),
-        gender: input.gender || "Female",
-        address: input.address || "",
-        previousSchool: input.previousSchool || "",
-        previousClass: input.previousClass || "",
-        guardianRelation: input.guardianRelation || "Guardian",
-        guardianAddress: input.guardianAddress || input.address || "",
-        documents: input.documents?.length
-          ? input.documents
-          : [
-              { id: "birth", label: "Birth certificate", status: "Pending" },
-              {
-                id: "slc",
-                label: "School leaving certificate",
-                status: "Pending",
-              },
-              { id: "cnic", label: "Guardian CNIC copy", status: "Pending" },
-              { id: "photo", label: "Student photograph", status: "Pending" },
-            ],
-        interviewType: input.interviewType || "",
-        interviewDate: input.interviewDate || "",
-        interviewScore: input.interviewScore || "",
-        interviewResult: input.interviewResult || "",
-        decision: input.decision || "",
-        id: `APP-${1045 + Math.floor(Math.random() * 400)}`,
-        status: "New",
-        submittedOn: getToday(),
+      if (loadAuth()?.token) {
+        void (async () => {
+          try {
+            const rawClassId = Number(input.classId)
+            await api.post("/applications", {
+              ...toApplicationApiBody(input),
+              fkClassId:
+                Number.isFinite(rawClassId) && rawClassId > 0
+                  ? rawClassId
+                  : undefined,
+            })
+            await invalidateAdmissionsLists()
+          } catch (err) {
+            console.error(err)
+          }
+        })()
+        return { id: "pending" }
       }
-      commit((current) => ({
-        next: withAudit(
-          { ...current, applications: [application, ...current.applications] },
-          actor,
-          `Created admission application for ${application.name}`
-        ),
-      }))
-
-      const rawClassId = Number(input.classId)
-      api
-        .post("/applications", {
-          name: application.name,
-          fkClassId:
-            Number.isFinite(rawClassId) && rawClassId > 0 ? rawClassId : null,
-          guardian: application.guardian,
-          phone: application.phone,
-          dob: application.dob || null,
-          gender: application.gender || null,
-          address: application.address || null,
-          previousSchool: application.previousSchool || null,
-          previousClass: application.previousClass || null,
-          notes: application.notes || null,
-        })
-        .then(syncBackend)
-        .catch(console.error)
-
-      return { id: application.id }
+      return { error: "Sign in to create applications." }
     },
-    [commit, syncBackend]
+    []
   )
 
   const setApplicationStatus = useCallback(
-    (id: string, status: Application["status"], actor: string) =>
-      simple((current) => {
-        const application = current.applications.find((item) => item.id === id)
-        if (!application) return { error: "Application was not found." }
-        let { students, feeMonths } = current
-        if (
-          status === "Enrolled" &&
-          !students.some(
-            (student) =>
-              student.name.toLowerCase() === application.name.toLowerCase() &&
-              student.classId === application.classId
-          )
-        ) {
-          const student: Student = {
-            id: `CLS-${24000 + students.length + 1}`,
-            name: application.name,
-            classId: application.classId,
-            guardian: application.guardian,
-            phone: application.phone,
-            status: "Active",
-            dob: application.dob,
-            gender: application.gender || "Female",
-            admittedOn: getToday(),
+    async (id: string, status: Application["status"], actor: string) => {
+      const application = state.applications.find((item) => item.id === id)
+      if (!loadAuth()?.token) {
+        return "Sign in to update application status."
+      }
+      try {
+        if (status === "Review") {
+          await reviewApplication(id)
+        } else if (status === "Waitlist") {
+          await decideApplication(id, "Waitlist")
+        } else if (status === "Rejected") {
+          await decideApplication(id, "Reject")
+        } else if (status === "Enrolled") {
+          if (application?.decision !== "Admit") {
+            await decideApplication(id, "Admit")
           }
-          const month = getToday().slice(0, 7)
-          students = [student, ...students]
-          feeMonths = [
-            ...feeMonths,
-            {
-              id: `fm-${student.id}-${month}`,
-              studentId: student.id,
-              month,
-              feeType: "Tuition",
-              amountDue: classFee(current, student.classId),
-              amountPaid: 0,
-              dueDate: `${month}-10`,
-            },
-          ]
+          await enrollApplication(id)
+        } else {
+          return "Unsupported status change."
         }
-        const next = {
-          ...current,
-          students,
-          feeMonths,
-          applications: current.applications.map((item) =>
-            item.id === id ? { ...item, status } : item
+        if (status === "Enrolled") {
+          await syncBackend()
+        }
+        await invalidateAdmissionsLists()
+        await invalidateAdmissionDetail(id)
+        commit((current) => ({
+          next: withAudit(
+            current,
+            actor,
+            `Marked application ${id} as ${status}`
           ),
-        }
-
-        const numId = Number(id.replace(/^APP-/, ""))
-        if (Number.isFinite(numId)) {
-          api
-            .patch(`/applications/${numId}`, { status })
-            .then(syncBackend)
-            .catch(console.error)
-        }
-
-        return {
-          next: withAudit(next, actor, `Marked application ${id} as ${status}`),
-        }
-      }),
-    [simple, syncBackend]
+        }))
+        return null
+      } catch (err) {
+        const message =
+          err instanceof ApiHttpError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : "Could not update status."
+        return message
+      }
+    },
+    [commit, state.applications, syncBackend]
   )
 
   const updateStudent = useCallback(
@@ -875,20 +1010,20 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           .catch(console.error)
 
         const sessions = [
-          ...current.sessions.map((item) => ({ ...item, current: false })),
+          ...current.sessions,
           {
             id: uid("ses"),
             name: input.name.trim(),
             start: input.start,
             end: input.end,
-            current: true,
+            current: false,
           },
         ]
         return {
           next: withAudit(
             { ...current, sessions },
             actor,
-            `Created and activated session ${input.name.trim()}`
+            `Created session ${input.name.trim()}`
           ),
         }
       }),
@@ -931,27 +1066,30 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       simple((current) => {
         if (!input.grade.trim() || !input.section.trim())
           return { error: "Grade and section are required." }
-        const label = `${input.grade.trim()} · ${input.section.trim()}`
+        const session = current.sessions.find((item) => item.current)
+        const fkSessionId = session ? Number(session.id) : NaN
+        if (!Number.isFinite(fkSessionId)) {
+          return { error: "Activate an academic session before adding classes." }
+        }
+        const grade = input.grade.trim()
+        const section = input.section.trim()
+        const label =
+          section === "Main" || section === "General"
+            ? grade
+            : `${grade} · ${section}`
         if (
           current.classes.some(
             (item) => item.label.toLowerCase() === label.toLowerCase()
           )
         )
           return { error: "That class section already exists." }
-        const klass: ClassSection = {
-          id: uid("cl"),
-          label,
-          grade: input.grade.trim(),
-          section: input.section.trim(),
-          room: input.room.trim() || "Unassigned",
-          periodCount: Math.max(1, Number(input.periodCount) || 8),
-          monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500),
-        }
 
-        api
+        void api
           .post("/classes", {
-            grade: input.grade.trim(),
-            section: input.section.trim(),
+            fkSessionId,
+            grade,
+            section,
+            label,
             room: input.room.trim() || "Unassigned",
             periodCount: Math.max(1, Number(input.periodCount) || 8),
             monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500),
@@ -961,7 +1099,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
         return {
           next: withAudit(
-            { ...current, classes: [...current.classes, klass] },
+            current,
             actor,
             `Added class ${label}`
           ),
@@ -2376,7 +2514,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const value = useMemo<SchoolContextValue>(
     () => ({
       state,
+      syncPortalForRoute,
+      ensureAdmissionWizardData,
       addApplication,
+      persistApplicationDraft,
+      patchApplicationRecord,
+      finalizeApplication,
       setApplicationStatus,
       updateStudent,
       importWorkbook,
@@ -2415,7 +2558,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     }),
     [
       state,
+      syncPortalForRoute,
+      ensureAdmissionWizardData,
       addApplication,
+      persistApplicationDraft,
+      patchApplicationRecord,
+      finalizeApplication,
       setApplicationStatus,
       updateStudent,
       importWorkbook,

@@ -30,7 +30,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { studentName, useSchool } from "@/data/store"
 import { type WeeklyTest } from "@/data/types"
 import { monthlySummaries, weekdayOf, WEEKDAYS } from "@/lib/academics"
@@ -86,6 +86,7 @@ export function WeeklyTestsPanel() {
   })
   const [marking, setMarking] = useState<WeeklyTest | null>(null)
   const [month, setMonth] = useState(() => getToday().slice(0, 7))
+  const [view, setView] = useState("tests")
   const rules = state.settings.dailyTestRules
   const tests = state.weeklyTests
     .filter((test) => test.month === month)
@@ -109,23 +110,28 @@ export function WeeklyTestsPanel() {
   const flagged = summaries.filter((row) => row.flaggedForFollowUp)
 
   return (
-    <Tabs defaultValue="tests" className="grid gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <TabsList>
-          <TabsTrigger value="tests">Tests</TabsTrigger>
-          <TabsTrigger value="summary">Monthly summary</TabsTrigger>
-          <TabsTrigger value="flagged">Flagged ({flagged.length})</TabsTrigger>
-          <TabsTrigger value="schedule">Test days</TabsTrigger>
-        </TabsList>
-        <Input
-          type="month"
-          className="w-44"
-          value={month}
-          onChange={(event) =>
-            setMonth(event.target.value || getToday().slice(0, 7))
-          }
-        />
-      </div>
+    <div className="grid gap-5">
+      <ClsSubTabs
+        aria-label="Weekly tests"
+        value={view}
+        onValueChange={setView}
+        items={[
+          { value: "tests", label: "Tests" },
+          { value: "summary", label: "Monthly summary" },
+          { value: "flagged", label: "Flagged", count: flagged.length },
+          { value: "schedule", label: "Test days" },
+        ]}
+        trailing={
+          <Input
+            type="month"
+            className="h-8 w-36 text-xs"
+            value={month}
+            onChange={(event) =>
+              setMonth(event.target.value || getToday().slice(0, 7))
+            }
+          />
+        }
+      />
       <Alert>
         <ClipboardList />
         <AlertTitle>Rules for {monthLabel(month)}</AlertTitle>
@@ -139,7 +145,7 @@ export function WeeklyTestsPanel() {
         </AlertDescription>
       </Alert>
 
-      <TabsContent value="tests">
+      {view === "tests" ? (
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -236,9 +242,9 @@ export function WeeklyTestsPanel() {
             )}
           </CardContent>
         </Card>
-      </TabsContent>
+      ) : null}
 
-      <TabsContent value="summary">
+      {view === "summary" ? (
         <Card>
           <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -325,9 +331,9 @@ export function WeeklyTestsPanel() {
             )}
           </CardContent>
         </Card>
-      </TabsContent>
+      ) : null}
 
-      <TabsContent value="flagged">
+      {view === "flagged" ? (
         <Card>
           <CardHeader>
             <CardTitle>Flagged for follow-up</CardTitle>
@@ -360,12 +366,10 @@ export function WeeklyTestsPanel() {
             )}
           </CardContent>
         </Card>
-      </TabsContent>
+      ) : null}
 
-      <TabsContent
-        value="schedule"
-        className="grid gap-5 xl:grid-cols-[1fr_320px]"
-      >
+      {view === "schedule" ? (
+        <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
         <Card>
           <CardHeader>
             <CardTitle>Test days</CardTitle>
@@ -479,8 +483,9 @@ export function WeeklyTestsPanel() {
             </Button>
           </CardFooter>
         </Card>
-      </TabsContent>
+        </div>
+      ) : null}
       <MarksDialog test={marking} onClose={() => setMarking(null)} />
-    </Tabs>
+    </div>
   )
 }
