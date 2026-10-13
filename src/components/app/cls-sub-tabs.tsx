@@ -15,6 +15,7 @@ type Props = {
   onValueChange: (value: string) => void
   className?: string
   trailing?: ReactNode
+  variant?: "underline" | "segmented"
   "aria-label"?: string
 }
 
@@ -24,8 +25,62 @@ export function ClsSubTabs({
   onValueChange,
   className,
   trailing,
+  variant = "underline",
   "aria-label": ariaLabel = "Section tabs",
 }: Props) {
+  if (variant === "segmented") {
+    return (
+      <div
+        className={cn(
+          "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+          className
+        )}
+      >
+        <div
+          className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-lg bg-[var(--page-wash)] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          role="tablist"
+          aria-label={ariaLabel}
+        >
+          {items.map((item) => {
+            const active = value === item.value
+            return (
+              <button
+                key={item.value}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                disabled={item.disabled}
+                onClick={() => onValueChange(item.value)}
+                className={cn(
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-md px-4 py-1.5 text-[13px] whitespace-nowrap transition-colors",
+                  active
+                    ? "bg-white font-semibold text-[var(--cls-brand)] shadow-sm"
+                    : "font-medium text-[var(--cls-muted)] hover:text-[var(--cls-ink)]",
+                  item.disabled && "pointer-events-none opacity-50"
+                )}
+              >
+                {item.label}
+                {item.count != null ? (
+                  <span
+                    className={cn(
+                      "text-[11px] font-semibold tabular-nums",
+                      active
+                        ? "text-[var(--cls-brand)]"
+                        : "text-[var(--cls-muted)]"
+                    )}
+                  >
+                    {item.count}
+                  </span>
+                ) : null}
+              </button>
+            )
+          })}
+        </div>
+        {trailing ? <div className="shrink-0">{trailing}</div> : null}
+      </div>
+    )
+  }
+
   return (
     <div className={cn("border-b border-[var(--cls-border)]", className)}>
       <div className="flex items-center justify-between gap-4">

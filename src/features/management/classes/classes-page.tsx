@@ -19,7 +19,6 @@ import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
-/** Backend defaults for fields managed elsewhere (timetable, fee management). */
 const CLASS_API_DEFAULTS = {
   room: "Unassigned",
   periodCount: 8,
@@ -73,7 +72,9 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         ...klass,
         studentCount,
         subjectCount,
-        status: "Active" as const,
+        status: (klass.status === "Archived" ? "Archived" : "Active") as
+          | "Active"
+          | "Archived",
       }
     })
   }, [classes, state.students, state.slots])

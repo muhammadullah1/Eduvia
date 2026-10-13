@@ -61,6 +61,7 @@ export type ClassSection = {
   periodCount: number
   /** Monthly tuition used when fee months are generated. */
   monthlyFee: number
+  status?: "Active" | "Archived"
 }
 
 export type Subject = {

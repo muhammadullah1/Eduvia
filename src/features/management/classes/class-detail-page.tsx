@@ -1,15 +1,16 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import classesService from "@/api/classes/classes.service"
-import { isDuplicateClassLabel } from "@/api/classes/map-class"
+import { subjectsFromTimetableSlots } from "@/api/timetable/map-timetable"
+import { classDisplayName, isDuplicateClassLabel } from "@/api/classes/map-class"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { useSchool } from "@/data/store"
 import { ClassDetailHeader } from "@/features/management/classes/class-detail-header"
-import { ClassDetailOverviewTab } from "@/features/management/classes/class-detail-overview-tab"
-import { ClassDetailPlaceholderTab } from "@/features/management/classes/class-detail-placeholder-tab"
 import { ClassDetailStudentsTab } from "@/features/management/classes/class-detail-students-tab"
 import { ClassDetailSubjectsTab } from "@/features/management/classes/class-detail-subjects-tab"
+import { ClassDetailSummaryCard } from "@/features/management/classes/class-detail-summary-card"
+import { ClassDetailTimetableTab } from "@/features/management/classes/class-detail-timetable-tab"
 import {
   CLASS_DETAIL_TABS,
   type ClassDetailTabId,
@@ -19,7 +20,11 @@ import {
   invalidateClassesList,
   useClassesList,
 } from "@/features/management/classes/hooks/use-classes"
-import { useClassDetail } from "@/features/management/classes/use-class-detail"
+import {
+  useClassStudentsQuery,
+  useClassTimetableQuery,
+  useFeeMonthsQuery,
+} from "@/features/management/classes/hooks/use-class-detail-queries"
 import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
@@ -41,34 +46,54 @@ export function ClassDetailPage({
   const queryClient = useQueryClient()
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+
   const currentSession = state.sessions.find((s) => s.current)
   const sessionNumericId = currentSession
     ? Number(currentSession.id)
     : undefined
 
-  const { data: classes = [] } = useClassesList(
+  const {
+    data: classes = [],
+    isLoading: classesLoading,
+    isError: classesError,
+    refetch: refetchClasses,
+  } = useClassesList(
     Number.isFinite(sessionNumericId) ? sessionNumericId : undefined
   )
 
   const klass = useMemo(
-    () => classes.find((c) => c.id === classId) ?? state.classes.find((c) => c.id === classId),
+    () =>
+      classes.find((c) => c.id === classId) ??
+      state.classes.find((c) => c.id === classId),
     [classes, classId, state.classes]
   )
 
-  const detail = useClassDetail(state, classId, klass)
+  const needsFees = tab === "students"
 
-  useEffect(() => {
-    void syncPortalForRoute(actor.role, "classes")
-  }, [actor.role, syncPortalForRoute])
+  const studentsQuery = useClassStudentsQuery(classId, true)
+  const timetableQuery = useClassTimetableQuery(classId, true)
+  const feeMonthsQuery = useFeeMonthsQuery(needsFees)
+
+  const students = studentsQuery.data ?? []
+  const slots = timetableQuery.data ?? []
+  const feeMonths = feeMonthsQuery.data ?? []
+
+  const subjects = useMemo(
+    () => subjectsFromTimetableSlots(slots, state.subjects),
+    [slots, state.subjects]
+  )
+
+  const studentCount = students.length
+  const subjectCount = subjects.length
 
   const tabItems = CLASS_DETAIL_TABS.map((item) => ({
     value: item.id,
     label: item.label,
     count:
       item.id === "subjects"
-        ? detail.subjectCount
+        ? subjectCount
         : item.id === "students"
-          ? detail.studentCount
+          ? studentCount
           : undefined,
   }))
 
@@ -109,65 +134,100 @@ export function ClassDetailPage({
     }
   }
 
+  if (classesLoading && !klass) {
+    return (
+      <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-16 text-center text-sm text-[var(--cls-muted)]">
+        Loading class…
+      </div>
+    )
+  }
+
   if (!klass) {
     return (
       <div className="flex flex-col gap-4">
         <ClassDetailHeader
           title="Class not found"
-          meta="This class may have been removed or is outside the current session."
           onBack={onBack}
           onEdit={() => undefined}
         />
+        {classesError ? (
+          <button
+            type="button"
+            className="text-sm font-semibold text-[var(--cls-brand)]"
+            onClick={() => void refetchClasses()}
+          >
+            Retry loading classes
+          </button>
+        ) : null}
       </div>
     )
   }
 
+  const status = klass.status === "Archived" ? "Archived" : "Active"
+
   return (
     <div className="flex flex-col gap-5">
       <ClassDetailHeader
-        title={detail.displayName}
-        meta={detail.metaLine}
+        title={classDisplayName(klass)}
+        meta={
+          [
+            currentSession ? `Session ${currentSession.name}` : null,
+            klass.room && klass.room !== "Unassigned" ? klass.room : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
+        status={status}
         onBack={onBack}
         onEdit={() => setEditOpen(true)}
       />
 
-      <ClsSubTabs
-        items={tabItems}
-        value={tab}
-        onValueChange={(value) => onTabChange(value as ClassDetailTabId)}
-        aria-label="Class detail"
+      <ClassDetailSummaryCard
+        klass={klass}
+        sessionName={currentSession?.name}
+        studentCount={studentCount}
+        subjectCount={subjectCount}
       />
 
-      {tab === "overview" ? (
-        <ClassDetailOverviewTab
-          studentCount={detail.studentCount}
-          subjectCount={detail.subjectCount}
+      <div className="rounded-xl border border-[var(--cls-border)] bg-white px-4 pt-4 pb-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
+        <ClsSubTabs
+          items={tabItems}
+          value={tab}
+          onValueChange={(value) => onTabChange(value as ClassDetailTabId)}
+          variant="segmented"
+          aria-label="Class detail"
         />
-      ) : null}
-      {tab === "subjects" ? (
-        <ClassDetailSubjectsTab
-          className={detail.displayName}
-          subjects={detail.subjects}
-        />
-      ) : null}
-      {tab === "students" ? (
-        <ClassDetailStudentsTab
-          students={detail.students}
-          feeMonths={state.feeMonths}
-        />
-      ) : null}
-      {tab === "fee-structure" ? (
-        <ClassDetailPlaceholderTab
-          title="Fee structure"
-          detail="Class fee rules will be managed in Fee Management. Monthly tuition is no longer set on the class form."
-        />
-      ) : null}
-      {tab === "timetable" ? (
-        <ClassDetailPlaceholderTab
-          title="Timetable"
-          detail="Open Academic Management → Timetable to view or edit periods for this class."
-        />
-      ) : null}
+
+        <div className="mt-5">
+          {tab === "subjects" ? (
+            <ClassDetailSubjectsTab
+              className={classDisplayName(klass)}
+              subjects={subjects}
+              loading={timetableQuery.isLoading}
+              error={timetableQuery.isError}
+              onRetry={() => void timetableQuery.refetch()}
+            />
+          ) : null}
+          {tab === "students" ? (
+            <ClassDetailStudentsTab
+              students={students}
+              feeMonths={feeMonths}
+              loading={studentsQuery.isLoading}
+              error={studentsQuery.isError}
+              onRetry={() => void studentsQuery.refetch()}
+            />
+          ) : null}
+          {tab === "timetable" ? (
+            <ClassDetailTimetableTab
+              slots={slots}
+              loading={timetableQuery.isLoading}
+              error={timetableQuery.isError}
+              onRetry={() => void timetableQuery.refetch()}
+              periodCount={klass.periodCount}
+            />
+          ) : null}
+        </div>
+      </div>
 
       <EditClassModal
         open={editOpen}
@@ -178,7 +238,6 @@ export function ClassDetailPage({
         saving={saving}
         onSubmit={handleEdit}
       />
-
     </div>
   )
 }
