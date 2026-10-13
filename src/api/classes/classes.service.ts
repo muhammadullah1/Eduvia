@@ -12,6 +12,9 @@ export type ClassDto = {
   monthlyFee?: number
   status?: "Active" | "Archived"
   capacity?: number
+  periodStartTimes?: Record<string, string> | null
+  studentCount?: number
+  subjectCount?: number
 }
 
 export type CreateClassBody = {
@@ -24,11 +27,16 @@ export type CreateClassBody = {
   monthlyFee?: number
 }
 
-export type UpdateClassBody = Partial<CreateClassBody>
+export type UpdateClassBody = Partial<CreateClassBody> & {
+  periodStartTimes?: Record<string, string> | null
+}
 
 const classesService = {
-  list: (params?: { sessionId?: number }) =>
-    api.get<ClassDto[]>("/classes", params),
+  list: (params?: { sessionId?: number; stats?: boolean }) =>
+    api.get<ClassDto[]>("/classes", {
+      sessionId: params?.sessionId,
+      stats: params?.stats ? "1" : undefined,
+    }),
 
   create: (body: CreateClassBody) =>
     api.post<ClassDto>("/classes", body),

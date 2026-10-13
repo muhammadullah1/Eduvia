@@ -18,6 +18,7 @@ export type UpdateTimetableSlotPayload = Partial<
 }
 
 const timetableService = {
+  listAll: () => api.get<ApiTimetableSlot[]>("/timetable"),
   listByClass: (classId: number) =>
     api.get<ApiTimetableSlot[]>("/timetable", { classId }),
   create: (payload: CreateTimetableSlotPayload) =>

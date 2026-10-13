@@ -6,6 +6,8 @@ import type { SubjectRow } from "@/api/subjects/map-subject"
 import subjectsService from "@/api/subjects/subjects.service"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
+import { useClassesList } from "@/features/management/classes/hooks/use-classes"
+import { useSchoolTimetableQuery } from "@/features/management/classes/hooks/use-class-detail-queries"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
@@ -40,9 +42,22 @@ export function SubjectsPage({ globalQuery }: Props) {
   const { data: subjects = [], isLoading, isError, refetch } =
     useSubjectsList()
 
+  const currentSession = useMemo(
+    () => state.sessions.find((session) => session.current),
+    [state.sessions]
+  )
+  const sessionNumericId = currentSession
+    ? Number(currentSession.id)
+    : undefined
+
+  const { data: classes = [] } = useClassesList(
+    Number.isFinite(sessionNumericId) ? sessionNumericId : undefined
+  )
+  const { data: timetableSlots = [] } = useSchoolTimetableQuery()
+
   const rows = useMemo(
-    () => toSubjectTableRows(subjects, state.slots, state.classes),
-    [subjects, state.slots, state.classes]
+    () => toSubjectTableRows(subjects, timetableSlots, classes),
+    [subjects, timetableSlots, classes]
   )
 
   const activeCount = useMemo(

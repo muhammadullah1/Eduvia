@@ -6,7 +6,6 @@ import { TimetableClassGrid } from "@/features/management/timetable/timetable-cl
 import type { PeriodTimeMap } from "@/lib/timetable-period-times"
 
 type Props = {
-  classId: string
   slots: TimetableSlot[]
   loading?: boolean
   error?: boolean
@@ -17,7 +16,6 @@ type Props = {
 }
 
 export function ClassDetailTimetableTab({
-  classId,
   slots,
   loading,
   error,
@@ -73,7 +71,6 @@ export function ClassDetailTimetableTab({
         ) : null}
       </div>
       <TimetableClassGrid
-        classId={classId}
         slots={slots}
         periodCount={periodCount}
         periodTimes={periodTimes}

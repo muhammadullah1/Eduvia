@@ -57,27 +57,15 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   )
 
   const rows = useMemo(() => {
-    return classes.map((klass) => {
-      const studentCount = state.students.filter(
-        (student) =>
-          student.classId === klass.id && student.status !== "Withdrawn"
-      ).length
-      const subjectCount = new Set(
-        state.slots
-          .filter((slot) => slot.classId === klass.id)
-          .map((slot) => slot.subject)
-          .filter(Boolean)
-      ).size
-      return {
-        ...klass,
-        studentCount,
-        subjectCount,
-        status: (klass.status === "Archived" ? "Archived" : "Active") as
-          | "Active"
-          | "Archived",
-      }
-    })
-  }, [classes, state.students, state.slots])
+    return classes.map((klass) => ({
+      ...klass,
+      studentCount: klass.studentCount ?? 0,
+      subjectCount: klass.subjectCount ?? 0,
+      status: (klass.status === "Archived" ? "Archived" : "Active") as
+        | "Active"
+        | "Archived",
+    }))
+  }, [classes])
 
   const existingClassLabels = useMemo(
     () => classes.map((c) => ({ id: c.id, label: c.label })),

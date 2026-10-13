@@ -82,7 +82,7 @@ export function TimePicker({
           variant="outline"
           disabled={disabled}
           className={cn(
-            "h-8 justify-start gap-2 border-[var(--cls-border)] bg-white px-2.5 text-xs font-medium tabular-nums text-[var(--cls-ink)]",
+            "h-9 w-full justify-start gap-2 border-[var(--cls-border)] bg-white px-2.5 text-xs font-medium tabular-nums text-[var(--cls-ink)] shadow-none",
             className
           )}
         >

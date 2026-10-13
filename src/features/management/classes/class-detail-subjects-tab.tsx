@@ -12,7 +12,6 @@ type Props = {
   loading?: boolean
   error?: boolean
   onRetry?: () => void
-  onSchedulePeriod?: () => void
   onOpenTimetable?: () => void
 }
 
@@ -108,7 +107,6 @@ export function ClassDetailSubjectsTab({
   loading,
   error,
   onRetry,
-  onSchedulePeriod,
   onOpenTimetable,
 }: Props) {
   const stats = subjectSummaryStats(subjects)
@@ -144,31 +142,18 @@ export function ClassDetailSubjectsTab({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-[13px] text-[var(--cls-muted)]">
-          Timetable subjects for {className}
+          Scheduled subjects for {className} (from the weekly timetable)
         </p>
-        <div className="flex flex-wrap gap-2">
-          {onSchedulePeriod ? (
-            <Button
-              type="button"
-              size="sm"
-              className="h-9 shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-              onClick={onSchedulePeriod}
-            >
-              Assign subject
-            </Button>
-          ) : null}
-          {onOpenTimetable ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="h-9 shrink-0 px-4 text-[13px] font-medium border-[var(--cls-border)] text-[var(--cls-brand)] hover:bg-[var(--cls-brand)]/5 hover:text-[var(--cls-brand)]"
-              onClick={onOpenTimetable}
-            >
-              Open timetable
-            </Button>
-          ) : null}
-        </div>
+        {onOpenTimetable ? (
+          <Button
+            type="button"
+            size="sm"
+            className="h-9 shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+            onClick={onOpenTimetable}
+          >
+            Open timetable
+          </Button>
+        ) : null}
       </div>
 
       {subjects.length > 0 ? (
@@ -185,16 +170,16 @@ export function ClassDetailSubjectsTab({
             No subjects assigned yet
           </p>
           <p className="mx-auto mt-2 max-w-md text-sm text-[var(--cls-muted)]">
-            Schedule catalog subjects on this class&apos;s weekly timetable to
-            see them here.
+            Assign subjects, days, and periods on the Timetable page. This tab
+            updates automatically from the same schedule.
           </p>
-          {onSchedulePeriod ? (
+          {onOpenTimetable ? (
             <Button
               type="button"
               className="mt-4 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-              onClick={onSchedulePeriod}
+              onClick={onOpenTimetable}
             >
-              Assign subject
+              Open timetable
             </Button>
           ) : null}
         </div>

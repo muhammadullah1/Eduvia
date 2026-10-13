@@ -42,9 +42,29 @@ export function invalidateClassTimetable(
   classId: string | undefined
 ) {
   const numericId = classNumericId(classId)
-  if (!numericId) return
-  return queryClient.invalidateQueries({
-    queryKey: [TIMETABLE_QUERY_KEY, "by-class", numericId],
+  const tasks = [
+    queryClient.invalidateQueries({
+      queryKey: [TIMETABLE_QUERY_KEY, "school"],
+    }),
+  ]
+  if (numericId) {
+    tasks.push(
+      queryClient.invalidateQueries({
+        queryKey: [TIMETABLE_QUERY_KEY, "by-class", numericId],
+      })
+    )
+  }
+  return Promise.all(tasks)
+}
+
+export function useSchoolTimetableQuery(enabled = true) {
+  return useQuery({
+    queryKey: [TIMETABLE_QUERY_KEY, "school"],
+    enabled: enabled && Boolean(loadAuth()?.token),
+    queryFn: async () => {
+      const rows = await timetableService.listAll()
+      return (rows ?? []).map(mapTimetableSlotDto)
+    },
   })
 }
 

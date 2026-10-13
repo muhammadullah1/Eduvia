@@ -11,8 +11,6 @@ export function defaultStartTimeForPeriod(periodIndex: number) {
 
 export type PeriodTimeMap = Record<number, string>
 
-const STORAGE_PREFIX = "eduvia-class-period-times"
-
 export function defaultPeriodTimeMap(periodCount: number): PeriodTimeMap {
   const map: PeriodTimeMap = {}
   for (let period = 1; period <= periodCount; period += 1) {
@@ -21,25 +19,25 @@ export function defaultPeriodTimeMap(periodCount: number): PeriodTimeMap {
   return map
 }
 
-export function loadClassPeriodTimes(
-  classId: string,
+export function periodTimesFromApi(
+  raw: Record<string, string> | null | undefined,
   periodCount: number
 ): PeriodTimeMap {
   const base = defaultPeriodTimeMap(periodCount)
-  if (!classId) return base
-  try {
-    const raw = localStorage.getItem(`${STORAGE_PREFIX}:${classId}`)
-    if (!raw) return base
-    const parsed = JSON.parse(raw) as PeriodTimeMap
-    return { ...base, ...parsed }
-  } catch {
-    return base
+  if (!raw) return base
+  for (let period = 1; period <= periodCount; period += 1) {
+    const value = raw[String(period)]
+    if (value && isValidTime(value)) base[period] = value
   }
+  return base
 }
 
-export function saveClassPeriodTimes(classId: string, map: PeriodTimeMap) {
-  if (!classId) return
-  localStorage.setItem(`${STORAGE_PREFIX}:${classId}`, JSON.stringify(map))
+export function serializePeriodTimes(map: PeriodTimeMap): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [key, value] of Object.entries(map)) {
+    if (isValidTime(value)) out[String(key)] = value.trim()
+  }
+  return out
 }
 
 export function timeForPeriod(map: PeriodTimeMap, periodIndex: number) {
