@@ -278,9 +278,11 @@ export type ApiTimetableSlot = {
   id: number
   fkClassId: number
   day: string
-  time: string
+  time?: string
+  startTime?: string
   periodIndex: number
-  subject: {
+  fkSubjectId?: number
+  subject?: {
     id: number
     name: string
   }

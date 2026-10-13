@@ -29,7 +29,6 @@ import {
   type Substitution,
   type TeacherAbsence,
   type TestSchedule,
-  type TimetableSlot,
   type UpdateKind,
   type UpdateStatus,
   type WeeklyTest,
@@ -60,6 +59,7 @@ import type {
   ApiUpdate,
   ApiUser,
 } from "@/lib/api-types"
+import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
 import { ADMISSIONS_LIST_MAX_PAGE_SIZE } from "@/api/admissions/constants"
 import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
 import { getToday } from "@/lib/dates"
@@ -759,23 +759,9 @@ export async function fetchBackendState(): Promise<SchoolState> {
       }))
     : []
 
-  // 15. Timetable Slots
-  const slots: TimetableSlot[] = timetableData.length
-    ? timetableData.map((slot) => ({
-        id: String(slot.id),
-        classId: String(slot.fkClassId),
-        day: slot.day || (slot as { dayOfWeek?: string }).dayOfWeek || "",
-        time: String(
-          slot.time || (slot as { startTime?: string }).startTime || ""
-        ).slice(0, 5),
-        periodIndex: Number(slot.periodIndex) || 1,
-        subject: slot.subject.name,
-        teacherId: String(slot.fkTeacherId ?? ""),
-        teacher: slot.teacher?.user
-          ? `${slot.teacher.user.firstName} ${slot.teacher.user.lastName}`.trim()
-          : "",
-        room: slot.room ?? "Room",
-      }))
+  // 15. Timetable Slots (authoritative: GET /timetable)
+  const slots = timetableData.length
+    ? timetableData.map((slot) => mapTimetableSlotDto(slot))
     : []
 
   // 16. Teacher Absences & Substitutions

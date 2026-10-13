@@ -1,9 +1,9 @@
-import { History, Trash2 } from "lucide-react"
+import { History } from "lucide-react"
 import { useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
-import { EmptyState, Field } from "@/components/app/kit"
+import { Field } from "@/components/app/kit"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,7 +34,6 @@ import {
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { useSchool } from "@/data/store"
 import { type Staff } from "@/data/types"
-import { WEEKDAYS } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 
@@ -43,6 +42,7 @@ import {
   type AcademicFocusTab,
 } from "@/features/shell/academic-section"
 
+import { AcademicSetupTimetablePanel } from "./academic-setup-timetable-panel"
 import { TeacherSubjectDialog } from "./teacher-subject-dialog"
 
 export function AcademicSetup({
@@ -56,8 +56,6 @@ export function AcademicSetup({
     activateSession,
     addClass,
     addSubject,
-    addSlot,
-    removeSlot,
     addStaff,
     setClassPeriodCount,
   } = useSchool()
@@ -98,26 +96,6 @@ export function AcademicSetup({
   const portalSection = academicPortalSectionForTab(focusTab)
   const tab = focusTab
   const teachers = state.staff.filter((person) => person.role === "Teacher")
-  const [slotForm, setSlotForm] = useState({
-    day: "Monday",
-    time: "08:00",
-    periodIndex: "1",
-    teacherId: teachers[0]?.id ?? "",
-    room: "Room 14",
-  })
-  const [error, setError] = useState("")
-  const selectedClass = state.classes.find((item) => item.id === classId)
-  const slotTeacher = teachers.find(
-    (person) => person.id === slotForm.teacherId
-  )
-  const visible = state.slots
-    .filter((slot) => slot.classId === classId)
-    .sort(
-      (a, b) =>
-        WEEKDAYS.indexOf(a.day as (typeof WEEKDAYS)[number]) -
-          WEEKDAYS.indexOf(b.day as (typeof WEEKDAYS)[number]) ||
-        a.periodIndex - b.periodIndex
-    )
   const currentSession = state.sessions.find((session) => session.current)
 
   function selectClass(id: string) {
@@ -621,195 +599,10 @@ export function AcademicSetup({
         />
       </TabsContent>
       <TabsContent value="timetable" className="grid gap-4">
-        <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-          <Card>
-            <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <CardTitle>Weekly periods</CardTitle>
-                <CardDescription>
-                  A class or a teacher can hold only one lesson per weekday and
-                  period.
-                </CardDescription>
-              </div>
-              <div className="w-full sm:w-56">
-                <Select value={classId} onValueChange={selectClass}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {state.classes.map((item) => (
-                        <SelectItem key={item.id} value={item.id}>
-                          {item.label}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {visible.length === 0 ? (
-                <EmptyState
-                  title="No periods yet"
-                  detail="Add a period for this class. Clashes are rejected before they are saved."
-                />
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Day</TableHead>
-                      <TableHead>Period</TableHead>
-                      <TableHead>Time</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Teacher</TableHead>
-                      <TableHead>Room</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {visible.map((slot) => (
-                      <TableRow key={slot.id}>
-                        <TableCell>{slot.day}</TableCell>
-                        <TableCell>P{slot.periodIndex}</TableCell>
-                        <TableCell>{slot.time}</TableCell>
-                        <TableCell className="font-medium">
-                          {slot.subject}
-                        </TableCell>
-                        <TableCell>{slot.teacher}</TableCell>
-                        <TableCell>{slot.room}</TableCell>
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => removeSlot(slot.id, actor.name)}
-                          >
-                            <Trash2 />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader>
-              <CardTitle>Add period</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <Field label="Day">
-                <Select
-                  value={slotForm.day}
-                  onValueChange={(day) => setSlotForm({ ...slotForm, day })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {WEEKDAYS.map((day) => (
-                        <SelectItem key={day} value={day}>
-                          {day}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Period">
-                <Select
-                  value={slotForm.periodIndex}
-                  onValueChange={(periodIndex) =>
-                    setSlotForm({ ...slotForm, periodIndex })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {Array.from(
-                        { length: selectedClass?.periodCount ?? 8 },
-                        (_, index) => (
-                          <SelectItem key={index} value={String(index + 1)}>
-                            Period {index + 1}
-                          </SelectItem>
-                        )
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Time">
-                <Input
-                  value={slotForm.time}
-                  onChange={(event) =>
-                    setSlotForm({ ...slotForm, time: event.target.value })
-                  }
-                  placeholder="08:00"
-                />
-              </Field>
-              <Field
-                label="Teacher"
-                hint={
-                  slotTeacher ? `Teaches ${slotTeacher.subject}` : undefined
-                }
-              >
-                <Select
-                  value={slotForm.teacherId}
-                  onValueChange={(teacherId) =>
-                    setSlotForm({ ...slotForm, teacherId })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Choose teacher" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {teachers.map((person) => (
-                        <SelectItem key={person.id} value={person.id}>
-                          {person.name} · {person.subject}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Room" error={error}>
-                <Input
-                  value={slotForm.room}
-                  aria-invalid={Boolean(error)}
-                  onChange={(event) =>
-                    setSlotForm({ ...slotForm, room: event.target.value })
-                  }
-                />
-              </Field>
-            </CardContent>
-            <CardFooter>
-              <Button
-                onClick={() => {
-                  const message = addSlot(
-                    {
-                      day: slotForm.day,
-                      time: slotForm.time,
-                      room: slotForm.room,
-                      teacherId: slotForm.teacherId,
-                      classId,
-                      periodIndex: Number(slotForm.periodIndex) || 1,
-                    },
-                    actor.name
-                  )
-                  setError(message ?? "")
-                  if (!message) toast.success("Period scheduled")
-                }}
-              >
-                Schedule
-              </Button>
-            </CardFooter>
-          </Card>
-        </div>
+        <AcademicSetupTimetablePanel
+          classId={classId}
+          onClassChange={selectClass}
+        />
       </TabsContent>
     </Tabs>
   )

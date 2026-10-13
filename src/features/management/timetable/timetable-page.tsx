@@ -1,11 +1,8 @@
 import { Info } from "lucide-react"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
-import classesService from "@/api/classes/classes.service"
 import { classDisplayName } from "@/api/classes/map-class"
-import timetableService from "@/api/timetable/timetable.service"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { Label } from "@/components/ui/label"
 import {
@@ -17,47 +14,19 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { useSchool } from "@/data/store"
-import type { TimetableSlot } from "@/data/types"
-import {
-  ClassSchedulePeriodModal,
-  type SchedulePeriodPrefill,
-  type SchedulePeriodSubmit,
-} from "@/features/management/classes/class-schedule-period-modal"
-import {
-  invalidateClassTimetable,
-  useClassTimetableQuery,
-} from "@/features/management/classes/hooks/use-class-detail-queries"
-import {
-  invalidateClassesList,
-  useClassesList,
-} from "@/features/management/classes/hooks/use-classes"
+import { useClassesList } from "@/features/management/classes/hooks/use-classes"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
-import {
-  periodTimesFromApi,
-  serializePeriodTimes,
-  type PeriodTimeMap,
-} from "@/lib/timetable-period-times"
-import { toast } from "@/lib/toast"
 
-import { TimetableClassGrid } from "./timetable-class-grid"
+import { ClassTimetableEditor } from "./class-timetable-editor"
 
 type ViewMode = "class" | "teacher"
 
 export function TimetablePage() {
   const { state, syncPortalForRoute } = useSchool()
   const actor = useActor()
-  const queryClient = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
   const [viewMode, setViewMode] = useState<ViewMode>("class")
-  const [scheduleOpen, setScheduleOpen] = useState(false)
-  const [schedulePrefill, setSchedulePrefill] = useState<
-    SchedulePeriodPrefill | undefined
-  >()
-  const [editingSlot, setEditingSlot] = useState<TimetableSlot | null>(null)
-  const [saving, setSaving] = useState(false)
-  const [periodTimes, setPeriodTimes] = useState<PeriodTimeMap>({})
-  const periodSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "timetable")
@@ -84,44 +53,6 @@ export function TimetablePage() {
   )
 
   useEffect(() => {
-    if (!klass) return
-    setPeriodTimes(
-      periodTimesFromApi(klass.periodStartTimes, klass.periodCount)
-    )
-  }, [klass?.id, klass?.periodCount, klass?.periodStartTimes])
-
-  useEffect(() => {
-    return () => {
-      if (periodSaveTimer.current) clearTimeout(periodSaveTimer.current)
-    }
-  }, [])
-
-  const handlePeriodTimesChange = useCallback(
-    (map: PeriodTimeMap) => {
-      setPeriodTimes(map)
-      if (!klass) return
-      if (periodSaveTimer.current) clearTimeout(periodSaveTimer.current)
-      periodSaveTimer.current = setTimeout(() => {
-        void (async () => {
-          try {
-            await classesService.update(Number(klass.id), {
-              periodStartTimes: serializePeriodTimes(map),
-            })
-            await invalidateClassesList(queryClient)
-          } catch (err) {
-            toast.error(
-              err instanceof Error
-                ? err.message
-                : "Could not save period start times."
-            )
-          }
-        })()
-      }, 500)
-    },
-    [klass, queryClient]
-  )
-
-  useEffect(() => {
     if (!selectedClassId || classIdParam === selectedClassId) return
     setSearchParams(
       (prev) => {
@@ -133,17 +64,7 @@ export function TimetablePage() {
     )
   }, [selectedClassId, classIdParam, setSearchParams])
 
-  const timetableQuery = useClassTimetableQuery(
-    selectedClassId || undefined,
-    Boolean(selectedClassId)
-  )
-  const slots = timetableQuery.data ?? []
-
   const { data: catalogSubjects = [] } = useSubjectsList()
-  const activeSubjects = useMemo(
-    () => catalogSubjects.filter((s) => s.status === "Active"),
-    [catalogSubjects]
-  )
   const teachers = useMemo(
     () => state.staff.filter((person) => person.role === "Teacher"),
     [state.staff]
@@ -157,102 +78,7 @@ export function TimetablePage() {
     })
   }
 
-  function openSchedule(prefill?: SchedulePeriodPrefill) {
-    setEditingSlot(null)
-    setSchedulePrefill(prefill)
-    setScheduleOpen(true)
-  }
-
-  function openEditSlot(slot: TimetableSlot) {
-    setEditingSlot(slot)
-    setSchedulePrefill(undefined)
-    setScheduleOpen(true)
-  }
-
-  function closeSchedule() {
-    setScheduleOpen(false)
-    setEditingSlot(null)
-    setSchedulePrefill(undefined)
-  }
-
-  async function refreshTimetable(message: string) {
-    await invalidateClassTimetable(queryClient, selectedClassId)
-    await syncPortalForRoute(actor.role, "timetable")
-    toast.success(message)
-  }
-
-  async function handleScheduleSubmit(payload: SchedulePeriodSubmit) {
-    const classNumericId = Number(selectedClassId)
-    const subjectNumericId = Number(payload.subjectId)
-    if (!Number.isFinite(classNumericId) || !Number.isFinite(subjectNumericId)) {
-      toast.error("Invalid class or subject.")
-      return
-    }
-    setSaving(true)
-    try {
-      const shared = {
-        fkClassId: classNumericId,
-        time: payload.time,
-        periodIndex: payload.periodIndex,
-        fkSubjectId: subjectNumericId,
-        fkTeacherId: payload.teacherId ? Number(payload.teacherId) : null,
-        room: payload.room || null,
-      }
-      if (editingSlot) {
-        await timetableService.update(Number(editingSlot.id), {
-          ...shared,
-          day: payload.days[0],
-        })
-        await refreshTimetable("Period updated")
-      } else {
-        let created = 0
-        const failures: string[] = []
-        for (const day of payload.days) {
-          try {
-            await timetableService.create({ ...shared, day })
-            created += 1
-          } catch (err) {
-            failures.push(
-              err instanceof Error ? err.message : "Could not schedule."
-            )
-          }
-        }
-        if (created === 0) {
-          toast.error(failures[0] ?? "Could not assign subject.")
-          return
-        }
-        await refreshTimetable(
-          created === payload.days.length
-            ? `Subject assigned on ${created} day${created === 1 ? "" : "s"}`
-            : `Assigned on ${created} of ${payload.days.length} days`
-        )
-        if (failures.length > 0) toast.error(failures[0])
-      }
-      closeSchedule()
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not save timetable period."
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  async function handleRemovePeriod() {
-    if (!editingSlot) return
-    setSaving(true)
-    try {
-      await timetableService.remove(Number(editingSlot.id))
-      await refreshTimetable("Period removed")
-      closeSchedule()
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not remove period."
-      )
-    } finally {
-      setSaving(false)
-    }
-  }
+  const syncPortal = () => syncPortalForRoute(actor.role, "timetable")
 
   const sessionLabel = currentSession?.name ?? "—"
 
@@ -366,61 +192,19 @@ export function TimetablePage() {
             weekly grid.
           </p>
         </div>
-      ) : !klass ? (
+      ) : !klass && !classesLoading ? (
         <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-20 text-center text-sm text-[var(--cls-muted)]">
-          {classesLoading
-            ? "Loading classes…"
-            : "Add a class for the current session to build a timetable."}
-        </div>
-      ) : timetableQuery.isError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50/40 px-6 py-12 text-center">
-          <p className="text-sm font-medium text-[var(--cls-ink)]">
-            Could not load timetable
-          </p>
-          <button
-            type="button"
-            className="mt-4 text-sm font-semibold text-[var(--cls-brand)]"
-            onClick={() => void timetableQuery.refetch()}
-          >
-            Retry
-          </button>
-        </div>
-      ) : timetableQuery.isLoading && slots.length === 0 ? (
-        <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-24 text-center text-sm text-[var(--cls-muted)]">
-          Loading timetable…
+          Add a class for the current session to build a timetable.
         </div>
       ) : (
-        <TimetableClassGrid
-          slots={slots}
-          periodCount={klass.periodCount}
-          periodTimes={periodTimes}
-          onPeriodTimesChange={handlePeriodTimesChange}
-          editablePeriodTimes
-          onSchedulePeriod={openSchedule}
-          onEditSlot={openEditSlot}
+        <ClassTimetableEditor
+          classId={selectedClassId}
+          klass={klass}
+          subjects={catalogSubjects}
+          teachers={teachers}
+          syncPortal={syncPortal}
         />
       )}
-
-      {klass ? (
-        <ClassSchedulePeriodModal
-          open={scheduleOpen}
-          onOpenChange={(open) => !open && closeSchedule()}
-          classLabel={classDisplayName(klass)}
-          periodCount={klass.periodCount}
-          periodTimes={periodTimes}
-          roomSuggestion={
-            klass.room && klass.room !== "Unassigned" ? klass.room : undefined
-          }
-          subjects={activeSubjects}
-          teachers={teachers}
-          existingSlots={slots}
-          editingSlot={editingSlot}
-          prefill={schedulePrefill}
-          saving={saving}
-          onSubmit={handleScheduleSubmit}
-          onRemove={editingSlot ? handleRemovePeriod : undefined}
-        />
-      ) : null}
     </div>
   )
 }

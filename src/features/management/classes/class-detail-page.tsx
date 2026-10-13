@@ -26,6 +26,7 @@ import {
   useClassTimetableQuery,
   useFeeMonthsQuery,
 } from "@/features/management/classes/hooks/use-class-detail-queries"
+import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 import {
@@ -92,10 +93,11 @@ export function ClassDetailPage({
   const students = studentsQuery.data ?? []
   const slots = timetableQuery.data ?? []
   const feeMonths = feeMonthsQuery.data ?? []
+  const { data: catalogSubjects = [] } = useSubjectsList()
 
   const subjects = useMemo(
-    () => subjectsFromTimetableSlots(slots, state.subjects),
-    [slots, state.subjects]
+    () => subjectsFromTimetableSlots(slots, catalogSubjects),
+    [slots, catalogSubjects]
   )
 
   const studentCount = students.length
