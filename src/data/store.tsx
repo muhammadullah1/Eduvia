@@ -1380,12 +1380,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         if (Number.isFinite(teacherNumId)) {
           api
             .post("/teacher-absences", {
-              fkTeacherId: teacherNumId,
+              teacherId: teacherNumId,
               date: input.date,
               periods: fresh,
               notes: input.notes.trim() || undefined,
             })
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
 
@@ -1401,7 +1401,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   const assignSubstitute = useCallback(
@@ -1462,14 +1462,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           current.classes.find((item) => item.id === absence.classId)?.label ??
           absence.classId
 
-        const absenceNumId = Number(absence.id.replace(/^abs-/, ""))
+        const absenceNumId = Number(absence.id)
         const subNumId = Number(substitute.id)
         if (Number.isFinite(absenceNumId) && Number.isFinite(subNumId)) {
           api
             .put(`/teacher-absences/${absenceNumId}/substitute`, {
               substituteTeacherId: subNumId,
             })
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
 
@@ -1482,7 +1482,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   const removeSubstitute = useCallback(
@@ -1503,11 +1503,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             row.id === absenceId ? { ...row, status: "Pending" } : row
           ),
         }
-        const absenceNumId = Number(absenceId.replace(/^abs-/, ""))
+        const absenceNumId = Number(absenceId)
         if (Number.isFinite(absenceNumId)) {
           api
             .delete(`/teacher-absences/${absenceNumId}/substitute`)
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
         return {
@@ -1519,7 +1519,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   const cancelAbsence = useCallback(
@@ -1540,11 +1540,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             row.id === absenceId ? { ...row, status: "Cancelled" } : row
           ),
         }
-        const absenceNumId = Number(absenceId.replace(/^abs-/, ""))
+        const absenceNumId = Number(absenceId)
         if (Number.isFinite(absenceNumId)) {
           api
             .post(`/teacher-absences/${absenceNumId}/cancel`)
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
         return {
@@ -1556,7 +1556,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   // ---- planned chapters & daily updates ----------------------------------------

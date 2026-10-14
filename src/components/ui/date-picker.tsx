@@ -26,6 +26,8 @@ type DatePickerProps = {
   defaultAgeYears?: number
   /** Which month to show when no date is selected yet. */
   defaultMonthKind?: "admission" | "today"
+  /** Extra classes on the calendar popover (e.g. `z-[100]` inside dialogs). */
+  popoverClassName?: string
 }
 
 function toDate(iso: string) {
@@ -47,6 +49,7 @@ export function DatePicker({
   className,
   defaultAgeYears = DEFAULT_ADMISSION_AGE_YEARS,
   defaultMonthKind = "admission",
+  popoverClassName,
 }: DatePickerProps) {
   const selected = toDate(value)
 
@@ -75,7 +78,10 @@ export function DatePicker({
           {selected ? format(selected, "dd MMM yyyy") : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className={cn("w-auto p-0", popoverClassName)}
+        align="start"
+      >
         <Calendar
           mode="single"
           selected={selected}

@@ -52,8 +52,9 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   subjects: ["staff", "slots"],
   "teachers-assignments": ["staff"],
   timetable: ["staff", "slots"],
-  substitutes: ["teacherAbsences", "substitutions"],
-  absences: ["teacherAbsences", "substitutions"],
+  /** Absences/substitutions load via React Query on the substitutes page. */
+  substitutes: ["slots"],
+  absences: ["slots"],
   "lesson-plan": ["plannedChapters"],
   curriculum: ["plannedChapters"],
   "lesson-review": ["dailyLessons"],
@@ -82,6 +83,8 @@ export const ADMISSION_WIZARD_SLICES: SchoolDataSlice[] = [
   "sessions",
 ]
 
+const MINIMAL_CORE_SECTIONS = new Set(["substitutes", "absences"])
+
 export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPlan {
   if (role === "teacher" || role === "parent" || role === "accountant") {
     return { mode: "full" }
@@ -90,9 +93,12 @@ export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPl
   if (!sectionSlices) {
     return { mode: "full" }
   }
-  const includeCore = section !== "admissions"
-  const slices = includeCore
-    ? [...new Set([...PORTAL_CORE_SLICES, ...sectionSlices])]
-    : [...new Set(sectionSlices)]
+  if (section === "admissions") {
+    return { mode: "partial", slices: [...new Set(sectionSlices)] }
+  }
+  const core = MINIMAL_CORE_SECTIONS.has(section)
+    ? (["classes"] as const)
+    : PORTAL_CORE_SLICES
+  const slices = [...new Set([...core, ...sectionSlices])]
   return { mode: "partial", slices }
 }

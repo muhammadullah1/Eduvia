@@ -25,8 +25,8 @@ import {
   Reports,
   TeachersAssignments,
 } from "@/features/management/screens"
+import { SubstitutesPage } from "@/features/management/substitutes/substitutes-page"
 import {
-  AbsencesPanel,
   AccountantPortal,
   CurriculumPanel,
   LessonReviewPanel,
@@ -190,7 +190,7 @@ export function PortalShell() {
       return <SectionPlaceholder section={section} />
     }
     if (section === "substitutes" || section === "absences") {
-      return <AbsencesPanel />
+      return <SubstitutesPage />
     }
     if (section === "daily-test-schedule" || section === "weekly-tests") {
       return <WeeklyTestsPanel />

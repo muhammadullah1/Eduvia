@@ -78,7 +78,7 @@ const managementNav: { id: string; label: string; icon: Icon }[] = [
   { id: "subjects", label: "Subjects", icon: BookOpen },
   {
     id: "teachers-assignments",
-    label: "Teachers & Assignments",
+    label: "Staff",
     icon: UserRound,
   },
   { id: "timetable", label: "Timetable", icon: CalendarClock },
@@ -180,10 +180,10 @@ export const subtitles: Record<string, string> = {
   overview: "Today’s academic operations — cover, reviews, tests and results.",
   sessions: "Only one session can be marked as Current at a time.",
   subjects: "Subject catalog for the current session.",
-  "teachers-assignments": "Teachers, subjects and class assignments.",
+  "teachers-assignments": "Portal users, teachers, and office staff.",
+  substitutes: "Mark teacher absences and assign cover for affected periods.",
   timetable:
     "Periods, rooms and conflict-aware scheduling; parents see their child's weekly timetable here.",
-  substitutes: "Mark absences and assign cover teachers.",
   "lesson-plan": "Planned chapters for daily teacher updates.",
   "daily-test-schedule": "Weekly test calendar and publishing.",
   students: "Enrolled students and class registers.",

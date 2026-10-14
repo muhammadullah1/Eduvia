@@ -59,6 +59,10 @@ import type {
   ApiUpdate,
   ApiUser,
 } from "@/lib/api-types"
+import {
+  mapTeacherAbsencesFromApi,
+  type AbsenceRow,
+} from "@/api/teacher-absences/map-absences"
 import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
 import { ADMISSIONS_LIST_MAX_PAGE_SIZE } from "@/api/admissions/constants"
 import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
@@ -218,6 +222,15 @@ async function fetchClassesAndSessions(): Promise<
   return { classes, sessions }
 }
 
+function wantsOnlyClasses(want: Set<SchoolDataSlice>) {
+  return (
+    want.has("classes") &&
+    !want.has("sessions") &&
+    !want.has("subjects") &&
+    !want.has("settings")
+  )
+}
+
 function wantsOnlyClassesAndSessions(want: Set<SchoolDataSlice>) {
   return (
     want.has("classes") &&
@@ -225,6 +238,51 @@ function wantsOnlyClassesAndSessions(want: Set<SchoolDataSlice>) {
     !want.has("subjects") &&
     !want.has("settings")
   )
+}
+
+async function fetchClassesFromApi(): Promise<
+  Pick<SchoolState, "classes">
+> {
+  const classesData = await safeGet<ApiClass[]>("/classes", undefined, [])
+  const classes: ClassSection[] = classesData.length
+    ? classesData.map((c) => ({
+        id: String(c.id),
+        label: `${c.grade} · ${c.section}`,
+        grade: c.grade,
+        section: c.section,
+        room: c.room || "Room",
+        periodCount: Number(c.periodCount) || 8,
+        monthlyFee:
+          Number(
+            (c as { monthlyTuitionFee?: string | number }).monthlyTuitionFee ??
+              c.monthlyFee
+          ) || 0,
+      }))
+    : []
+  return { classes }
+}
+
+async function fetchTimetableSlotsFromApi(): Promise<Pick<SchoolState, "slots">> {
+  const timetableData = await safeGet<ApiTimetableSlot[]>(
+    "/timetable",
+    undefined,
+    []
+  )
+  const slots = timetableData.length
+    ? timetableData.map((slot) => mapTimetableSlotDto(slot))
+    : []
+  return { slots }
+}
+
+async function fetchTeacherAbsencesBundle(): Promise<
+  Pick<SchoolState, "teacherAbsences" | "substitutions">
+> {
+  const absencesData = await safeGet<AbsenceRow[]>(
+    "/teacher-absences",
+    undefined,
+    []
+  )
+  return mapTeacherAbsencesFromApi(absencesData)
 }
 
 async function fetchStudentsFromApi(): Promise<Student[]> {
@@ -362,6 +420,9 @@ const LIGHT_FETCH_SLICES = new Set<SchoolDataSlice>([
   "staff",
   "feeMonths",
   "payments",
+  "slots",
+  "teacherAbsences",
+  "substitutions",
 ])
 
 /** Fetch only the school-state slices requested (avoids loading the whole portal). */
@@ -372,7 +433,13 @@ export async function fetchSchoolDataSlices(
   const partial: Partial<SchoolState> = {}
   const tasks: Promise<void>[] = []
 
-  if (PORTAL_CORE_SLICES.some((slice) => want.has(slice))) {
+  if (wantsOnlyClasses(want)) {
+    tasks.push(
+      fetchClassesFromApi().then((slice) => {
+        Object.assign(partial, slice)
+      })
+    )
+  } else if (PORTAL_CORE_SLICES.some((slice) => want.has(slice))) {
     if (wantsOnlyClassesAndSessions(want)) {
       tasks.push(
         fetchClassesAndSessions().then((slice) => {
@@ -386,6 +453,21 @@ export async function fetchSchoolDataSlices(
         })
       )
     }
+  }
+  if (want.has("slots")) {
+    tasks.push(
+      fetchTimetableSlotsFromApi().then((slice) => {
+        Object.assign(partial, slice)
+      })
+    )
+  }
+  if (want.has("teacherAbsences") || want.has("substitutions")) {
+    tasks.push(
+      fetchTeacherAbsencesBundle().then((bundle) => {
+        partial.teacherAbsences = bundle.teacherAbsences
+        partial.substitutions = bundle.substitutions
+      })
+    )
   }
   if (want.has("applications")) {
     tasks.push(

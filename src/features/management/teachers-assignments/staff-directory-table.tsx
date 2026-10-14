@@ -67,11 +67,6 @@ function detailsCell(row: StaffDirectoryRow) {
   )
 }
 
-function employeeLabel(row: StaffDirectoryRow) {
-  if (row.employeeCode && row.employeeCode !== "—") return row.employeeCode
-  return "—"
-}
-
 export function StaffDirectoryTable({
   rows,
   search,
@@ -86,7 +81,7 @@ export function StaffDirectoryTable({
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
-  const colSpan = 6
+  const colSpan = 5
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
@@ -151,9 +146,6 @@ export function StaffDirectoryTable({
               <TableHead className="h-11 w-[110px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
                 Status
               </TableHead>
-              <TableHead className="h-11 w-[90px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
-                ID
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -217,9 +209,6 @@ export function StaffDirectoryTable({
                 <TableCell className="py-3.5">{detailsCell(row)}</TableCell>
                 <TableCell className="py-3.5">
                   <ClsStatusBadge status={row.status} />
-                </TableCell>
-                <TableCell className="py-3.5 text-sm tabular-nums text-[var(--cls-muted)]">
-                  {employeeLabel(row)}
                 </TableCell>
               </TableRow>
             ))}
