@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils"
+import { StatusChip } from "@/components/app/status-chip"
 
 export function ClassStatusBadge({
   status,
@@ -7,22 +7,12 @@ export function ClassStatusBadge({
 }) {
   const active = status === "Active"
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
-        active
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-muted)]"
-      )}
+    <StatusChip
+      tone={active ? "success" : "neutral"}
+      showDot
+      className="py-1"
     >
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          active ? "bg-emerald-500" : "bg-[var(--cls-muted)]"
-        )}
-        aria-hidden
-      />
       {active ? "Active" : "Archived"}
-    </span>
+    </StatusChip>
   )
 }

@@ -12,7 +12,7 @@ export function useClassesList(sessionId?: number) {
     enabled: Boolean(loadAuth()?.token),
     queryFn: async () => {
       const rows = await classesService.list(
-        sessionId ? { sessionId } : undefined
+        sessionId ? { sessionId, stats: true } : { stats: true }
       )
       return rows.map(mapClassDto)
     },

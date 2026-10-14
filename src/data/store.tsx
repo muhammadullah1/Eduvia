@@ -42,7 +42,6 @@ import {
   type Subject,
   type TeacherAbsence,
   type TestSchedule,
-  type TimetableSlot,
   type UpdateStatus,
 } from "@/data/types"
 import {
@@ -144,13 +143,6 @@ type SchoolContextValue = {
   activateSession: (id: string, actor: string) => Result
   addClass: (input: Omit<ClassSection, "id" | "label">, actor: string) => Result
   addSubject: (input: Omit<Subject, "id">, actor: string) => Result
-  addSlot: (
-    input: Omit<TimetableSlot, "id" | "teacher" | "subject"> & {
-      subject?: string
-    },
-    actor: string
-  ) => Result
-  removeSlot: (id: string, actor: string) => void
   addStaff: (
     input: Pick<
       Staff,
@@ -1147,101 +1139,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
-  )
-
-  const addSlot = useCallback(
-    (
-      input: Omit<TimetableSlot, "id" | "teacher" | "subject"> & {
-        subject?: string
-      },
-      actor: string
-    ) =>
-      simple((current) => {
-        const teacher = current.staff.find(
-          (person) => person.id === input.teacherId && person.role === "Teacher"
-        )
-        if (!teacher) return { error: "Choose a teacher." }
-        const klass = current.classes.find((item) => item.id === input.classId)
-        if (!klass) return { error: "Choose a class." }
-        if (input.periodIndex < 1 || input.periodIndex > klass.periodCount)
-          return {
-            error: `${klass.label} has ${klass.periodCount} periods per day.`,
-          }
-        const same = current.slots.filter(
-          (slot) =>
-            slot.day === input.day && slot.periodIndex === input.periodIndex
-        )
-        if (same.some((slot) => slot.classId === input.classId))
-          return { error: "That class already has a lesson in this period." }
-        if (same.some((slot) => slot.teacherId === input.teacherId))
-          return {
-            error: `${teacher.name} already teaches another class in this period.`,
-          }
-        const slot: TimetableSlot = {
-          ...input,
-          id: uid("tt"),
-          subject: input.subject || teacher.subject,
-          teacher: teacher.name,
-        }
-        const staff = current.staff.map((person) =>
-          person.id === teacher.id && !person.classIds.includes(klass.id)
-            ? { ...person, classIds: [...person.classIds, klass.id] }
-            : person
-        )
-
-        const classIdNum = Number(klass.id)
-        const teacherIdNum = Number(teacher.id)
-        const subObj = current.subjects.find((s) => s.name === slot.subject)
-        const subIdNum = Number(subObj?.id ?? 1)
-        if (Number.isFinite(classIdNum) && Number.isFinite(teacherIdNum)) {
-          api
-            .post("/timetable", {
-              fkClassId: classIdNum,
-              day: input.day,
-              time: input.time,
-              periodIndex: input.periodIndex,
-              fkSubjectId: subIdNum,
-              fkTeacherId: teacherIdNum,
-              room: input.room,
-            })
-            .then(syncBackend)
-            .catch(console.error)
-        }
-
-        return {
-          next: withAudit(
-            { ...current, staff, slots: [...current.slots, slot] },
-            actor,
-            `Scheduled ${slot.subject} for ${klass.label} on ${input.day} period ${input.periodIndex}`
-          ),
-        }
-      }),
-    [simple, syncBackend]
-  )
-
-  const removeSlot = useCallback(
-    (id: string, actor: string) => {
-      simple((current) => {
-        const numId = Number(id.replace(/^tt-/, ""))
-        if (Number.isFinite(numId)) {
-          api
-            .delete(`/timetable/${numId}`)
-            .then(syncBackend)
-            .catch(console.error)
-        }
-        return {
-          next: withAudit(
-            {
-              ...current,
-              slots: current.slots.filter((slot) => slot.id !== id),
-            },
-            actor,
-            "Removed a timetable period"
-          ),
-        }
-      })
-    },
     [simple, syncBackend]
   )
 
@@ -2528,8 +2425,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       activateSession,
       addClass,
       addSubject,
-      addSlot,
-      removeSlot,
       addStaff,
       saveAttendance,
       addUpdate,
@@ -2572,8 +2467,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       activateSession,
       addClass,
       addSubject,
-      addSlot,
-      removeSlot,
       addStaff,
       saveAttendance,
       addUpdate,

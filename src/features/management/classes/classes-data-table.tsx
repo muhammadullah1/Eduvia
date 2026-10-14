@@ -84,29 +84,29 @@ export function ClassesDataTable({
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow className="border-[var(--cls-border)] bg-[var(--page-wash)]/80 hover:bg-[var(--page-wash)]/80">
-              <TableHead className="h-12 text-xs font-semibold tracking-wide text-[var(--cls-muted)]">
-                <span className="inline-flex items-center gap-1 uppercase">
+            <TableRow className="border-[var(--cls-border)] bg-[var(--page-wash)]/90 hover:bg-[var(--page-wash)]/90">
+              <TableHead className="h-11 text-xs font-semibold text-[var(--cls-muted)]">
+                <span className="inline-flex items-center gap-1">
                   Class
                   <SortHint />
                 </span>
               </TableHead>
-              <TableHead className="h-12 text-xs font-semibold tracking-wide text-[var(--cls-muted)]">
-                <span className="inline-flex items-center gap-1 uppercase">
+              <TableHead className="h-11 text-xs font-semibold text-[var(--cls-muted)]">
+                <span className="inline-flex items-center gap-1">
                   Students
                   <SortHint />
                 </span>
               </TableHead>
-              <TableHead className="h-12 text-xs font-semibold tracking-wide text-[var(--cls-muted)]">
-                <span className="inline-flex items-center gap-1 uppercase">
+              <TableHead className="h-11 text-xs font-semibold text-[var(--cls-muted)]">
+                <span className="inline-flex items-center gap-1">
                   Subjects
                   <SortHint />
                 </span>
               </TableHead>
-              <TableHead className="h-12 text-xs font-semibold tracking-wide text-[var(--cls-muted)] uppercase">
+              <TableHead className="h-11 text-xs font-semibold text-[var(--cls-muted)]">
                 Status
               </TableHead>
-              <TableHead className="h-12 w-12" />
+              <TableHead className="h-11 w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -152,19 +152,19 @@ export function ClassesDataTable({
                 )}
                 onClick={() => onOpenClass?.(item)}
               >
-                <TableCell className="text-sm font-medium text-[var(--cls-ink)]">
+                <TableCell className="py-3.5 text-sm font-medium text-[var(--cls-ink)]">
                   {classDisplayName(item)}
                 </TableCell>
-                <TableCell className="text-sm text-[var(--cls-ink)]">
+                <TableCell className="py-3.5 text-sm tabular-nums text-[var(--cls-ink)]">
                   {item.studentCount}
                 </TableCell>
-                <TableCell className="text-sm text-[var(--cls-ink)]">
+                <TableCell className="py-3.5 text-sm tabular-nums text-[var(--cls-ink)]">
                   {item.subjectCount}
                 </TableCell>
-                <TableCell>
+                <TableCell className="py-3.5">
                   <ClassStatusBadge status={item.status} />
                 </TableCell>
-                <TableCell>
+                <TableCell className="py-3.5">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button

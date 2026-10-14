@@ -35,6 +35,8 @@ export type ApiSubject = {
   id: number
   name: string
   code: string
+  category?: string | null
+  isActive?: boolean
 }
 
 export type ApiTeacher = {
@@ -276,21 +278,23 @@ export type ApiTimetableSlot = {
   id: number
   fkClassId: number
   day: string
-  time: string
+  time?: string
+  startTime?: string
   periodIndex: number
-  subject: {
+  fkSubjectId?: number
+  subject?: {
     id: number
     name: string
   }
-  teacher: {
+  teacher?: {
     id: number
     user?: {
       firstName: string
       lastName: string
       email?: string
     } | null
-  }
-  fkTeacherId: number
+  } | null
+  fkTeacherId?: number | null
   room?: string | null
 }
 

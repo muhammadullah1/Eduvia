@@ -19,7 +19,6 @@ import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
-/** Backend defaults for fields managed elsewhere (timetable, fee management). */
 const CLASS_API_DEFAULTS = {
   room: "Unassigned",
   periodCount: 8,
@@ -58,25 +57,15 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   )
 
   const rows = useMemo(() => {
-    return classes.map((klass) => {
-      const studentCount = state.students.filter(
-        (student) =>
-          student.classId === klass.id && student.status !== "Withdrawn"
-      ).length
-      const subjectCount = new Set(
-        state.slots
-          .filter((slot) => slot.classId === klass.id)
-          .map((slot) => slot.subject)
-          .filter(Boolean)
-      ).size
-      return {
-        ...klass,
-        studentCount,
-        subjectCount,
-        status: "Active" as const,
-      }
-    })
-  }, [classes, state.students, state.slots])
+    return classes.map((klass) => ({
+      ...klass,
+      studentCount: klass.studentCount ?? 0,
+      subjectCount: klass.subjectCount ?? 0,
+      status: (klass.status === "Archived" ? "Archived" : "Active") as
+        | "Active"
+        | "Archived",
+    }))
+  }, [classes])
 
   const existingClassLabels = useMemo(
     () => classes.map((c) => ({ id: c.id, label: c.label })),

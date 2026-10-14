@@ -61,6 +61,11 @@ export type ClassSection = {
   periodCount: number
   /** Monthly tuition used when fee months are generated. */
   monthlyFee: number
+  status?: "Active" | "Archived"
+  /** Period index → HH:mm from GET /classes */
+  periodStartTimes?: Record<string, string>
+  studentCount?: number
+  subjectCount?: number
 }
 
 export type Subject = {
@@ -351,6 +356,7 @@ export type TimetableSlot = {
   time: string
   /** 1-based period index within the class period_count. */
   periodIndex: number
+  subjectId?: string
   subject: string
   teacherId: string
   /** Display name of the teacher. */
