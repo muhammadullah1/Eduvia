@@ -18,6 +18,8 @@ const subjectsService = {
 
   update: (id: number, body: UpdateSubjectBody) =>
     api.patch<ApiSubject>(`/subjects/${id}`, body),
+
+  remove: (id: number) => api.delete<void>(`/subjects/${id}`),
 }
 
 export default subjectsService

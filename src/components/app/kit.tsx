@@ -1,4 +1,4 @@
-import { Search } from "lucide-react"
+import { Loader2, Search } from "lucide-react"
 import type { ComponentType, ReactNode } from "react"
 
 import { Badge } from "@/components/ui/badge"
@@ -267,6 +267,8 @@ export function ConfirmDialog({
   title,
   description,
   confirmLabel,
+  confirmingLabel,
+  confirming = false,
   destructive,
   onConfirm,
   onClose,
@@ -275,26 +277,41 @@ export function ConfirmDialog({
   title: string
   description: string
   confirmLabel: string
+  confirmingLabel?: string
+  confirming?: boolean
   destructive?: boolean
   onConfirm: () => void
   onClose: () => void
 }) {
   return (
-    <Dialog open={open} onOpenChange={(value) => !value && onClose()}>
+    <Dialog
+      open={open}
+      onOpenChange={(value) => {
+        if (!value && !confirming) onClose()
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
+          <Button variant="outline" onClick={onClose} disabled={confirming}>
             Cancel
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
             onClick={onConfirm}
+            disabled={confirming}
           >
-            {confirmLabel}
+            {confirming ? (
+              <>
+                <Loader2 className="size-4 animate-spin" data-icon="inline-start" />
+                {confirmingLabel ?? `${confirmLabel}…`}
+              </>
+            ) : (
+              confirmLabel
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

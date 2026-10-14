@@ -26,12 +26,17 @@ type Options = {
   classId: string
   klass: ClassSection | undefined
   syncPortal: () => Promise<void>
+  /** Open the edit modal for this slot once loaded (e.g. from teacher view). */
+  focusSlot?: TimetableSlot | null
+  onFocusSlotHandled?: () => void
 }
 
 export function useClassTimetableEditor({
   classId,
   klass,
   syncPortal,
+  focusSlot,
+  onFocusSlotHandled,
 }: Options) {
   const queryClient = useQueryClient()
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -102,6 +107,14 @@ export function useClassTimetableEditor({
     setSchedulePrefill(undefined)
     setScheduleOpen(true)
   }
+
+  useEffect(() => {
+    if (!focusSlot || focusSlot.classId !== classId) return
+    const match = slots.find((s) => s.id === focusSlot.id)
+    if (!match) return
+    openEditSlot(match)
+    onFocusSlotHandled?.()
+  }, [focusSlot, classId, slots, onFocusSlotHandled])
 
   function closeSchedule() {
     setScheduleOpen(false)

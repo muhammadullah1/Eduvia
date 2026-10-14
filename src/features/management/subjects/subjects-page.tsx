@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import type { SubjectRow } from "@/api/subjects/map-subject"
 import subjectsService from "@/api/subjects/subjects.service"
+import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
@@ -27,13 +28,15 @@ type Props = {
 }
 
 export function SubjectsPage({ globalQuery }: Props) {
-  const { state, syncPortalForRoute } = useSchool()
+  const { syncPortalForRoute } = useSchool()
   const actor = useActor()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [editSubject, setEditSubject] = useState<SubjectRow | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleteRow, setDeleteRow] = useState<SubjectTableRow | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "subjects")
@@ -42,23 +45,22 @@ export function SubjectsPage({ globalQuery }: Props) {
   const { data: subjects = [], isLoading, isError, refetch } =
     useSubjectsList()
 
-  const currentSession = useMemo(
-    () => state.sessions.find((session) => session.current),
-    [state.sessions]
-  )
-  const sessionNumericId = currentSession
-    ? Number(currentSession.id)
-    : undefined
-
-  const { data: classes = [] } = useClassesList(
-    Number.isFinite(sessionNumericId) ? sessionNumericId : undefined
-  )
+  const { data: allClasses = [] } = useClassesList()
   const { data: timetableSlots = [] } = useSchoolTimetableQuery()
 
   const rows = useMemo(
-    () => toSubjectTableRows(subjects, timetableSlots, classes),
-    [subjects, timetableSlots, classes]
+    () => toSubjectTableRows(subjects, timetableSlots, allClasses),
+    [subjects, timetableSlots, allClasses]
   )
+
+  function timetablePeriodCount(subjectId: string, subjectName: string) {
+    const key = subjectName.toLowerCase()
+    return timetableSlots.filter(
+      (slot) =>
+        slot.subjectId === subjectId ||
+        slot.subject.toLowerCase() === key
+    ).length
+  }
 
   const activeCount = useMemo(
     () => subjects.filter((s) => s.status === "Active").length,
@@ -130,6 +132,13 @@ export function SubjectsPage({ globalQuery }: Props) {
 
   async function handleToggleActive(row: SubjectTableRow) {
     const nextActive = row.status !== "Active"
+    const periods = timetablePeriodCount(row.id, row.name)
+    if (!nextActive && periods > 0) {
+      toast.error(
+        `Cannot deactivate — ${periods} timetable period${periods === 1 ? "" : "s"} still use this subject (any session). Remove them first.`
+      )
+      return
+    }
     setSaving(true)
     try {
       await subjectsService.update(Number(row.id), {
@@ -142,6 +151,30 @@ export function SubjectsPage({ globalQuery }: Props) {
       )
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDeleteConfirm() {
+    if (!deleteRow) return
+    const periods = timetablePeriodCount(deleteRow.id, deleteRow.name)
+    if (periods > 0) {
+      toast.error(
+        `Cannot delete — ${periods} timetable period${periods === 1 ? "" : "s"} still use this subject. Remove them first.`
+      )
+      setDeleteRow(null)
+      return
+    }
+    setDeleting(true)
+    try {
+      await subjectsService.remove(Number(deleteRow.id))
+      await afterMutation("Subject deleted")
+      setDeleteRow(null)
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not delete subject."
+      )
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -174,9 +207,11 @@ export function SubjectsPage({ globalQuery }: Props) {
       </div>
 
       <div className="rounded-lg border border-[var(--cls-border)] bg-[var(--page-wash)]/60 px-4 py-3 text-xs text-[var(--cls-muted)]">
-        Subjects are not deleted from the catalog. Use{" "}
-        <span className="font-medium text-[var(--cls-ink)]">Deactivate</span> to
-        hide a subject from new assignments while keeping historical records.
+        Assign subjects to classes on{" "}
+        <span className="font-medium text-[var(--cls-ink)]">Timetable</span>{" "}
+        (Class view, <span className="font-medium">+</span> on empty cells).
+        Deactivate or delete only when the subject is not on any timetable (any
+        session).
       </div>
 
       {isError ? (
@@ -219,6 +254,7 @@ export function SubjectsPage({ globalQuery }: Props) {
           onClearSearch={clearSearch}
           onEdit={(row) => setEditSubject(row)}
           onToggleActive={(row) => void handleToggleActive(row)}
+          onDelete={(row) => setDeleteRow(row)}
           pagination={pagination}
         />
       )}
@@ -238,6 +274,24 @@ export function SubjectsPage({ globalQuery }: Props) {
         existingSubjects={catalogCodes}
         saving={saving}
         onSubmit={handleEdit}
+      />
+
+      <ConfirmDialog
+        open={Boolean(deleteRow)}
+        title="Delete subject"
+        description={
+          deleteRow
+            ? timetablePeriodCount(deleteRow.id, deleteRow.name) > 0
+              ? `"${deleteRow.name}" is on class timetables and cannot be deleted.`
+              : `Permanently delete "${deleteRow.name}" (${deleteRow.code})? This cannot be undone.`
+            : "Delete this subject?"
+        }
+        confirmLabel="Delete subject"
+        destructive
+        confirming={deleting}
+        confirmingLabel="Deleting…"
+        onConfirm={() => void handleDeleteConfirm()}
+        onClose={() => !deleting && setDeleteRow(null)}
       />
     </div>
   )

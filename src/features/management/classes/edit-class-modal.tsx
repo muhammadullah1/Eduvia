@@ -15,6 +15,14 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import type { ClassSection } from "@/data/types"
 import { ClassSectionField } from "@/features/management/classes/class-section-field"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
@@ -31,6 +39,8 @@ type Props = {
     grade: string
     section: string
     label: string
+    room?: string | null
+    periodCount: number
   }) => Promise<void>
 }
 
@@ -45,12 +55,16 @@ export function EditClassModal({
 }: Props) {
   const [grade, setGrade] = useState("")
   const [section, setSection] = useState("Main")
+  const [room, setRoom] = useState("")
+  const [periodCount, setPeriodCount] = useState("8")
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open || !klass) return
     setGrade(klass.grade)
     setSection(klass.section)
+    setRoom(klass.room === "Unassigned" ? "" : klass.room)
+    setPeriodCount(String(klass.periodCount || 8))
     setError(null)
   }, [open, klass])
 
@@ -72,11 +86,15 @@ export function EditClassModal({
       return
     }
     setError(null)
+    const periods = Number(periodCount) || 8
+    const roomTrimmed = room.trim()
     await onSubmit({
       id: klass.id,
       grade: gradeTrimmed,
       section: sectionTrimmed,
       label,
+      room: roomTrimmed || null,
+      periodCount: periods,
     })
   }
 
@@ -113,6 +131,43 @@ export function EditClassModal({
             onSectionChange={setSection}
             disabled={saving}
           />
+          <div>
+            <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
+              Home room <span className="text-[var(--cls-muted)]">(optional)</span>
+            </Label>
+            <Input
+              value={room}
+              onChange={(e) => setRoom(e.target.value)}
+              placeholder="e.g. Room 12"
+              disabled={saving}
+            />
+          </div>
+          <div>
+            <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
+              Periods per day
+            </Label>
+            <Select
+              value={periodCount}
+              onValueChange={setPeriodCount}
+              disabled={saving}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {[6, 7, 8, 9, 10].map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      {n} periods
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+            <p className="mt-1.5 text-xs text-[var(--cls-muted)]">
+              Controls how many rows appear on the weekly timetable for this class.
+            </p>
+          </div>
           {error ? (
             <p className="text-sm text-destructive">{error}</p>
           ) : null}

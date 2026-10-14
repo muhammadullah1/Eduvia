@@ -1,5 +1,7 @@
 import { Info } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+
+import type { TimetableSlot } from "@/data/types"
 import { useSearchParams } from "react-router-dom"
 
 import { classDisplayName } from "@/api/classes/map-class"
@@ -19,6 +21,7 @@ import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjec
 import { useActor } from "@/lib/actor"
 
 import { ClassTimetableEditor } from "./class-timetable-editor"
+import { TimetableTeacherPanel } from "./timetable-teacher-panel"
 
 type ViewMode = "class" | "teacher"
 
@@ -27,6 +30,7 @@ export function TimetablePage() {
   const actor = useActor()
   const [searchParams, setSearchParams] = useSearchParams()
   const [viewMode, setViewMode] = useState<ViewMode>("class")
+  const [focusSlot, setFocusSlot] = useState<TimetableSlot | null>(null)
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "timetable")
@@ -164,9 +168,14 @@ export function TimetablePage() {
             </span>
             {classMeta ? ` · ${classMeta}` : null}
             {" · "}
-            Set start times in the period column, then use{" "}
+            Period rows come from this class&apos;s{" "}
+            <span className="font-medium text-[var(--cls-ink)]">
+              {klass.periodCount} periods/day
+            </span>{" "}
+            (change under Classes → Edit class). Set start times in the period
+            column, then click{" "}
             <span className="font-medium text-[var(--cls-ink)]">+</span> on an
-            empty cell to assign.
+            empty cell to assign a subject to this class.
           </p>
         ) : null}
       </section>
@@ -183,15 +192,15 @@ export function TimetablePage() {
       </div>
 
       {viewMode === "teacher" ? (
-        <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-20 text-center">
-          <p className="text-sm font-medium text-[var(--cls-ink)]">
-            Teacher view coming soon
-          </p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--cls-muted)]">
-            Switch to <span className="font-medium">Class</span> to edit the
-            weekly grid.
-          </p>
-        </div>
+        <TimetableTeacherPanel
+          teachers={teachers}
+          classes={classes}
+          onEditSlotInClassView={(slot) => {
+            setFocusSlot(slot)
+            setViewMode("class")
+            selectClass(slot.classId)
+          }}
+        />
       ) : !klass && !classesLoading ? (
         <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-20 text-center text-sm text-[var(--cls-muted)]">
           Add a class for the current session to build a timetable.
@@ -203,6 +212,8 @@ export function TimetablePage() {
           subjects={catalogSubjects}
           teachers={teachers}
           syncPortal={syncPortal}
+          focusSlot={focusSlot}
+          onFocusSlotHandled={() => setFocusSlot(null)}
         />
       )}
     </div>

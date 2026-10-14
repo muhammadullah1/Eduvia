@@ -28,6 +28,7 @@ type Props = {
     grade: string
     section: string
     label: string
+    room?: string | null
   }) => Promise<void>
 }
 
@@ -41,12 +42,14 @@ export function CreateClassModal({
 }: Props) {
   const [grade, setGrade] = useState("")
   const [section, setSection] = useState("Main")
+  const [room, setRoom] = useState("")
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setGrade("")
     setSection("Main")
+    setRoom("")
     setError(null)
   }, [open])
 
@@ -67,10 +70,12 @@ export function CreateClassModal({
       return
     }
     setError(null)
+    const roomTrimmed = room.trim()
     await onSubmit({
       grade: gradeTrimmed,
       section: sectionTrimmed,
       label,
+      room: roomTrimmed || null,
     })
   }
 
@@ -102,6 +107,17 @@ export function CreateClassModal({
             onSectionChange={setSection}
             disabled={saving}
           />
+          <div>
+            <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
+              Home room <span className="text-[var(--cls-muted)]">(optional)</span>
+            </Label>
+            <Input
+              value={room}
+              onChange={(e) => setRoom(e.target.value)}
+              placeholder="e.g. Room 12"
+              disabled={saving}
+            />
+          </div>
           {error ? (
             <p className="text-sm text-destructive">{error}</p>
           ) : null}

@@ -20,7 +20,6 @@ import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
 const CLASS_API_DEFAULTS = {
-  room: "Unassigned",
   periodCount: 8,
   monthlyFee: 0,
 }
@@ -39,6 +38,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   const [editClass, setEditClass] = useState<ClassSection | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const currentSession = useMemo(
     () => state.sessions.find((session) => session.current),
@@ -98,6 +98,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     grade: string
     section: string
     label: string
+    room?: string | null
   }) {
     if (!sessionNumericId || !Number.isFinite(sessionNumericId)) {
       toast.error("Activate an academic session before adding classes.")
@@ -114,6 +115,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         grade: payload.grade,
         section: payload.section,
         label: payload.label,
+        room: payload.room || undefined,
         ...CLASS_API_DEFAULTS,
       })
       await afterMutation("Class created")
@@ -132,6 +134,8 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     grade: string
     section: string
     label: string
+    room?: string | null
+    periodCount: number
   }) {
     if (isDuplicateClassLabel(existingClassLabels, payload.label, payload.id)) {
       toast.error("A class with this name already exists in the current session.")
@@ -143,6 +147,8 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         grade: payload.grade,
         section: payload.section,
         label: payload.label,
+        room: payload.room ?? null,
+        periodCount: payload.periodCount,
       })
       await afterMutation("Class updated")
       setEditClass(null)
@@ -157,7 +163,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
 
   async function handleDeleteConfirm() {
     if (!deleteId) return
-    setSaving(true)
+    setDeleting(true)
     try {
       await classesService.remove(Number(deleteId))
       await afterMutation("Class deleted")
@@ -167,7 +173,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         err instanceof Error ? err.message : "Could not delete class."
       )
     } finally {
-      setSaving(false)
+      setDeleting(false)
     }
   }
 
@@ -288,8 +294,10 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         }
         confirmLabel="Delete class"
         destructive
+        confirming={deleting}
+        confirmingLabel="Deleting…"
         onConfirm={() => void handleDeleteConfirm()}
-        onClose={() => setDeleteId(null)}
+        onClose={() => !deleting && setDeleteId(null)}
       />
     </div>
   )

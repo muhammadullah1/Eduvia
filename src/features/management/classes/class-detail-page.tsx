@@ -136,6 +136,8 @@ export function ClassDetailPage({
     grade: string
     section: string
     label: string
+    room?: string | null
+    periodCount: number
   }) {
     if (isDuplicateClassLabel(existingClassLabels, payload.label, payload.id)) {
       toast.error("A class with this name already exists in the current session.")
@@ -147,6 +149,8 @@ export function ClassDetailPage({
         grade: payload.grade,
         section: payload.section,
         label: payload.label,
+        room: payload.room ?? null,
+        periodCount: payload.periodCount,
       })
       await afterMutation("Class updated")
       setEditOpen(false)

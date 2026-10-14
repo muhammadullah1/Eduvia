@@ -23,6 +23,7 @@ import {
   MessagesDesk,
   People,
   Reports,
+  TeachersAssignments,
 } from "@/features/management/screens"
 import {
   AbsencesPanel,
@@ -165,6 +166,9 @@ export function PortalShell() {
     if (section === "sessions") return <Sessions />
     if (section === "subjects") return <Subjects query={query} />
     if (section === "timetable") return <Timetable />
+    if (section === "teachers-assignments") {
+      return <TeachersAssignments query={query} />
+    }
     {
       const academicFocus = academicFocusForSection(section)
       if (academicFocus && academicFocus !== "sessions") {
