@@ -1,19 +1,22 @@
-import { ChevronDown, ChevronUp, MoreVertical } from "lucide-react"
+import { ChevronDown, ChevronUp, Search } from "lucide-react"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
-import { StatusChip } from "@/components/app/status-chip"
+import { staffRoleLabel } from "@/api/staff/map-staff-directory"
 import {
   PaginationComponent,
   type PaginationWithHandlers,
 } from "@/components/common/pagination-component"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -22,18 +25,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { Role } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 import { StaffAvatar } from "./staff-avatar"
 import { StaffRoleBadge } from "./staff-role-badge"
 
+export type StaffRoleFilter = "all" | Role
+
 type Props = {
   rows: StaffDirectoryRow[]
+  search: string
+  onSearchChange: (value: string) => void
+  roleFilter: StaffRoleFilter
+  onRoleFilterChange: (value: StaffRoleFilter) => void
+  roleOptions: Role[]
   loading?: boolean
   searchActive?: boolean
   onClearSearch?: () => void
-  onOpenStaff?: (row: StaffDirectoryRow) => void
-  onChangeSubject?: (row: StaffDirectoryRow) => void
+  onOpenUser?: (row: StaffDirectoryRow) => void
   pagination?: PaginationWithHandlers
 }
 
@@ -46,55 +56,76 @@ function SortHint() {
   )
 }
 
-function statusTone(status: string) {
-  const normalized = status.toLowerCase()
-  if (normalized === "active") return "success"
-  if (normalized === "pending") return "warning"
-  return "neutral"
-}
-
-function displayId(row: StaffDirectoryRow) {
-  if (row.employeeCode && row.employeeCode !== "—") return row.employeeCode
-  return row.id
-}
-
 export function StaffDirectoryTable({
   rows,
+  search,
+  onSearchChange,
+  roleFilter,
+  onRoleFilterChange,
+  roleOptions,
   loading = false,
   searchActive = false,
   onClearSearch,
-  onOpenStaff,
-  onChangeSubject,
+  onOpenUser,
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
-  const colSpan = 6
+  const colSpan = 2
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
+      <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] px-4 py-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="relative w-full max-w-sm flex-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]"
+            aria-hidden
+          />
+          <Input
+            value={search}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Search by name or email…"
+            className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
+          />
+        </div>
+        <div className="w-full lg:w-[200px]">
+          <Label className="mb-1.5 block text-xs font-medium text-[var(--cls-muted)]">
+            Role
+          </Label>
+          <Select
+            value={roleFilter}
+            onValueChange={(value) =>
+              onRoleFilterChange(value as StaffRoleFilter)
+            }
+          >
+            <SelectTrigger className="h-10 border-[var(--cls-border)] bg-[var(--page-wash)]">
+              <SelectValue placeholder="All roles" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectGroup>
+                <SelectItem value="all">All roles</SelectItem>
+                {roleOptions.map((role) => (
+                  <SelectItem key={role} value={role}>
+                    {staffRoleLabel(role)}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="border-[var(--cls-border)] bg-[var(--page-wash)]/90 hover:bg-[var(--page-wash)]/90">
-              <TableHead className="h-11 w-[72px] px-4 text-xs font-semibold text-[var(--cls-muted)]">
-                Id#
-              </TableHead>
-              <TableHead className="h-11 min-w-[200px] text-xs font-semibold text-[var(--cls-muted)]">
+              <TableHead className="h-11 min-w-[280px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
                 <span className="inline-flex items-center gap-1">
-                  Name
+                  User
                   <SortHint />
                 </span>
               </TableHead>
-              <TableHead className="h-11 min-w-[200px] text-xs font-semibold text-[var(--cls-muted)]">
-                Email
-              </TableHead>
-              <TableHead className="h-11 w-[140px] text-xs font-semibold text-[var(--cls-muted)]">
+              <TableHead className="h-11 w-[180px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
                 Role
               </TableHead>
-              <TableHead className="h-11 w-[120px] text-xs font-semibold text-[var(--cls-muted)]">
-                Status
-              </TableHead>
-              <TableHead className="h-11 w-12" />
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -113,7 +144,7 @@ export function StaffDirectoryTable({
                 <TableCell colSpan={colSpan} className="h-32">
                   <div className="flex flex-col items-center justify-center gap-3 py-4 text-center">
                     <p className="text-sm font-medium text-[var(--cls-ink)]">
-                      No matches for your search
+                      No matches for your filters
                     </p>
                     <Button
                       type="button"
@@ -127,94 +158,33 @@ export function StaffDirectoryTable({
                 </TableCell>
               </TableRow>
             ) : null}
-            {rows.map((row) => {
-              const isTeacher = row.role === "teacher"
-              let menu = null
-              if (onOpenStaff) {
-                menu = (
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="text-[var(--cls-muted)]"
-                        aria-label="Row actions"
-                        onClick={(event) => event.stopPropagation()}
-                      >
-                        <MoreVertical />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuGroup>
-                        <DropdownMenuItem onClick={() => onOpenStaff(row)}>
-                          View profile
-                        </DropdownMenuItem>
-                        {isTeacher && onChangeSubject ? (
-                          <DropdownMenuItem
-                            onClick={() => onChangeSubject(row)}
-                          >
-                            Quick change subject
-                          </DropdownMenuItem>
-                        ) : null}
-                      </DropdownMenuGroup>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                )
-              }
-
-              let subjectHint = ""
-              if (isTeacher && row.subjectName && row.subjectName !== "—") {
-                subjectHint = row.subjectName
-              }
-
-              return (
-                <TableRow
-                  key={row.id}
-                  className={cn(
-                    "border-[var(--cls-border)]",
-                    onOpenStaff && "cursor-pointer hover:bg-[var(--page-wash)]/60"
-                  )}
-                  onClick={() => onOpenStaff?.(row)}
-                >
-                  <TableCell className="px-4 py-3.5 text-sm tabular-nums text-[var(--cls-muted)]">
-                    {displayId(row)}
-                  </TableCell>
-                  <TableCell className="py-3.5">
-                    <div className="flex items-center gap-3">
-                      <StaffAvatar name={row.name} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-[var(--cls-ink)]">
-                          {row.name}
-                        </p>
-                        {subjectHint ? (
-                          <p className="truncate text-xs text-[var(--cls-muted)]">
-                            {subjectHint}
-                          </p>
-                        ) : null}
-                      </div>
+            {rows.map((row) => (
+              <TableRow
+                key={row.id}
+                className={cn(
+                  "border-[var(--cls-border)]",
+                  onOpenUser && "cursor-pointer hover:bg-[var(--page-wash)]/50"
+                )}
+                onClick={() => onOpenUser?.(row)}
+              >
+                <TableCell className="py-3.5">
+                  <div className="flex items-center gap-3">
+                    <StaffAvatar name={row.name} />
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-[var(--cls-ink)]">
+                        {row.name}
+                      </p>
+                      <p className="truncate text-xs text-[var(--cls-muted)]">
+                        {row.email}
+                      </p>
                     </div>
-                  </TableCell>
-                  <TableCell className="py-3.5 text-sm text-[var(--cls-muted)]">
-                    {row.email}
-                  </TableCell>
-                  <TableCell className="py-3.5">
-                    <StaffRoleBadge role={row.role} />
-                  </TableCell>
-                  <TableCell className="py-3.5">
-                    <StatusChip tone={statusTone(row.status)} showDot>
-                      {row.status}
-                    </StatusChip>
-                  </TableCell>
-                  <TableCell
-                    className="py-3.5"
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    {menu}
-                  </TableCell>
-                </TableRow>
-              )
-            })}
+                  </div>
+                </TableCell>
+                <TableCell className="py-3.5">
+                  <StaffRoleBadge role={row.role} />
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </div>

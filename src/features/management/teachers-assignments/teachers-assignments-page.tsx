@@ -4,14 +4,12 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
 import usersService from "@/api/users/users.service"
-import teachersService from "@/api/teachers/teachers.service"
-import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
-import { portalPath } from "@/lib/auth"
+import type { Role } from "@/lib/auth"
 import { toast } from "@/lib/toast"
 
 import {
@@ -22,37 +20,52 @@ import {
   invalidateStaffDirectory,
   useStaffDirectory,
 } from "./hooks/use-staff-directory"
-import { OfficeStaffTable } from "./office-staff-table"
-import { TeacherEditSheet } from "./teacher-edit-sheet"
-import { TeachersClsTable } from "./teachers-cls-table"
-import { TeachingAssignmentsSheet } from "./teaching-assignments-sheet"
-
-type PageView = "teachers" | "office"
+import {
+  StaffDirectoryTable,
+  type StaffRoleFilter,
+} from "./staff-directory-table"
 
 type Props = {
   globalQuery: string
-  initialTeacherId?: string
+  onOpenUser?: (row: StaffDirectoryRow) => void
 }
 
-const OFFICE_ROLES = new Set([
+const STAFF_ROLES_ORDER: Role[] = [
+  "teacher",
   "operations_manager",
   "accountant",
   "super_admin",
-])
+]
+
+function rowMatchesRole(row: StaffDirectoryRow, roleFilter: StaffRoleFilter) {
+  if (roleFilter === "all") return true
+  return row.role === roleFilter
+}
+
+function activeStaffCount(rows: StaffDirectoryRow[]) {
+  let count = 0
+  for (const row of rows) {
+    if (row.status.toLowerCase() === "active") count += 1
+  }
+  return count
+}
+
+function subtitleForCount(count: number) {
+  if (count === 1) return "1 active staff member"
+  return `${count} active staff members`
+}
 
 export function TeachersAssignmentsPage({
   globalQuery,
-  initialTeacherId,
+  onOpenUser,
 }: Props) {
   const { syncPortalForRoute } = useSchool()
   const actor = useActor()
   const queryClient = useQueryClient()
-  const [view, setView] = useState<PageView>("teachers")
   const [search, setSearch] = useState("")
+  const [roleFilter, setRoleFilter] = useState<StaffRoleFilter>("all")
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [assignmentsOpen, setAssignmentsOpen] = useState(false)
-  const [editTeacher, setEditTeacher] = useState<StaffDirectoryRow | null>(null)
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "teachers-assignments")
@@ -61,44 +74,27 @@ export function TeachersAssignmentsPage({
   const { data: rows = [], isLoading, isError, refetch } = useStaffDirectory()
   const { data: subjects = [] } = useSubjectsList()
 
-  const teachers = useMemo(
-    () => rows.filter((row) => row.role === "teacher"),
-    [rows]
-  )
-  const officeStaff = useMemo(
-    () => rows.filter((row) => OFFICE_ROLES.has(row.role)),
-    [rows]
-  )
-
-  useEffect(() => {
-    if (!initialTeacherId || rows.length === 0) return
-    const match = rows.find((row) => row.id === initialTeacherId)
-    if (match && match.role === "teacher") {
-      setEditTeacher(match)
-      setView("teachers")
-    }
-  }, [initialTeacherId, rows])
-
-  const activeTeacherCount = teachers.filter(
-    (row) => row.status.toLowerCase() === "active"
-  ).length
+  const roleOptions = useMemo(() => {
+    const present = new Set(rows.map((row) => row.role))
+    return STAFF_ROLES_ORDER.filter((role) => present.has(role))
+  }, [rows])
 
   const needle = (search || globalQuery).trim().toLowerCase()
-  const sourceRows = view === "teachers" ? teachers : officeStaff
-
   const filtered = useMemo(() => {
-    if (!needle) return sourceRows
-    return sourceRows.filter((row) =>
-      [row.name, row.email, row.phone, row.subjectName, row.roleLabel]
+    let base = rows.filter((row) => rowMatchesRole(row, roleFilter))
+    if (!needle) return base
+    return base.filter((row) =>
+      [row.name, row.email, row.phone, row.roleLabel]
         .join(" ")
         .toLowerCase()
         .includes(needle)
     )
-  }, [sourceRows, needle, view])
+  }, [rows, roleFilter, needle])
 
   const { paginatedItems, pagination } = useClientPagination(filtered)
 
-  const timetableHref = portalPath(actor.role, "timetable")
+  const activeCount = activeStaffCount(rows)
+  const subtitle = subtitleForCount(activeCount)
 
   async function afterMutation(message: string) {
     await invalidateStaffDirectory(queryClient)
@@ -130,37 +126,9 @@ export function TeachersAssignmentsPage({
     }
   }
 
-  async function handleSubjectSave(payload: {
-    teacherId: number
-    subjectId: number
-    reason: string
-  }) {
-    setSaving(true)
-    try {
-      await teachersService.changeSubject(payload.teacherId, {
-        subjectId: payload.subjectId,
-        reason: payload.reason || undefined,
-      })
-      await afterMutation("Teacher subject updated")
-      setEditTeacher(null)
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not change subject."
-      )
-    } finally {
-      setSaving(false)
-    }
+  function clearFilters() {
+    setSearch("")
   }
-
-  function openAdd() {
-    setModalOpen(true)
-  }
-
-  let subtitle = `${activeTeacherCount} active teacher`
-  if (activeTeacherCount !== 1) subtitle = `${activeTeacherCount} active teachers`
-
-  let primaryLabel = "Add teacher"
-  if (view === "office") primaryLabel = "Add staff"
 
   return (
     <div className="flex flex-col gap-5">
@@ -171,56 +139,27 @@ export function TeachersAssignmentsPage({
           </h1>
           <p className="mt-1 text-sm text-[var(--cls-muted)]">{subtitle}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {view === "teachers" ? (
-            <Button
-              type="button"
-              variant="outline"
-              className="border-[var(--cls-border)]"
-              onClick={() => setAssignmentsOpen(true)}
-            >
-              Teaching assignments
-            </Button>
-          ) : null}
-          <Button
-            type="button"
-            className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-            onClick={openAdd}
-          >
-            <Plus data-icon="inline-start" />
-            {primaryLabel}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          className="shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+          onClick={() => setModalOpen(true)}
+        >
+          <Plus data-icon="inline-start" />
+          Add staff
+        </Button>
       </div>
 
-      <ClsSubTabs
-        variant="underline"
-        aria-label="Teachers and office staff"
-        value={view}
-        onValueChange={(value) => setView(value as PageView)}
-        items={[
-          { value: "teachers", label: "Teachers", count: teachers.length },
-          {
-            value: "office",
-            label: "Office accounts",
-            count: officeStaff.length,
-          },
-        ]}
-      />
-
-      {view === "teachers" ? (
-        <div
-          className="flex gap-2.5 rounded-lg border border-blue-200/80 bg-blue-50/90 px-4 py-3 text-xs leading-relaxed text-blue-950"
-          role="note"
-        >
-          <Lightbulb className="mt-0.5 size-4 shrink-0 text-blue-700" aria-hidden />
-          <p>
-            <strong className="font-semibold">One subject per teacher:</strong>{" "}
-            Each teacher has exactly one primary teaching subject. Marks and
-            lesson updates are recorded under that subject.
-          </p>
-        </div>
-      ) : null}
+      <div
+        className="flex gap-2.5 rounded-lg border border-blue-200/80 bg-blue-50/90 px-4 py-3 text-xs leading-relaxed text-blue-950"
+        role="note"
+      >
+        <Lightbulb className="mt-0.5 size-4 shrink-0 text-blue-700" aria-hidden />
+        <p>
+          <strong className="font-semibold">One subject per teacher:</strong>{" "}
+          Teachers have one primary subject. Open a user to view status,
+          assignments, and teaching details.
+        </p>
+      </div>
 
       {isError ? (
         <div className="flex flex-col items-center gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-6 py-12 text-center">
@@ -229,49 +168,38 @@ export function TeachersAssignmentsPage({
             Try again
           </Button>
         </div>
-      ) : !isLoading && sourceRows.length === 0 ? (
+      ) : !isLoading && rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-16 text-center">
           <div className="flex size-12 items-center justify-center rounded-full bg-[var(--page-wash)] text-[var(--cls-brand)]">
             <Users className="size-6" />
           </div>
           <p className="text-base font-medium text-[var(--cls-ink)]">
-            {view === "teachers" ? "No teachers yet" : "No office accounts"}
+            No staff yet
           </p>
           <Button
             type="button"
             className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-            onClick={openAdd}
+            onClick={() => setModalOpen(true)}
           >
             <Plus data-icon="inline-start" />
-            {primaryLabel}
+            Add staff
           </Button>
         </div>
-      ) : null}
-
-      {!isError && (isLoading || sourceRows.length > 0) ? (
-        view === "teachers" ? (
-          <TeachersClsTable
-            rows={paginatedItems}
-            search={search}
-            onSearchChange={setSearch}
-            loading={isLoading}
-            searchActive={Boolean(needle)}
-            onClearSearch={() => setSearch("")}
-            onOpenTeacher={setEditTeacher}
-            pagination={pagination}
-          />
-        ) : (
-          <OfficeStaffTable
-            rows={paginatedItems}
-            search={search}
-            onSearchChange={setSearch}
-            loading={isLoading}
-            searchActive={Boolean(needle)}
-            onClearSearch={() => setSearch("")}
-            pagination={pagination}
-          />
-        )
-      ) : null}
+      ) : (
+        <StaffDirectoryTable
+          rows={paginatedItems}
+          search={search}
+          onSearchChange={setSearch}
+          roleFilter={roleFilter}
+          onRoleFilterChange={setRoleFilter}
+          roleOptions={roleOptions}
+          loading={isLoading}
+          searchActive={Boolean(needle)}
+          onClearSearch={clearFilters}
+          onOpenUser={onOpenUser}
+          pagination={pagination}
+        />
+      )}
 
       <CreateStaffUserModal
         open={modalOpen}
@@ -280,24 +208,6 @@ export function TeachersAssignmentsPage({
         subjects={subjects}
         saving={saving}
         onSubmit={handleCreate}
-        defaultRole={view === "office" ? "operations_manager" : "teacher"}
-      />
-
-      <TeacherEditSheet
-        teacher={editTeacher}
-        open={Boolean(editTeacher)}
-        subjects={subjects}
-        timetableHref={timetableHref}
-        saving={saving}
-        onClose={() => setEditTeacher(null)}
-        onSave={handleSubjectSave}
-      />
-
-      <TeachingAssignmentsSheet
-        open={assignmentsOpen}
-        teachers={teachers}
-        timetableHref={timetableHref}
-        onClose={() => setAssignmentsOpen(false)}
       />
     </div>
   )

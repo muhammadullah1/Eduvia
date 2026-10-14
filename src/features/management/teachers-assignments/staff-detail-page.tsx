@@ -1,47 +1,40 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
+import { Link } from "react-router-dom"
 
 import teachersService from "@/api/teachers/teachers.service"
-import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
+import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 import { toast } from "@/lib/toast"
 
+import { ClsSubjectBadge } from "./cls-subject-badge"
+import { shortenClassLabel } from "./format-class-label"
 import {
   invalidateStaffDirectory,
   useStaffDirectory,
 } from "./hooks/use-staff-directory"
 import { StaffDetailAssignmentsTab } from "./staff-detail-assignments-tab"
 import { StaffDetailHeader } from "./staff-detail-header"
-import { StaffDetailOverviewTab } from "./staff-detail-overview-tab"
-import { StaffDetailSubjectTab } from "./staff-detail-subject-tab"
-import { StaffDetailSummaryCard } from "./staff-detail-summary-card"
 import {
-  staffDetailTabsForRole,
-  type StaffDetailTabId,
-} from "./staff-detail-tabs"
+  StaffDetailFields,
+  StaffDetailSection,
+} from "./staff-detail-section"
+import { StaffDetailSubjectTab } from "./staff-detail-subject-tab"
 
 type Props = {
   userId: string
-  tab: StaffDetailTabId
-  onTabChange: (tab: StaffDetailTabId) => void
   onBack: () => void
 }
 
-const TEACHER_TAB_ITEMS = [
-  { value: "overview", label: "Profile" },
-  { value: "subject", label: "Subject" },
-  { value: "assignments", label: "Classes" },
-]
+function staffIdLabel(employeeCode: string, userId: string) {
+  if (employeeCode && employeeCode !== "—") return employeeCode
+  return `User #${userId}`
+}
 
-export function StaffDetailPage({
-  userId,
-  tab,
-  onTabChange,
-  onBack,
-}: Props) {
+export function StaffDetailPage({ userId, onBack }: Props) {
   const { syncPortalForRoute } = useSchool()
   const actor = useActor()
   const queryClient = useQueryClient()
@@ -59,31 +52,8 @@ export function StaffDetailPage({
     void syncPortalForRoute(actor.role, "teachers-assignments")
   }, [actor.role, syncPortalForRoute])
 
-  const fallbackTabs: StaffDetailTabId[] = ["overview"]
-  const allowedTabs = staff
-    ? staffDetailTabsForRole(staff.role)
-    : fallbackTabs
-  const activeTab = allowedTabs.includes(tab) ? tab : allowedTabs[0]
-  const isTeacher = staff?.role === "teacher"
-
-  const tabCorrected = useRef(false)
-  useEffect(() => {
-    tabCorrected.current = false
-  }, [userId])
-
-  useEffect(() => {
-    if (!staff || tabCorrected.current) return
-    if (!allowedTabs.includes(tab)) {
-      tabCorrected.current = true
-      onTabChange(allowedTabs[0])
-    }
-  }, [staff, tab, allowedTabs, onTabChange])
-
-  const tabItems = TEACHER_TAB_ITEMS.filter((item) =>
-    allowedTabs.includes(item.value as StaffDetailTabId)
-  )
-
   const timetableHref = portalPath(actor.role, "timetable")
+  const isTeacher = staff?.role === "teacher"
 
   async function afterMutation(message: string) {
     await invalidateStaffDirectory(queryClient)
@@ -115,7 +85,7 @@ export function StaffDetailPage({
   if (isLoading && !staff) {
     return (
       <p className="py-12 text-center text-sm text-[var(--cls-muted)]">
-        Loading staff member…
+        Loading user…
       </p>
     )
   }
@@ -123,7 +93,7 @@ export function StaffDetailPage({
   if (isError) {
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center">
-        <p className="text-sm text-[var(--cls-muted)]">Could not load staff.</p>
+        <p className="text-sm text-[var(--cls-muted)]">Could not load user.</p>
         <button
           type="button"
           className="text-sm font-semibold text-[var(--cls-brand)]"
@@ -138,68 +108,113 @@ export function StaffDetailPage({
   if (!staff) {
     return (
       <div className="flex flex-col items-center gap-3 py-12 text-center">
-        <p className="text-sm text-[var(--cls-muted)]">Staff member not found.</p>
+        <p className="text-sm text-[var(--cls-muted)]">User not found.</p>
         <button
           type="button"
           className="text-sm font-semibold text-[var(--cls-brand)]"
           onClick={onBack}
         >
-          Back to list
+          Back to directory
         </button>
       </div>
     )
   }
 
-  let tabPanel = null
-  if (activeTab === "overview") {
-    tabPanel = <StaffDetailOverviewTab staff={staff} />
-  }
-  if (activeTab === "subject") {
-    tabPanel = (
-      <StaffDetailSubjectTab
-        staff={staff}
-        subjects={subjects}
-        saving={saving}
-        onSave={handleSubjectSave}
-      />
-    )
-  }
-  if (activeTab === "assignments") {
-    tabPanel = (
-      <StaffDetailAssignmentsTab staff={staff} timetableHref={timetableHref} />
-    )
-  }
+  const profileFields = [
+    { label: "Full name", value: staff.name },
+    { label: "Email", value: staff.email },
+    { label: "Phone", value: staff.phone },
+    { label: "Portal role", value: staff.roleLabel },
+    { label: "Account status", value: staff.status },
+    { label: "Employee / staff ID", value: staffIdLabel(staff.employeeCode, staff.id) },
+  ]
 
   return (
     <div className="flex flex-col gap-5">
       <StaffDetailHeader staff={staff} onBack={onBack} />
 
-      <StaffDetailSummaryCard
-        staff={staff}
-        isTeacher={Boolean(isTeacher)}
-        timetableHref={timetableHref}
-        onGoToTab={isTeacher ? onTabChange : undefined}
-      />
+      <div className="grid gap-5 lg:grid-cols-2">
+        <StaffDetailSection
+          title="Profile"
+          description="Account and contact details for this portal user."
+        >
+          <StaffDetailFields items={profileFields} />
+        </StaffDetailSection>
+
+        {isTeacher ? (
+          <StaffDetailSection
+            title="Teaching overview"
+            description="Summary of this teacher's subject and class load."
+          >
+            <div className="flex flex-col gap-4">
+              <div>
+                <p className="text-xs font-medium text-[var(--cls-muted)]">
+                  Assigned subject
+                </p>
+                <div className="mt-2">
+                  <ClsSubjectBadge label={staff.subjectName} />
+                </div>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-[var(--cls-muted)]">
+                  Classes on timetable
+                </p>
+                {staff.classLabels.length === 0 ? (
+                  <p className="mt-2 text-sm text-[var(--cls-muted)]">
+                    Not assigned to any class yet.
+                  </p>
+                ) : (
+                  <ul className="mt-2 flex flex-wrap gap-1.5">
+                    {staff.classLabels.map((label) => (
+                      <li
+                        key={label}
+                        className="rounded-full border border-[var(--cls-border)] bg-[var(--page-wash)] px-2.5 py-0.5 text-xs font-medium text-[var(--cls-ink)]"
+                      >
+                        {shortenClassLabel(label)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-fit border-[var(--cls-border)]"
+                asChild
+              >
+                <Link to={timetableHref}>Manage on timetable</Link>
+              </Button>
+            </div>
+          </StaffDetailSection>
+        ) : null}
+      </div>
 
       {isTeacher ? (
-        <div className="rounded-xl border border-[var(--cls-border)] bg-white px-4 pt-4 pb-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-          <ClsSubTabs
-            items={tabItems}
-            value={activeTab}
-            onValueChange={(value) => onTabChange(value as StaffDetailTabId)}
-            variant="segmented"
-            aria-label="Teacher detail"
-          />
-          <div className="mt-6">{tabPanel}</div>
-        </div>
-      ) : (
-        <div className="rounded-xl border border-[var(--cls-border)] bg-white px-5 py-6 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-          <h2 className="mb-4 text-sm font-semibold text-[var(--cls-ink)]">
-            Profile
-          </h2>
-          <StaffDetailOverviewTab staff={staff} />
-        </div>
-      )}
+        <>
+          <StaffDetailSection
+            title="Assigned subject"
+            description="Each teacher has one primary subject in the catalog."
+          >
+            <StaffDetailSubjectTab
+              staff={staff}
+              subjects={subjects}
+              saving={saving}
+              onSave={handleSubjectSave}
+            />
+          </StaffDetailSection>
+
+          <StaffDetailSection
+            title="Class assignments"
+            description="Classes are assigned on the weekly timetable."
+          >
+            <StaffDetailAssignmentsTab
+              staff={staff}
+              timetableHref={timetableHref}
+            />
+          </StaffDetailSection>
+        </>
+      ) : null}
     </div>
   )
 }

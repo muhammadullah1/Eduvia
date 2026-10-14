@@ -1,22 +1,15 @@
 import { ArrowLeft } from "lucide-react"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
-import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
 
+import { ClsStatusBadge } from "./cls-status-badge"
 import { StaffAvatar } from "./staff-avatar"
 import { StaffRoleBadge } from "./staff-role-badge"
 
 type Props = {
   staff: StaffDirectoryRow
   onBack: () => void
-}
-
-function statusTone(status: string) {
-  const normalized = status.toLowerCase()
-  if (normalized === "active") return "success"
-  if (normalized === "pending") return "warning"
-  return "neutral"
 }
 
 export function StaffDetailHeader({ staff, onBack }: Props) {
@@ -29,7 +22,7 @@ export function StaffDetailHeader({ staff, onBack }: Props) {
           size="icon"
           className="size-10 shrink-0 rounded-[10px] border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-ink)] shadow-none hover:bg-[var(--cls-border)]/40"
           onClick={onBack}
-          aria-label="Back to staff list"
+          aria-label="Back to staff directory"
         >
           <ArrowLeft className="size-5" />
         </Button>
@@ -40,9 +33,7 @@ export function StaffDetailHeader({ staff, onBack }: Props) {
               {staff.name}
             </h1>
             <StaffRoleBadge role={staff.role} />
-            <StatusChip tone={statusTone(staff.status)} showDot>
-              {staff.status}
-            </StatusChip>
+            <ClsStatusBadge status={staff.status} />
           </div>
           <p className="mt-1 truncate text-[13px] text-[var(--cls-muted)]">
             {staff.email}
