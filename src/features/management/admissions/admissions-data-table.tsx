@@ -1,11 +1,4 @@
-import {
-  ChevronDown,
-  ChevronUp,
-  Download,
-  MoreVertical,
-  Printer,
-  Search,
-} from "lucide-react"
+import { ChevronDown, ChevronUp, MoreVertical, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -44,11 +37,10 @@ type Props = {
   search: string
   onSearchChange: (value: string) => void
   onOpen: (app: Application) => void
-  onExport?: () => void
-  onPrint?: () => void
   /** When true, omits outer card chrome (used inside AdmissionsPanel). */
   embedded?: boolean
   loading?: boolean
+  emptyMessage?: string
   pagination?: PaginationWithHandlers
 }
 
@@ -67,10 +59,9 @@ export function AdmissionsDataTable({
   search,
   onSearchChange,
   onOpen,
-  onExport,
-  onPrint,
   embedded = false,
   loading = false,
+  emptyMessage,
   pagination,
 }: Props) {
   return (
@@ -81,7 +72,7 @@ export function AdmissionsDataTable({
           : "overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
       }
     >
-      <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="border-b border-[var(--cls-border)] px-4 py-3">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" />
           <Input
@@ -90,28 +81,6 @@ export function AdmissionsDataTable({
             placeholder="Search by name, reg. no., class…"
             className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
           />
-        </div>
-        <div className="flex items-center justify-end gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-[var(--cls-border)] text-[var(--cls-muted)]"
-            onClick={onExport}
-          >
-            <Download data-icon="inline-start" />
-            Export
-          </Button>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5 border-[var(--cls-border)] text-[var(--cls-muted)]"
-            onClick={onPrint}
-          >
-            <Printer data-icon="inline-start" />
-            Print
-          </Button>
         </div>
       </div>
       <div className="overflow-x-auto">
@@ -153,6 +122,16 @@ export function AdmissionsDataTable({
                   className="h-24 text-center text-sm text-[var(--cls-muted)]"
                 >
                   Loading applications…
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {!loading && rows.length === 0 && emptyMessage ? (
+              <TableRow>
+                <TableCell
+                  colSpan={7}
+                  className="h-24 px-6 text-center text-sm text-[var(--cls-muted)]"
+                >
+                  {emptyMessage}
                 </TableCell>
               </TableRow>
             ) : null}

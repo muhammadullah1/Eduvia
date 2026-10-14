@@ -115,6 +115,7 @@ export type AdmissionDocument = {
   id: string
   label: string
   status: DocumentStatus
+  fileUrl?: string | null
 }
 
 export type Application = {

@@ -1,7 +1,5 @@
 import { Plus } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
-import { toast } from "sonner"
-
 import { PaginationComponent } from "@/components/common/pagination-component"
 import { Button } from "@/components/ui/button"
 import { DEFAULT_PAGE_SIZE } from "@/constants/pagination"
@@ -23,7 +21,10 @@ import {
   AdmissionsViewToggle,
   type AdmissionsViewMode,
 } from "./admissions-view-toggle"
-import { useAdmissionsListPage } from "./hooks/use-admissions"
+import {
+  useAdmissionStatusCounts,
+  useAdmissionsListPage,
+} from "./hooks/use-admissions"
 
 type Props = {
   classes: ClassSection[]
@@ -31,32 +32,6 @@ type Props = {
   globalQuery: string
   onOpenApplication: (app: Application) => void
   onNewApplication: () => void
-}
-
-function buildStatusCounts(
-  applications: Application[],
-  totalForAll: number,
-  statusFilter: AdmissionStatusFilter,
-  filteredTotal: number
-) {
-  const counts: Record<AdmissionStatusFilter, number> = {
-    all: statusFilter === "all" ? totalForAll : applications.length,
-    draft: 0,
-    submitted: 0,
-    under_review: 0,
-    test_interview: 0,
-    admitted: 0,
-    rejected: 0,
-    waitlisted: 0,
-    withdrawn: 0,
-  }
-  for (const app of applications) {
-    counts[resolveAdmissionUiStatus(app)] += 1
-  }
-  if (statusFilter !== "all") {
-    counts[statusFilter] = filteredTotal
-  }
-  return counts
 }
 
 export function AdmissionsListPage({
@@ -84,6 +59,8 @@ export function AdmissionsListPage({
     setPage(1)
   }, [debouncedQ, statusFilter, pageSize])
 
+  const { data: statusCounts } = useAdmissionStatusCounts()
+
   const { applications, pagination, isLoading, isFetching, isError } =
     useAdmissionsListPage({
       page,
@@ -92,16 +69,17 @@ export function AdmissionsListPage({
       statusFilter,
     })
 
-  const counts = useMemo(
-    () =>
-      buildStatusCounts(
-        applications,
-        pagination.total,
-        statusFilter,
-        pagination.total
-      ),
-    [applications, pagination.total, statusFilter]
-  )
+  const counts = statusCounts ?? {
+    all: pagination.total,
+    draft: 0,
+    submitted: 0,
+    under_review: 0,
+    test_interview: 0,
+    admitted: 0,
+    rejected: 0,
+    waitlisted: 0,
+    withdrawn: 0,
+  }
 
   const inProgressOnPage = useMemo(
     () =>
@@ -117,7 +95,7 @@ export function AdmissionsListPage({
     [applications]
   )
 
-  const empty = !isLoading && applications.length === 0
+  const emptyResults = !isLoading && applications.length === 0
 
   return (
     <div className="flex flex-col gap-6">
@@ -145,12 +123,8 @@ export function AdmissionsListPage({
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <AdmissionsStatCard
           label="Total applications"
-          value={statusFilter === "all" ? pagination.total : pagination.total}
-          hint={
-            statusFilter === "all"
-              ? "All statuses"
-              : "Matching current filter"
-          }
+          value={counts.all}
+          hint="All statuses"
         />
         <AdmissionsStatCard
           label="In progress"
@@ -161,19 +135,19 @@ export function AdmissionsListPage({
         <AdmissionsStatCard
           label="Admitted"
           value={counts.admitted}
-          hint="On this page"
+          hint="School-wide"
           accent="success"
         />
         <AdmissionsStatCard
           label="Under review"
           value={counts.under_review}
-          hint="On this page"
+          hint="School-wide"
           accent="brand"
         />
       </div>
 
       <AdmissionsPanel noPadding>
-        <div className="border-b border-[var(--cls-border)] px-4 pt-4 pb-1">
+        <div className="border-b border-[var(--cls-border)] px-4 pt-4 pb-3">
           <AdmissionStatusFilters
             value={statusFilter}
             onChange={setStatusFilter}
@@ -193,32 +167,25 @@ export function AdmissionsListPage({
               Check your connection and try again.
             </p>
           </div>
-        ) : empty ? (
-          <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
-            <p className="text-base font-medium text-[var(--cls-ink)]">
-              No applications match your filters
-            </p>
-            <p className="max-w-sm text-sm text-[var(--cls-muted)]">
-              Try clearing the status filter or start a new admission
-              application.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={onNewApplication}
-            >
-              <Plus data-icon="inline-start" />
-              New application
-            </Button>
-          </div>
         ) : viewMode === "pipeline" ? (
           <>
             <div className="p-4">
-              <AdmissionsPipeline
-                applications={applications}
-                classes={classes}
-                onOpen={onOpenApplication}
-              />
+              {emptyResults ? (
+                <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+                  <p className="text-base font-medium text-[var(--cls-ink)]">
+                    No applications match your filters
+                  </p>
+                  <p className="max-w-sm text-sm text-[var(--cls-muted)]">
+                    Try a different status or clear your search.
+                  </p>
+                </div>
+              ) : (
+                <AdmissionsPipeline
+                  applications={applications}
+                  classes={classes}
+                  onOpen={onOpenApplication}
+                />
+              )}
             </div>
             <PaginationComponent
               pagination={{
@@ -241,14 +208,13 @@ export function AdmissionsListPage({
             search={tableSearch}
             onSearchChange={setTableSearch}
             onOpen={onOpenApplication}
-            onExport={() =>
-              toast.message("Export will connect to the API later.")
-            }
-            onPrint={() =>
-              toast.message("Print will connect to the API later.")
-            }
             embedded
             loading={isLoading || isFetching}
+            emptyMessage={
+              emptyResults
+                ? "No applications match your filters. Try clearing search or choosing another status."
+                : undefined
+            }
             pagination={{
               total: pagination.total,
               page: pagination.page,

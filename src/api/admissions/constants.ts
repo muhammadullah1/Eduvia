@@ -7,3 +7,4 @@ export { DEFAULT_PAGE_SIZE }
 
 export const ADMISSIONS_QUERY_KEY = "admissions"
 export const ADMISSION_DETAIL_QUERY_KEY = "admission-detail"
+export const ADMISSIONS_SUMMARY_QUERY_KEY = "admissions-summary"

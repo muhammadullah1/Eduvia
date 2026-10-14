@@ -1,10 +1,20 @@
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, ChevronDown } from "lucide-react"
 
 import { ConfirmDialog, StatusBadge } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { Application, ClassSection } from "@/data/types"
 import { classLabel, formatDate } from "@/lib/format"
 
+import { AdmissionDocumentViewButton } from "./admission-document-preview"
 import { AdmissionStatusBadge } from "./admission-status-badge"
 import {
   DetailGrid,
@@ -22,6 +32,7 @@ type Props = {
   sessionLabel: string
   onBack: () => void
   onContinueDraft?: (id: string) => void
+  onEdit?: (id: string) => void
   onReview: (id: string) => void
   onWaitlist: (id: string) => void
   onEnroll: (id: string) => void
@@ -46,6 +57,7 @@ export function ApplicationDetailPage({
   sessionLabel,
   onBack,
   onContinueDraft,
+  onEdit,
   onReview,
   onWaitlist,
   onEnroll,
@@ -103,8 +115,8 @@ export function ApplicationDetailPage({
               </p>
             </div>
           </div>
-          {isDraft && onContinueDraft ? (
-            <div className="flex flex-wrap gap-2">
+          <div className="flex shrink-0 items-center justify-start gap-2 lg:justify-end">
+            {isDraft && onContinueDraft ? (
               <Button
                 type="button"
                 className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
@@ -112,28 +124,19 @@ export function ApplicationDetailPage({
               >
                 Continue application
               </Button>
-            </div>
-          ) : null}
-          {!isDraft && (canAct || application.status === "New") ? (
-            <div className="flex flex-wrap gap-2">
-              {application.status === "New" ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => onReview(application.id)}
-                >
-                  Mark under review
-                </Button>
-              ) : null}
-              {canAct ? (
-                <>
+            ) : null}
+            {!isDraft && canAct ? (
+              <>
+                {application.status === "New" ? (
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={() => onWaitlist(application.id)}
+                    className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+                    onClick={() => onReview(application.id)}
                   >
-                    Waitlist
+                    Mark under review
                   </Button>
+                ) : application.status === "Review" ||
+                  application.status === "Waitlist" ? (
                   <Button
                     type="button"
                     className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
@@ -141,18 +144,70 @@ export function ApplicationDetailPage({
                   >
                     Enroll student
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="text-destructive hover:text-destructive"
-                    onClick={() => onReject(application.id)}
-                  >
-                    Reject
-                  </Button>
-                </>
-              ) : null}
-            </div>
-          ) : null}
+                ) : null}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button type="button" variant="outline" className="gap-1.5">
+                      Actions
+                      <ChevronDown className="size-4 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    {onEdit && application.status !== "Enrolled" ? (
+                      <DropdownMenuGroup>
+                        <DropdownMenuLabel>Application</DropdownMenuLabel>
+                        <DropdownMenuItem
+                          onClick={() => onEdit(application.id)}
+                        >
+                          Edit details
+                        </DropdownMenuItem>
+                      </DropdownMenuGroup>
+                    ) : null}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>Status</DropdownMenuLabel>
+                      {application.status !== "New" ? (
+                        <DropdownMenuItem
+                          onClick={() => onReview(application.id)}
+                        >
+                          Mark under review
+                        </DropdownMenuItem>
+                      ) : null}
+                      {application.status !== "Review" &&
+                      application.status !== "Waitlist" ? (
+                        <DropdownMenuItem
+                          onClick={() => onEnroll(application.id)}
+                        >
+                          Enroll student
+                        </DropdownMenuItem>
+                      ) : null}
+                      {application.status !== "Waitlist" ? (
+                        <DropdownMenuItem
+                          onClick={() => onWaitlist(application.id)}
+                        >
+                          Move to waitlist
+                        </DropdownMenuItem>
+                      ) : null}
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => onReject(application.id)}
+                      >
+                        Reject application
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            ) : !isDraft && onEdit && application.status !== "Enrolled" ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => onEdit(application.id)}
+              >
+                Edit details
+              </Button>
+            ) : null}
+          </div>
         </div>
       </div>
 
@@ -215,9 +270,19 @@ export function ApplicationDetailPage({
                   className="flex items-center justify-between rounded-lg border border-[var(--cls-border)] bg-[var(--page-wash)]/50 px-3 py-2.5"
                 >
                   <span className="text-sm font-medium">{doc.label}</span>
-                  <span className="text-xs font-medium text-[var(--cls-muted)]">
-                    {doc.status}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {doc.fileUrl && doc.fileUrl.startsWith("http") ? (
+                      <AdmissionDocumentViewButton
+                        title={doc.label}
+                        fileUrl={doc.fileUrl}
+                        variant="link"
+                        className="h-auto px-0 text-xs text-[var(--cls-brand)]"
+                      />
+                    ) : null}
+                    <span className="text-xs font-medium text-[var(--cls-muted)]">
+                      {doc.status}
+                    </span>
+                  </div>
                 </li>
               ))
             ) : (

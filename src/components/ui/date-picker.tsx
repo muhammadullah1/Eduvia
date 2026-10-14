@@ -1,4 +1,5 @@
 import { format, parseISO, subYears } from "date-fns"
+import type { Matcher } from "react-day-picker"
 import { CalendarIcon } from "lucide-react"
 import { useMemo } from "react"
 
@@ -28,6 +29,10 @@ type DatePickerProps = {
   defaultMonthKind?: "admission" | "today"
   /** Extra classes on the calendar popover (e.g. `z-[100]` inside dialogs). */
   popoverClassName?: string
+  /** Inclusive minimum selectable date (`yyyy-MM-dd`). */
+  fromDate?: string
+  /** Inclusive maximum selectable date (`yyyy-MM-dd`). */
+  maxDate?: string
 }
 
 function toDate(iso: string) {
@@ -50,8 +55,23 @@ export function DatePicker({
   defaultAgeYears = DEFAULT_ADMISSION_AGE_YEARS,
   defaultMonthKind = "admission",
   popoverClassName,
+  fromDate,
+  maxDate,
 }: DatePickerProps) {
   const selected = toDate(value)
+
+  const disabledMatchers = useMemo(() => {
+    const matchers: Matcher[] = []
+    if (fromDate) {
+      const min = toDate(fromDate)
+      if (min) matchers.push({ before: min })
+    }
+    if (maxDate) {
+      const max = toDate(maxDate)
+      if (max) matchers.push({ after: max })
+    }
+    return matchers.length ? matchers : undefined
+  }, [fromDate, maxDate])
 
   const defaultMonth = useMemo(() => {
     if (selected) return selected
@@ -86,6 +106,7 @@ export function DatePicker({
           mode="single"
           selected={selected}
           defaultMonth={defaultMonth}
+          disabled={disabledMatchers}
           onSelect={(date) => {
             onChange(date ? format(date, "yyyy-MM-dd") : "")
           }}

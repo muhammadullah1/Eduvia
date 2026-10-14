@@ -22,6 +22,7 @@ export function mapApplicationDto(dto: ApplicationDto): Application {
       id: String(doc.id),
       label: doc.label,
       status: (doc.status ?? "Pending") as Application["documents"][number]["status"],
+      fileUrl: doc.fileUrl ?? null,
     })),
     interviewType: dto.interviewType ?? "",
     interviewDate: dto.interviewDate ? String(dto.interviewDate).slice(0, 10) : "",

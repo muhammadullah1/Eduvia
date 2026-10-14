@@ -12,46 +12,73 @@ export function applicationIdFromApi(id: number) {
   return `APP-${id}`
 }
 
+/** Maps wizard/store input to API body; only includes keys present on `input` (safe for PATCH). */
 export function toApplicationApiBody(
   input: Partial<ApplicationInput> & {
     decision?: Application["decision"]
     classId?: string
   }
 ): UpsertApplicationBody {
-  const rawClassId = Number(input.classId)
-  const fkClassId =
-    Number.isFinite(rawClassId) && rawClassId > 0 ? rawClassId : undefined
+  const body: UpsertApplicationBody = {}
 
-  const interviewDate =
-    input.interviewDate && String(input.interviewDate).trim()
-      ? input.interviewDate
-      : null
+  if (input.name !== undefined) body.name = input.name
 
-  return {
-    name: input.name,
-    fkClassId,
-    guardian: input.guardian,
-    phone: input.phone,
-    email: (input as { email?: string }).email || undefined,
-    dob: input.dob || undefined,
-    gender: input.gender,
-    address: input.address,
-    previousSchool: input.previousSchool,
-    previousClass: input.previousClass,
-    guardianRelation: input.guardianRelation,
-    guardianAddress: input.guardianAddress,
-    interviewType: input.interviewType || undefined,
-    interviewDate,
-    interviewScore: input.interviewScore || undefined,
-    interviewResult: input.interviewResult || undefined,
-    decision: input.decision || undefined,
-    notes: input.notes || undefined,
-    documents: input.documents?.map((doc: Application["documents"][number]) => ({
-      id: Number(doc.id) > 0 ? Number(doc.id) : undefined,
-      label: doc.label,
-      status: doc.status,
-    })),
+  if (input.classId !== undefined) {
+    const rawClassId = Number(input.classId)
+    if (Number.isFinite(rawClassId) && rawClassId > 0) {
+      body.fkClassId = rawClassId
+    }
   }
+
+  if (input.guardian !== undefined) body.guardian = input.guardian
+  if (input.phone !== undefined) body.phone = input.phone
+  if (input.email !== undefined) {
+    body.email = input.email?.trim() ? input.email.trim() : undefined
+  }
+  if (input.dob !== undefined) body.dob = input.dob || undefined
+  if (input.gender !== undefined) body.gender = input.gender
+  if (input.address !== undefined) body.address = input.address
+  if (input.previousSchool !== undefined) {
+    body.previousSchool = input.previousSchool
+  }
+  if (input.previousClass !== undefined) body.previousClass = input.previousClass
+  if (input.guardianRelation !== undefined) {
+    body.guardianRelation = input.guardianRelation
+  }
+  if (input.guardianAddress !== undefined) {
+    body.guardianAddress = input.guardianAddress
+  }
+
+  if (input.interviewType !== undefined) {
+    body.interviewType = input.interviewType || undefined
+  }
+  if (input.interviewDate !== undefined) {
+    body.interviewDate =
+      input.interviewDate && String(input.interviewDate).trim()
+        ? input.interviewDate
+        : null
+  }
+  if (input.interviewScore !== undefined) {
+    body.interviewScore = input.interviewScore || undefined
+  }
+  if (input.interviewResult !== undefined) {
+    body.interviewResult = input.interviewResult || undefined
+  }
+  if (input.decision !== undefined) body.decision = input.decision || undefined
+  if (input.notes !== undefined) body.notes = input.notes
+
+  if (input.documents !== undefined) {
+    body.documents = input.documents.map(
+      (doc: Application["documents"][number]) => ({
+        id: Number(doc.id) > 0 ? Number(doc.id) : undefined,
+        label: doc.label,
+        status: doc.status,
+        fileUrl: doc.fileUrl ?? undefined,
+      })
+    )
+  }
+
+  return body
 }
 
 export async function createApplicationDraft(
