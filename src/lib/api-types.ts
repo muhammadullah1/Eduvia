@@ -63,6 +63,17 @@ export type ApiTeacher = {
     grade: string
     section: string
   }>
+  subjectHistory?: Array<{
+    id: number
+    effectiveFrom: string
+    effectiveTo?: string | null
+    reason?: string | null
+    subject?: {
+      id: number
+      name: string
+      code: string
+    } | null
+  }>
 }
 
 export type ApiUser = {

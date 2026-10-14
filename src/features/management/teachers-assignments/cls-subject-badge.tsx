@@ -12,7 +12,7 @@ export function ClsSubjectBadge({ label, className }: Props) {
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border border-emerald-200/90 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-900",
+        "inline-flex max-w-full items-center gap-1.5 rounded-md border border-emerald-200/90 bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-900",
         className
       )}
     >

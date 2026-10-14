@@ -54,6 +54,7 @@ export function buildStaffDirectory(
   const rows: StaffDirectoryRow[] = []
   for (const user of users) {
     if (!isStaffRole(user.role)) continue
+    if (user.role === "super_admin") continue
     const role = user.role
     const teacher = teacherByUserId.get(user.id)
     const classLabels: string[] = []

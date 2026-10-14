@@ -28,6 +28,8 @@ import {
 import type { Role } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
+import { ClsStatusBadge } from "./cls-status-badge"
+import { ClsSubjectBadge } from "./cls-subject-badge"
 import { StaffAvatar } from "./staff-avatar"
 import { StaffRoleBadge } from "./staff-role-badge"
 
@@ -56,6 +58,20 @@ function SortHint() {
   )
 }
 
+function detailsCell(row: StaffDirectoryRow) {
+  if (row.role === "teacher") {
+    return <ClsSubjectBadge label={row.subjectName} />
+  }
+  return (
+    <span className="text-sm text-[var(--cls-muted)]">Office account</span>
+  )
+}
+
+function employeeLabel(row: StaffDirectoryRow) {
+  if (row.employeeCode && row.employeeCode !== "—") return row.employeeCode
+  return "—"
+}
+
 export function StaffDirectoryTable({
   rows,
   search,
@@ -70,7 +86,7 @@ export function StaffDirectoryTable({
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
-  const colSpan = 2
+  const colSpan = 6
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
@@ -117,14 +133,26 @@ export function StaffDirectoryTable({
         <Table>
           <TableHeader>
             <TableRow className="border-[var(--cls-border)] bg-[var(--page-wash)]/90 hover:bg-[var(--page-wash)]/90">
-              <TableHead className="h-11 min-w-[280px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
+              <TableHead className="h-11 min-w-[220px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
                 <span className="inline-flex items-center gap-1">
                   User
                   <SortHint />
                 </span>
               </TableHead>
-              <TableHead className="h-11 w-[180px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
+              <TableHead className="h-11 min-w-[120px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
+                Phone
+              </TableHead>
+              <TableHead className="h-11 w-[150px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
                 Role
+              </TableHead>
+              <TableHead className="h-11 min-w-[140px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
+                Details
+              </TableHead>
+              <TableHead className="h-11 w-[110px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
+                Status
+              </TableHead>
+              <TableHead className="h-11 w-[90px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
+                ID
               </TableHead>
             </TableRow>
           </TableHeader>
@@ -180,8 +208,18 @@ export function StaffDirectoryTable({
                     </div>
                   </div>
                 </TableCell>
+                <TableCell className="py-3.5 text-sm text-[var(--cls-muted)]">
+                  {row.phone}
+                </TableCell>
                 <TableCell className="py-3.5">
                   <StaffRoleBadge role={row.role} />
+                </TableCell>
+                <TableCell className="py-3.5">{detailsCell(row)}</TableCell>
+                <TableCell className="py-3.5">
+                  <ClsStatusBadge status={row.status} />
+                </TableCell>
+                <TableCell className="py-3.5 text-sm tabular-nums text-[var(--cls-muted)]">
+                  {employeeLabel(row)}
                 </TableCell>
               </TableRow>
             ))}

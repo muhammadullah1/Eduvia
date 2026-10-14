@@ -40,7 +40,7 @@ export function StaffRoleBadge({ role, className }: Props) {
   return (
     <span
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex max-w-full items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium",
         styles.box,
         className
       )}

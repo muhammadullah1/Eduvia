@@ -34,7 +34,6 @@ const STAFF_ROLES_ORDER: Role[] = [
   "teacher",
   "operations_manager",
   "accountant",
-  "super_admin",
 ]
 
 function rowMatchesRole(row: StaffDirectoryRow, roleFilter: StaffRoleFilter) {

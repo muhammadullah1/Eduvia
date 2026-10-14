@@ -1,15 +1,26 @@
 import type { ReactNode } from "react"
 
+import { cn } from "@/lib/utils"
+
 type Props = {
   title: string
   description?: string
+  className?: string
   children: ReactNode
 }
 
-export function StaffDetailSection({ title, description, children }: Props) {
+export function StaffDetailSection({
+  title,
+  description,
+  className,
+  children,
+}: Props) {
   return (
     <section
-      className="rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]"
+      className={cn(
+        "rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]",
+        className
+      )}
     >
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-[var(--cls-ink)]">{title}</h2>
