@@ -3,14 +3,12 @@ import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
-import { DatePicker } from "@/components/ui/date-picker"
 import { useSchool } from "@/data/store"
 import type { TeacherAbsence } from "@/data/types"
-import { StaffAvatar } from "@/features/management/teachers-assignments/staff-avatar"
 import { useActor } from "@/lib/actor"
 import { weekdayOf } from "@/lib/academics"
 import { getToday } from "@/lib/dates"
-import { classLabel, formatDate } from "@/lib/format"
+import { formatDate } from "@/lib/format"
 
 import { AssignSubstitutesModal } from "./assign-substitutes-modal"
 import { useSubstituteMutations } from "./hooks/use-substitute-mutations"
@@ -20,8 +18,14 @@ import {
 } from "./hooks/use-teacher-absences"
 import { useTeachersList } from "./hooks/use-teachers-list"
 import { MarkAbsentModal } from "./mark-absent-modal"
-import { SubstitutePeriodChips } from "./substitute-period-chips"
+import { SubstitutesDayBoard } from "./substitutes-day-board"
+import { SubstitutesDayToolbar } from "./substitutes-day-toolbar"
 import { SubstitutionLogModal } from "./substitution-log-modal"
+
+type AssignTarget = {
+  teacherId: string
+  date: string
+}
 
 function groupAbsencesByTeacher(rows: TeacherAbsence[]) {
   const map = new Map<string, TeacherAbsence[]>()
@@ -31,11 +35,6 @@ function groupAbsencesByTeacher(rows: TeacherAbsence[]) {
     map.set(row.teacherId, list)
   }
   return map
-}
-
-type AssignTarget = {
-  teacherId: string
-  date: string
 }
 
 export function SubstitutesPage() {
@@ -95,6 +94,11 @@ export function SubstitutesPage() {
 
   const grouped = groupAbsencesByTeacher(dayRows)
   const pendingCount = dayRows.filter((row) => row.status === "Pending").length
+  const coveredCount = dayRows.filter(
+    (row) =>
+      row.status === "Covered" ||
+      substitutions.some((sub) => sub.absenceId === row.id)
+  ).length
 
   const teacherNameById = useMemo(() => {
     const map = new Map<string, string>()
@@ -182,21 +186,21 @@ export function SubstitutesPage() {
   }
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex min-w-0 flex-col gap-4 lg:gap-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight text-[var(--cls-brand)] sm:text-[28px]">
             Absent teacher &amp; substitutes
           </h1>
-          <p className="mt-1 text-sm text-[var(--cls-muted)]">
-            Mark a teacher absent and assign substitutes for affected periods.
+          <p className="mt-0.5 text-sm text-[var(--cls-muted)]">
+            Mark absences and assign cover by period.
           </p>
         </div>
-        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+        <div className="flex w-full shrink-0 flex-col gap-2 sm:w-auto sm:flex-row">
           <Button
             type="button"
             variant="outline"
-            className="w-full border-[var(--cls-border)] sm:w-auto"
+            className="h-9 border-[var(--cls-border)]"
             onClick={() => setLogModalOpen(true)}
           >
             <ClipboardList data-icon="inline-start" />
@@ -209,7 +213,7 @@ export function SubstitutesPage() {
           </Button>
           <Button
             type="button"
-            className="w-full bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)] sm:w-auto"
+            className="h-9 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
             onClick={() => setMarkModalOpen(true)}
           >
             <Plus data-icon="inline-start" />
@@ -218,18 +222,14 @@ export function SubstitutesPage() {
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] pb-3 sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-sm font-medium text-[var(--cls-ink)]">
-          Assign substitutes
-        </p>
-        <DatePicker
-          value={viewDate}
-          onChange={(value) => setViewDate(value || getToday())}
-          placeholder="View date"
-          defaultMonthKind="today"
-          className="h-9 w-full border-[var(--cls-border)] bg-white text-sm sm:w-[11.5rem]"
-        />
-      </div>
+      <SubstitutesDayToolbar
+        viewDate={viewDate}
+        onViewDateChange={(value) => setViewDate(value || getToday())}
+        absentTeacherCount={grouped.size}
+        pendingCount={pendingCount}
+        coveredCount={coveredCount}
+        totalPeriods={dayRows.length}
+      />
 
       {absencesError ? (
         <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-10 text-center">
@@ -247,164 +247,49 @@ export function SubstitutesPage() {
         </div>
       ) : null}
 
-      <div className="flex min-w-0 flex-col gap-4">
-        {absencesLoading && !dayData ? (
-          <p className="py-8 text-center text-sm text-[var(--cls-muted)]">
-            Loading absences…
+      {absencesLoading && !dayData ? (
+        <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-16 text-center text-sm text-[var(--cls-muted)]">
+          Loading schedule for {formatDate(viewDate)}…
+        </div>
+      ) : null}
+
+      {!absencesLoading && dayRows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-14 text-center">
+          <p className="text-base font-medium text-[var(--cls-ink)]">
+            No absences on {formatDate(viewDate)}
           </p>
-        ) : null}
+          <p className="mt-1 text-sm text-[var(--cls-muted)]">
+            Mark a teacher absent to see periods and assign cover here.
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="mt-4 border-[var(--cls-border)]"
+            onClick={() => setMarkModalOpen(true)}
+          >
+            Mark teacher absent
+          </Button>
+        </div>
+      ) : null}
 
-        {!absencesLoading && dayRows.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-4 py-12 text-center sm:px-6 sm:py-16">
-            <p className="text-base font-medium text-[var(--cls-ink)]">
-              No absences on {formatDate(viewDate)}
-            </p>
-            <p className="mt-1 text-sm text-[var(--cls-muted)]">
-              Use <strong>Mark teacher absent</strong> to load affected periods.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-4 w-full border-[var(--cls-border)] sm:w-auto"
-              onClick={() => setMarkModalOpen(true)}
-            >
-              Mark teacher absent
-            </Button>
-          </div>
-        ) : null}
-
-        {dayRows.length > 0 ? (
-          <>
-            {pendingCount > 0 ? (
-              <p className="text-sm text-[var(--cls-muted)]">
-                <span className="font-semibold text-red-700">
-                  {pendingCount}
-                </span>{" "}
-                {pendingCount === 1 ? "period" : "periods"} still need a
-                substitute on {formatDate(viewDate)}.
-              </p>
-            ) : null}
-
-            {Array.from(grouped.entries()).map(([tid, rows]) => {
-              const person = teachers.find((s) => s.id === tid)
-              const pendingForTeacher = rows.filter(
-                (r) => r.status === "Pending"
-              ).length
-              return (
-                <div
-                  key={tid}
-                  className="min-w-0 overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
-                >
-                  <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] bg-[var(--page-wash)]/40 px-4 py-3.5 sm:flex-row sm:items-center sm:px-5">
-                    <div className="flex min-w-0 items-center gap-3">
-                      <StaffAvatar name={teacherNameById(tid)} />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-[var(--cls-ink)]">
-                          {teacherNameById(tid)}
-                        </p>
-                        <p className="text-xs text-[var(--cls-muted)]">
-                          {person?.subject ? `${person.subject} · ` : ""}
-                          Absent {formatDate(viewDate)}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
-                      {pendingForTeacher > 0 ? (
-                        <span className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-800">
-                          {pendingForTeacher} unassigned
-                        </span>
-                      ) : (
-                        <span className="rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-800">
-                          Fully covered
-                        </span>
-                      )}
-                      {pendingForTeacher > 0 ? (
-                        <Button
-                          type="button"
-                          size="sm"
-                          className="w-full bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)] sm:w-auto"
-                          onClick={() =>
-                            setAssignTarget({ teacherId: tid, date: viewDate })
-                          }
-                        >
-                          Assign substitutes
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <ul className="divide-y divide-[var(--cls-border)]">
-                    {rows.map((row) => {
-                      const sub = substitutions.find(
-                        (item) => item.absenceId === row.id
-                      )
-                      const classLine = row.classId
-                        ? `${classLabel(state.classes, row.classId)} · ${row.subject ?? ""}`
-                        : "Free period"
-
-                      return (
-                        <li key={row.id} className="px-4 py-4 sm:px-5">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
-                                {weekdayOf(row.date)}
-                              </p>
-                              <p className="text-sm font-semibold text-[var(--cls-ink)]">
-                                Period {row.periodIndex}
-                              </p>
-                              <p className="text-xs text-[var(--cls-muted)]">
-                                {classLine}
-                              </p>
-                              {sub ? (
-                                <p className="mt-2 text-sm">
-                                  <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
-                                    Selected: {teacherNameById(sub.substituteTeacherId)}
-                                  </span>
-                                </p>
-                              ) : null}
-                            </div>
-                            <div className="flex shrink-0 flex-wrap gap-2">
-                              {row.status === "Covered" ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  className="border-[var(--cls-border)]"
-                                  onClick={() => void handleRemoveCover(row.id)}
-                                >
-                                  Remove cover
-                                </Button>
-                              ) : null}
-                              {row.status !== "Cancelled" ? (
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => void handleCancelAbsence(row.id)}
-                                >
-                                  Cancel
-                                </Button>
-                              ) : null}
-                            </div>
-                          </div>
-
-                          {row.status === "Pending" ? (
-                            <SubstitutePeriodChips
-                              absence={row}
-                              assignedSubstituteId={sub?.substituteTeacherId}
-                              onPick={(id) => void assignOne(row.id, id)}
-                            />
-                          ) : null}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                </div>
-              )
-            })}
-          </>
-        ) : null}
-      </div>
+      {dayRows.length > 0 ? (
+        <SubstitutesDayBoard
+          viewDate={viewDate}
+          classes={state.classes}
+          teachers={teachers}
+          grouped={grouped}
+          substitutions={substitutions}
+          teacherNameById={teacherNameById}
+          onAssignTeacher={(tid) =>
+            setAssignTarget({ teacherId: tid, date: viewDate })
+          }
+          onAssignOne={(absenceId, substituteId) =>
+            void assignOne(absenceId, substituteId)
+          }
+          onRemoveCover={(id) => void handleRemoveCover(id)}
+          onCancelAbsence={(id) => void handleCancelAbsence(id)}
+        />
+      ) : null}
 
       <MarkAbsentModal
         open={markModalOpen}

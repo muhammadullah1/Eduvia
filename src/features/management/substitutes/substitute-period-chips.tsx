@@ -7,12 +7,14 @@ import { useTeachersList } from "./hooks/use-teachers-list"
 type Props = {
   absence: TeacherAbsence
   assignedSubstituteId?: string
+  compact?: boolean
   onPick: (substituteId: string) => void
 }
 
 export function SubstitutePeriodChips({
   absence,
   assignedSubstituteId,
+  compact = false,
   onPick,
 }: Props) {
   const absenceNumId = Number(absence.id)
@@ -31,10 +33,12 @@ export function SubstitutePeriodChips({
     )
   }
 
+  const wrapClass = compact ? "" : "mt-3"
+
   if (isLoading) {
     return (
-      <p className="mt-3 text-xs text-[var(--cls-muted)]">
-        Loading available teachers…
+      <p className={`${wrapClass} text-xs text-[var(--cls-muted)]`}>
+        Loading…
       </p>
     )
   }
@@ -43,10 +47,10 @@ export function SubstitutePeriodChips({
     return (
       <button
         type="button"
-        className="mt-3 text-xs font-medium text-[var(--cls-brand)]"
+        className={`${wrapClass} text-xs font-medium text-[var(--cls-brand)]`}
         onClick={() => void refetch()}
       >
-        Could not load teachers — try again
+        Retry
       </button>
     )
   }
@@ -58,12 +62,18 @@ export function SubstitutePeriodChips({
       person.id !== absence.teacherId && !freeIds.has(person.id)
   )
 
+  const chipSize = compact
+    ? "rounded-md border px-2 py-1 text-xs"
+    : "rounded-lg border px-3 py-2 text-sm"
+
   return (
-    <div className="mt-3">
-      <p className="mb-2 text-xs font-medium text-[var(--cls-ink)]">
-        Available substitutes
-      </p>
-      <div className="flex flex-wrap gap-2">
+    <div className={wrapClass}>
+      {!compact ? (
+        <p className="mb-2 text-xs font-medium text-[var(--cls-ink)]">
+          Available substitutes
+        </p>
+      ) : null}
+      <div className="flex max-w-full flex-wrap gap-1.5">
         {free.map((person) => {
           const selected = assignedSubstituteId === person.id
           return (
@@ -72,7 +82,8 @@ export function SubstitutePeriodChips({
               type="button"
               onClick={() => onPick(person.id)}
               className={cn(
-                "rounded-lg border px-3 py-2 text-sm transition-colors",
+                chipSize,
+                "transition-colors",
                 selected
                   ? "border-emerald-600 bg-emerald-50 font-medium text-emerald-900"
                   : "border-[var(--cls-border)] bg-white text-[var(--cls-ink)] hover:border-emerald-500/50 hover:bg-emerald-50/50"
@@ -82,24 +93,29 @@ export function SubstitutePeriodChips({
             </button>
           )
         })}
-        {busy.map((person) => (
-          <button
-            key={person.id}
-            type="button"
-            disabled
-            title="Has a timetable clash or is already covering another period"
-            className="cursor-not-allowed rounded-lg border border-[var(--cls-border)] bg-[var(--page-wash)] px-3 py-2 text-sm text-[var(--cls-muted)] line-through opacity-70"
-          >
-            {person.name}
-            <span className="ml-1 text-[10px] not-line-through text-amber-700">
-              Busy
-            </span>
-          </button>
-        ))}
+        {!compact
+          ? busy.map((person) => (
+              <button
+                key={person.id}
+                type="button"
+                disabled
+                title="Has a timetable clash or is already covering another period"
+                className={cn(
+                  chipSize,
+                  "cursor-not-allowed border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-muted)] line-through opacity-70"
+                )}
+              >
+                {person.name}
+                <span className="ml-1 text-[10px] not-line-through text-amber-700">
+                  Busy
+                </span>
+              </button>
+            ))
+          : null}
       </div>
       {free.length === 0 ? (
-        <p className="mt-2 text-xs text-[var(--cls-muted)]">
-          No teacher is free for this period.
+        <p className="mt-1.5 text-xs text-[var(--cls-muted)]">
+          No free teachers
         </p>
       ) : null}
     </div>
