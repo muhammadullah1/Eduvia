@@ -29,8 +29,21 @@ export function TimetablePage() {
   const { state, syncPortalForRoute } = useSchool()
   const actor = useActor()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [viewMode, setViewMode] = useState<ViewMode>("class")
+  const viewParam = searchParams.get("view")
+  const teacherIdParam = searchParams.get("teacherId") ?? ""
+
+  const initialView: ViewMode = viewParam === "teacher" ? "teacher" : "class"
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView)
   const [focusSlot, setFocusSlot] = useState<TimetableSlot | null>(null)
+
+  useEffect(() => {
+    if (viewParam === "teacher") {
+      setViewMode("teacher")
+    }
+    if (viewParam === "class") {
+      setViewMode("class")
+    }
+  }, [viewParam])
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "timetable")
@@ -82,6 +95,27 @@ export function TimetablePage() {
     })
   }
 
+  function setViewModeInUrl(mode: ViewMode) {
+    setViewMode(mode)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set("view", mode)
+      if (mode === "class") {
+        next.delete("teacherId")
+      }
+      return next
+    })
+  }
+
+  function selectTeacherInUrl(id: string) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set("view", "teacher")
+      next.set("teacherId", id)
+      return next
+    })
+  }
+
   const syncPortal = () => syncPortalForRoute(actor.role, "timetable")
 
   const sessionLabel = currentSession?.name ?? "—"
@@ -120,7 +154,7 @@ export function TimetablePage() {
               aria-label="Timetable view"
               className="!flex-row !items-center !justify-start !gap-0"
               value={viewMode}
-              onValueChange={(v) => setViewMode(v as ViewMode)}
+              onValueChange={(v) => setViewModeInUrl(v as ViewMode)}
               items={[
                 { value: "class", label: "Class" },
                 { value: "teacher", label: "Teacher" },
@@ -195,9 +229,11 @@ export function TimetablePage() {
         <TimetableTeacherPanel
           teachers={teachers}
           classes={classes}
+          initialTeacherId={teacherIdParam}
+          onTeacherIdChange={selectTeacherInUrl}
           onEditSlotInClassView={(slot) => {
             setFocusSlot(slot)
-            setViewMode("class")
+            setViewModeInUrl("class")
             selectClass(slot.classId)
           }}
         />

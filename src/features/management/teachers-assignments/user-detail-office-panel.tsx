@@ -1,8 +1,7 @@
-import { ArrowRight, Mail, Phone } from "lucide-react"
+import { ArrowRight } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
-import { Button } from "@/components/ui/button"
 import { portalPath } from "@/lib/auth"
 import type { Role } from "@/lib/auth"
 
@@ -30,45 +29,22 @@ function roleDescription(role: StaffDirectoryRow["role"]) {
 export function UserDetailOfficePanel({ staff, viewerRole }: Props) {
   const accessItems = portalAccessForRole(staff.role)
 
-  const contactFields = [
-    { label: "Work email", value: staff.email },
-    { label: "Phone", value: staff.phone },
+  const roleFields = [
+    { label: "Portal role", value: staff.roleLabel },
+    { label: "Account status", value: staff.status },
     { label: "User ID", value: staff.id },
   ]
 
   return (
     <div className="grid gap-5 lg:grid-cols-2">
       <StaffDetailSection
-        title="Contact"
-        description="Reach this user for operational or finance questions."
-      >
-        <StaffDetailFields items={contactFields} />
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" asChild>
-            <a href={`mailto:${staff.email}`}>
-              <Mail data-icon="inline-start" />
-              Send email
-            </a>
-          </Button>
-          {staff.phone && staff.phone !== "—" ? (
-            <Button type="button" variant="outline" size="sm" asChild>
-              <a href={`tel:${staff.phone}`}>
-                <Phone data-icon="inline-start" />
-                Call
-              </a>
-            </Button>
-          ) : null}
-        </div>
-      </StaffDetailSection>
-
-      <StaffDetailSection
-        title="Role in the portal"
+        title="About this role"
         description={roleDescription(staff.role)}
       >
-        <p className="text-sm leading-relaxed text-[var(--cls-muted)]">
-          This account is scoped to school operations. Permissions are enforced
-          by the API; the areas below reflect what this role can access when
-          signed in.
+        <StaffDetailFields items={roleFields} />
+        <p className="mt-4 text-sm leading-relaxed text-[var(--cls-muted)]">
+          Permissions are enforced by the API. The modules below are what this
+          role can open when signed in.
         </p>
       </StaffDetailSection>
 

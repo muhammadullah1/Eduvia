@@ -34,6 +34,12 @@ const usersService = {
 
   create: (body: CreateStaffUserBody) =>
     api.post<ApiUser>("/users", body),
+
+  resendInvitation: (userId: number) =>
+    api.post<{ sent: boolean; email: string }>(
+      `/users/${userId}/resend-invitation`,
+      {}
+    ),
 }
 
 export default usersService

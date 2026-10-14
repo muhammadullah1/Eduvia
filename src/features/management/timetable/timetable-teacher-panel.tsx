@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 
 import { Label } from "@/components/ui/label"
 import {
@@ -17,15 +17,35 @@ import { TimetableTeacherGrid } from "./timetable-teacher-grid"
 type Props = {
   teachers: Staff[]
   classes: ClassSection[]
+  initialTeacherId?: string
+  onTeacherIdChange?: (teacherId: string) => void
   onEditSlotInClassView: (slot: TimetableSlot) => void
 }
 
 export function TimetableTeacherPanel({
   teachers,
   classes,
+  initialTeacherId,
+  onTeacherIdChange,
   onEditSlotInClassView,
 }: Props) {
-  const [teacherId, setTeacherId] = useState(teachers[0]?.id ?? "")
+  const [teacherId, setTeacherId] = useState(() => {
+    if (initialTeacherId && teachers.some((t) => t.id === initialTeacherId)) {
+      return initialTeacherId
+    }
+    return teachers[0]?.id ?? ""
+  })
+
+  useEffect(() => {
+    if (!initialTeacherId) return
+    if (!teachers.some((t) => t.id === initialTeacherId)) return
+    setTeacherId(initialTeacherId)
+  }, [initialTeacherId, teachers])
+
+  function selectTeacher(id: string) {
+    setTeacherId(id)
+    if (onTeacherIdChange) onTeacherIdChange(id)
+  }
   const timetableQuery = useSchoolTimetableQuery()
   const allSlots = timetableQuery.data ?? []
 
@@ -62,7 +82,7 @@ export function TimetableTeacherPanel({
         >
           Teacher
         </Label>
-        <Select value={teacherId} onValueChange={setTeacherId}>
+        <Select value={teacherId} onValueChange={selectTeacher}>
           <SelectTrigger
             id="timetable-teacher-select"
             className="h-10 border-[var(--cls-border)] bg-[var(--page-wash)]/40"

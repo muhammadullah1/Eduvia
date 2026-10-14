@@ -1,20 +1,26 @@
-import { ArrowLeft, Mail } from "lucide-react"
+import { ArrowLeft, CalendarDays, Send } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
 import { Button } from "@/components/ui/button"
 
-import { ClsStatusBadge } from "./cls-status-badge"
-import { StaffAvatar } from "./staff-avatar"
-import { StaffRoleBadge } from "./staff-role-badge"
-
 type Props = {
   staff: StaffDirectoryRow
   onBack: () => void
   timetableHref?: string
+  canResendInvite?: boolean
+  resending?: boolean
+  onResendInvite?: () => void
 }
 
-export function StaffDetailHeader({ staff, onBack, timetableHref }: Props) {
+export function StaffDetailHeader({
+  staff,
+  onBack,
+  timetableHref,
+  canResendInvite = false,
+  resending = false,
+  onResendInvite,
+}: Props) {
   let timetableAction = null
   if (staff.role === "teacher" && timetableHref) {
     timetableAction = (
@@ -25,14 +31,33 @@ export function StaffDetailHeader({ staff, onBack, timetableHref }: Props) {
         className="border-[var(--cls-border)]"
         asChild
       >
-        <Link to={timetableHref}>Timetable</Link>
+        <Link to={timetableHref}>
+          <CalendarDays data-icon="inline-start" />
+          Timetable
+        </Link>
+      </Button>
+    )
+  }
+
+  let inviteAction = null
+  if (canResendInvite && onResendInvite) {
+    inviteAction = (
+      <Button
+        type="button"
+        size="sm"
+        className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+        disabled={resending}
+        onClick={onResendInvite}
+      >
+        <Send data-icon="inline-start" />
+        {resending ? "Sending…" : "Send activation email"}
       </Button>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4 border-b border-[var(--cls-border)] pb-5 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex min-w-0 items-start gap-3">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 items-center gap-3">
         <Button
           type="button"
           variant="outline"
@@ -43,37 +68,18 @@ export function StaffDetailHeader({ staff, onBack, timetableHref }: Props) {
         >
           <ArrowLeft className="size-5" />
         </Button>
-        <StaffAvatar name={staff.name} size="lg" />
         <div className="min-w-0">
-          <p className="text-xs font-medium text-[var(--cls-muted)]">
-            Staff member
+          <p className="text-xs font-medium uppercase tracking-wide text-[var(--cls-muted)]">
+            Staff profile
           </p>
-          <div className="mt-0.5 flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-xl font-semibold tracking-tight text-[var(--cls-ink)]">
-              {staff.name}
-            </h1>
-            <StaffRoleBadge role={staff.role} />
-            <ClsStatusBadge status={staff.status} />
-          </div>
-          <p className="mt-1 truncate text-[13px] text-[var(--cls-muted)]">
-            {staff.email}
+          <p className="truncate text-sm font-semibold text-[var(--cls-ink)]">
+            {staff.name}
           </p>
         </div>
       </div>
       <div className="flex flex-wrap gap-2 sm:justify-end">
+        {inviteAction}
         {timetableAction}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="border-[var(--cls-border)]"
-          asChild
-        >
-          <a href={`mailto:${staff.email}`}>
-            <Mail data-icon="inline-start" />
-            Email
-          </a>
-        </Button>
       </div>
     </div>
   )
