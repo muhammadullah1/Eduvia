@@ -82,6 +82,7 @@ export type ApiUser = {
   lastName: string
   email: string
   phone?: string | null
+  photo?: string | null
   role: string
   status: string
 }

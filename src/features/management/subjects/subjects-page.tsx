@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useSchoolTimetableQuery } from "@/features/management/classes/hooks/use-class-detail-queries"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
@@ -45,7 +46,14 @@ export function SubjectsPage({ globalQuery }: Props) {
   const { data: subjects = [], isLoading, isError, refetch } =
     useSubjectsList()
 
-  const { data: allClasses = [] } = useClassesList()
+  const { data: sessions = [] } = useSessionsList()
+  const currentSession = sessions.find((s) => s.current)
+  const sessionNumericId = currentSession
+    ? Number(currentSession.id)
+    : undefined
+  const { data: allClasses = [] } = useClassesList(
+    Number.isFinite(sessionNumericId) ? sessionNumericId : undefined
+  )
   const { data: timetableSlots = [] } = useSchoolTimetableQuery()
 
   const rows = useMemo(

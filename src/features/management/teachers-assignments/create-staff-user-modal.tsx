@@ -26,6 +26,10 @@ import {
 } from "@/components/ui/select"
 import type { Role } from "@/lib/auth"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
+import {
+  formatPhonePk,
+  phonePkError,
+} from "@/lib/pakistan-validation"
 
 export type CreateStaffPayload = {
   firstName: string
@@ -36,6 +40,7 @@ export type CreateStaffPayload = {
   role: Role
   subjectId?: number
   employeeCode?: string
+  photo?: string
 }
 
 type Props = {
@@ -75,6 +80,8 @@ export function CreateStaffUserModal({
   const [role, setRole] = useState<Role>(roleOptions[0] ?? "teacher")
   const [subjectId, setSubjectId] = useState("")
   const [employeeCode, setEmployeeCode] = useState("")
+  const [photo, setPhoto] = useState("")
+  const [phoneError, setPhoneError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -87,6 +94,8 @@ export function CreateStaffUserModal({
     setRole(pickDefaultRole(roleOptions, defaultRole))
     setSubjectId("")
     setEmployeeCode("")
+    setPhoto("")
+    setPhoneError(null)
     setError(null)
   }, [open, roleOptions, defaultRole])
 
@@ -112,6 +121,15 @@ export function CreateStaffUserModal({
       setError("Password must be at least 8 characters.")
       return
     }
+    const phoneTrimmed = phone.trim()
+    if (phoneTrimmed) {
+      const pErr = phonePkError(phoneTrimmed, "Phone")
+      if (pErr) {
+        setPhoneError(pErr)
+        return
+      }
+    }
+    setPhoneError(null)
     if (role === "teacher") {
       const sid = Number(subjectId)
       if (!Number.isFinite(sid)) {
@@ -124,10 +142,11 @@ export function CreateStaffUserModal({
       firstName: fn,
       lastName: ln,
       email: mail,
-      phone: phone.trim(),
+      phone: phoneTrimmed ? formatPhonePk(phoneTrimmed) : "",
       password,
       role,
       employeeCode: employeeCode.trim() || undefined,
+      photo: photo.trim() || undefined,
     }
     if (role === "teacher") {
       payload.subjectId = Number(subjectId)
@@ -206,10 +225,19 @@ export function CreateStaffUserModal({
           <div>
             <Label className="mb-1.5 block text-sm font-medium">Phone</Label>
             <Input
+              inputMode="tel"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => {
+                const next = formatPhonePk(e.target.value)
+                setPhone(next)
+                if (phoneError) setPhoneError(phonePkError(next, "Phone"))
+              }}
               disabled={saving}
+              aria-invalid={Boolean(phoneError)}
             />
+            {phoneError ? (
+              <p className="mt-1 text-xs text-destructive">{phoneError}</p>
+            ) : null}
           </div>
           <div>
             <Label className="mb-1.5 block text-sm font-medium">Role *</Label>
@@ -233,6 +261,17 @@ export function CreateStaffUserModal({
             </Select>
           </div>
           <div className="sm:col-span-2">{subjectField}</div>
+          <div className="sm:col-span-2">
+            <Label className="mb-1.5 block text-sm font-medium">
+              Profile photo URL
+            </Label>
+            <Input
+              value={photo}
+              onChange={(e) => setPhoto(e.target.value)}
+              placeholder="https://… (optional)"
+              disabled={saving}
+            />
+          </div>
           <div>
             <Label className="mb-1.5 block text-sm font-medium">
               Employee code

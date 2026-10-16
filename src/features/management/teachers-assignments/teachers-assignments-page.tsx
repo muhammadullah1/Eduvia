@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
 import usersService from "@/api/users/users.service"
+import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
@@ -65,6 +66,10 @@ export function TeachersAssignmentsPage({
   const [roleFilter, setRoleFilter] = useState<StaffRoleFilter>("all")
   const [modalOpen, setModalOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState<StaffDirectoryRow | null>(
+    null
+  )
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "teachers-assignments")
@@ -101,6 +106,20 @@ export function TeachersAssignmentsPage({
     toast.success(message)
   }
 
+  async function handleDeleteStaff() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await usersService.remove(Number(deleteTarget.id))
+      await afterMutation("Staff member removed")
+      setDeleteTarget(null)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete user.")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   async function handleCreate(payload: CreateStaffPayload) {
     setSaving(true)
     try {
@@ -113,6 +132,7 @@ export function TeachersAssignmentsPage({
         role: payload.role,
         subjectId: payload.subjectId,
         employeeCode: payload.employeeCode ?? null,
+        photo: payload.photo ?? null,
       })
       await afterMutation("Staff member created")
       setModalOpen(false)
@@ -196,9 +216,25 @@ export function TeachersAssignmentsPage({
           searchActive={Boolean(needle)}
           onClearSearch={clearFilters}
           onOpenUser={onOpenUser}
+          actorRole={actor.role}
+          onEditUser={onOpenUser}
+          onDeleteUser={(row) => setDeleteTarget(row)}
           pagination={pagination}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(deleteTarget)}
+        title="Delete staff member?"
+        description={
+          deleteTarget?.role === "teacher"
+            ? `${deleteTarget.name} cannot be deleted if they still have class or timetable assignments.`
+            : `Remove ${deleteTarget?.name ?? "this user"} from the portal? This cannot be undone.`
+        }
+        confirmLabel={deleting ? "Deleting…" : "Delete"}
+        onConfirm={() => void handleDeleteStaff()}
+        onClose={() => !deleting && setDeleteTarget(null)}
+      />
 
       <CreateStaffUserModal
         open={modalOpen}

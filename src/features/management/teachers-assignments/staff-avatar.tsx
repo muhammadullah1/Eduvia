@@ -2,6 +2,7 @@ import { cn } from "@/lib/utils"
 
 type Props = {
   name: string
+  photoUrl?: string | null
   size?: "md" | "lg"
   className?: string
 }
@@ -15,10 +16,29 @@ function initialsFromName(name: string) {
   return `${first}${last}`.toUpperCase()
 }
 
-export function StaffAvatar({ name, size = "md", className }: Props) {
+export function StaffAvatar({
+  name,
+  photoUrl,
+  size = "md",
+  className,
+}: Props) {
   const initials = initialsFromName(name)
   let sizeClass = "size-10 text-sm"
   if (size === "lg") sizeClass = "size-14 text-base"
+
+  if (photoUrl?.startsWith("http")) {
+    return (
+      <img
+        src={photoUrl}
+        alt=""
+        className={cn(
+          "inline-flex shrink-0 rounded-full object-cover ring-1 ring-[var(--cls-brand)]/20",
+          sizeClass,
+          className
+        )}
+      />
+    )
+  }
 
   return (
     <span

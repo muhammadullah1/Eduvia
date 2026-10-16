@@ -22,12 +22,25 @@ export function UserDetailProfileCard({ staff }: Props) {
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
       <div className="bg-gradient-to-br from-[var(--cls-brand)]/12 via-[var(--page-wash)] to-white px-6 pb-6 pt-8">
         <div className="flex flex-col items-center text-center sm:flex-row sm:items-end sm:gap-5 sm:text-left">
-          <StaffAvatar name={staff.name} size="lg" className="size-20 text-lg" />
-          <div className="mt-4 min-w-0 sm:mt-0 sm:flex-1">
-            <h2 className="text-xl font-semibold text-[var(--cls-ink)]">
+          <StaffAvatar
+            name={staff.name}
+            photoUrl={staff.photoUrl}
+            size="lg"
+            className="size-20 text-lg"
+          />
+          <div className="mt-4 min-w-0 flex-1 sm:mt-0">
+            <h2
+              className="text-xl font-semibold text-[var(--cls-ink)] break-words"
+              title={staff.name}
+            >
               {staff.name}
             </h2>
-            <p className="mt-1 text-sm text-[var(--cls-muted)]">{staff.email}</p>
+            <p
+              className="mt-1 text-sm text-[var(--cls-muted)] break-all"
+              title={staff.email}
+            >
+              {staff.email}
+            </p>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2 sm:justify-start">
               <StaffRoleBadge role={staff.role} />
               <ClsStatusBadge status={staff.status} />
@@ -42,7 +55,10 @@ export function UserDetailProfileCard({ staff }: Props) {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-medium text-[var(--cls-muted)]">Email</p>
-            <p className="truncate text-sm font-medium text-[var(--cls-ink)]">
+            <p
+              className="break-all text-sm font-medium text-[var(--cls-ink)]"
+              title={staff.email}
+            >
               {staff.email}
             </p>
           </div>
@@ -53,7 +69,10 @@ export function UserDetailProfileCard({ staff }: Props) {
           </span>
           <div className="min-w-0">
             <p className="text-xs font-medium text-[var(--cls-muted)]">Phone</p>
-            <p className="text-sm font-medium text-[var(--cls-ink)]">
+            <p
+              className="break-all text-sm font-medium text-[var(--cls-ink)]"
+              title={staff.phone}
+            >
               {staff.phone}
             </p>
           </div>

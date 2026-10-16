@@ -9,6 +9,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { useSchool } from "@/data/store"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import {
   AcademicSetup,
   Admissions,
@@ -90,10 +91,13 @@ export function PortalShell() {
 
   const current =
     navigation[role].find((item) => item.id === section) ?? navigation[role][0]
+  const { data: sessionsFromApi = [] } = useSessionsList()
   const sessionLabel = useMemo(() => {
-    const current = state.sessions.find((item) => item.current)
+    const sessions =
+      sessionsFromApi.length > 0 ? sessionsFromApi : state.sessions
+    const current = sessions.find((item) => item.current)
     return current?.name ?? "2026–2027"
-  }, [state.sessions])
+  }, [sessionsFromApi, state.sessions])
   const useClsShell = CLS_SHELL_ROLES.has(role)
   const session = loadAuth()
   const authRole = session?.role

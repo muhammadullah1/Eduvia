@@ -32,10 +32,15 @@ export type UpdateClassBody = Partial<CreateClassBody> & {
 }
 
 const classesService = {
-  list: (params?: { sessionId?: number; stats?: boolean }) =>
+  list: (params?: {
+    sessionId?: number
+    stats?: boolean
+    archived?: boolean
+  }) =>
     api.get<ClassDto[]>("/classes", {
       sessionId: params?.sessionId,
       stats: params?.stats ? "1" : undefined,
+      archived: params?.archived ? "1" : undefined,
     }),
 
   create: (body: CreateClassBody) =>
@@ -45,6 +50,9 @@ const classesService = {
     api.patch<ClassDto>(`/classes/${id}`, body),
 
   remove: (id: number) => api.delete<void>(`/classes/${id}`),
+
+  restore: (id: number) =>
+    api.post<ClassDto>(`/classes/${id}/restore`, {}),
 }
 
 export default classesService

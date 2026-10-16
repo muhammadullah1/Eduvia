@@ -185,6 +185,20 @@ export async function fetchPortalCore(): Promise<
   return { classes, sessions, subjects, settings }
 }
 
+async function fetchSettingsFromApi(): Promise<
+  Pick<SchoolState, "settings">
+> {
+  const settingsData = await safeGet<ApiSettings>("/settings", undefined, {})
+  return {
+    settings: {
+      dailyTestRules:
+        settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
+      resultVisibility:
+        settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
+    },
+  }
+}
+
 async function fetchClassesAndSessions(): Promise<
   Pick<SchoolState, "classes" | "sessions">
 > {
@@ -430,9 +444,17 @@ export async function fetchSchoolDataSlices(
   slices: SchoolDataSlice[]
 ): Promise<Partial<SchoolState>> {
   const want = new Set(slices)
+  if (want.size === 0) return {}
   const partial: Partial<SchoolState> = {}
   const tasks: Promise<void>[] = []
 
+  if (want.has("settings") && !PORTAL_CORE_SLICES.filter((s) => s !== "settings").some((s) => want.has(s))) {
+    tasks.push(
+      fetchSettingsFromApi().then((slice) => {
+        Object.assign(partial, slice)
+      })
+    )
+  }
   if (wantsOnlyClasses(want)) {
     tasks.push(
       fetchClassesFromApi().then((slice) => {
@@ -875,6 +897,11 @@ export async function fetchBackendState(): Promise<SchoolState> {
     const cover = coversFor(a)[0]
     const slot = cover?.slot
     const rawStatus = String(a.status ?? "Pending")
+    let status: AbsenceStatus = rawStatus as AbsenceStatus
+    if (rawStatus === "Cancelled") status = "Cancelled"
+    else if (cover) status = "Covered"
+    else if (rawStatus === "Approved") status = "Pending"
+
     return {
       id: String(a.id),
       teacherId: String(a.fkTeacherId ?? a.teacher?.id ?? ""),
@@ -887,18 +914,15 @@ export async function fetchBackendState(): Promise<SchoolState> {
           ? String(slot.fkClassId)
           : undefined,
       subject: a.subject?.name ?? slot?.subject?.name,
-      status: (cover
-        ? "Covered"
-        : rawStatus === "Approved"
-          ? "Pending"
-          : rawStatus) as AbsenceStatus,
+      status,
       markedBy: a.markedBy ?? "",
       notes: a.notes ?? a.reason ?? "",
     }
   })
 
-  const substitutions: Substitution[] = absenceRows.flatMap((a) =>
-    coversFor(a).map((sub) => {
+  const substitutions: Substitution[] = absenceRows.flatMap((a) => {
+    if (String(a.status ?? "") === "Cancelled") return []
+    return coversFor(a).map((sub) => {
       const slot = sub.slot
       return {
         id: String(sub.id),
@@ -916,7 +940,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         at: sub.createdAt ?? new Date().toISOString(),
       }
     })
-  )
+  })
 
   // 17. Test Schedules & Weekly Tests
   const testSchedules: TestSchedule[] = schedulesData.length

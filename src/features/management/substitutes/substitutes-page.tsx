@@ -144,20 +144,27 @@ export function SubstitutesPage() {
     }
   }
 
-  async function assignOne(absenceId: string, substituteId: string) {
+  async function assignOne(
+    absenceId: string,
+    substituteId: string
+  ): Promise<string | undefined> {
     const aId = Number(absenceId)
     const sId = Number(substituteId)
-    if (!Number.isFinite(aId) || !Number.isFinite(sId)) return
+    if (!Number.isFinite(aId) || !Number.isFinite(sId)) {
+      return "Invalid substitute selection."
+    }
     try {
       await assign.mutateAsync({
         absenceId: aId,
         substituteTeacherId: sId,
       })
       toast.success(`${teacherNameById(substituteId)} assigned`)
+      return undefined
     } catch (err) {
-      toast.error(
+      const message =
         err instanceof Error ? err.message : "Could not assign substitute."
-      )
+      toast.error(message)
+      return message
     }
   }
 
@@ -340,10 +347,9 @@ export function SubstitutesPage() {
           teachers={teachers}
           classes={state.classes}
           teacherNameById={teacherNameById}
-          onAssign={(absenceId, substituteId) => {
-            void assignOne(absenceId, substituteId)
-            return undefined
-          }}
+          onAssign={(absenceId, substituteId) =>
+            assignOne(absenceId, substituteId)
+          }
           onDone={() => setAssignTarget(null)}
         />
       ) : null}

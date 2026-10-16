@@ -22,6 +22,7 @@ export type CreateStaffUserBody = {
   subjectId?: number
   gender?: "Male" | "Female" | "Other" | null
   employeeCode?: string | null
+  photo?: string | null
 }
 
 const usersService = {
@@ -40,6 +41,20 @@ const usersService = {
       `/users/${userId}/resend-invitation`,
       {}
     ),
+
+  update: (
+    userId: number,
+    body: {
+      firstName?: string
+      lastName?: string
+      phone?: string | null
+      photo?: string | null
+      gender?: "Male" | "Female" | "Other" | null
+    }
+  ) => api.patch<ApiUser>(`/users/${userId}`, body),
+
+  remove: (userId: number) =>
+    api.delete<{ deleted: boolean }>(`/users/${userId}`),
 }
 
 export default usersService

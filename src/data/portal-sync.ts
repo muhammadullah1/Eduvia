@@ -48,7 +48,8 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   finance: ["expenses", "payments"],
   academic: ["staff", "slots"],
   sessions: ["staff", "slots"],
-  classes: ["students", "slots", "feeMonths"],
+  /** List/detail load via React Query (`useClassesList`, etc.). */
+  classes: [],
   subjects: ["staff", "slots"],
   "teachers-assignments": ["staff"],
   timetable: ["staff", "slots"],
@@ -85,13 +86,26 @@ export const ADMISSION_WIZARD_SLICES: SchoolDataSlice[] = [
 
 const MINIMAL_CORE_SECTIONS = new Set(["substitutes", "absences"])
 
+/** Primary data comes from React Query — do not pull portal core or legacy store slices. */
+const REACT_QUERY_SECTIONS = new Set([
+  "classes",
+  "admissions",
+  "teachers-assignments",
+])
+
 export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPlan {
   if (role === "teacher" || role === "parent" || role === "accountant") {
     return { mode: "full" }
   }
+  if (section === "settings") {
+    return { mode: "partial", slices: ["settings"] }
+  }
   const sectionSlices = ADMIN_SECTION_SLICES[section]
   if (!sectionSlices) {
     return { mode: "full" }
+  }
+  if (REACT_QUERY_SECTIONS.has(section)) {
+    return { mode: "partial", slices: [...new Set(sectionSlices)] }
   }
   if (section === "admissions") {
     return { mode: "partial", slices: [...new Set(sectionSlices)] }

@@ -24,6 +24,7 @@ export type StaffDirectoryRow = {
   subjectId?: string
   classLabels: string[]
   employeeCode: string
+  photoUrl?: string | null
 }
 
 const ROLE_LABELS: Record<Role, string> = {
@@ -78,6 +79,7 @@ export function buildStaffDirectory(
       subjectId: teacher?.subject?.id != null ? String(teacher.subject.id) : undefined,
       classLabels,
       employeeCode: teacher?.employeeCode?.trim() || "—",
+      photoUrl: user.photo?.trim() || null,
     })
   }
 

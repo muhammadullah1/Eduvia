@@ -39,8 +39,9 @@ export function mapTeacherAbsencesFromApi(
     const slot = cover?.slot
     const rawStatus = String(a.status ?? "Pending")
     let status: AbsenceStatus = rawStatus as AbsenceStatus
-    if (cover) status = "Covered"
-    if (rawStatus === "Approved") status = "Pending"
+    if (rawStatus === "Cancelled") status = "Cancelled"
+    else if (cover) status = "Covered"
+    else if (rawStatus === "Approved") status = "Pending"
 
     return {
       id: String(a.id),
@@ -60,8 +61,9 @@ export function mapTeacherAbsencesFromApi(
     }
   })
 
-  const substitutions: Substitution[] = rows.flatMap((a) =>
-    coversFor(a).map((sub) => {
+  const substitutions: Substitution[] = rows.flatMap((a) => {
+    if (String(a.status ?? "") === "Cancelled") return []
+    return coversFor(a).map((sub) => {
       const slot = sub.slot
       return {
         id: String(sub.id),
@@ -79,7 +81,7 @@ export function mapTeacherAbsencesFromApi(
         at: sub.createdAt ?? new Date().toISOString(),
       }
     })
-  )
+  })
 
   return { teacherAbsences, substitutions }
 }

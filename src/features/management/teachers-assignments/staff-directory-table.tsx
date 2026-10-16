@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronUp, Search } from "lucide-react"
+import { ChevronDown, ChevronUp, MoreHorizontal, Search } from "lucide-react"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
 import { staffRoleLabel } from "@/api/staff/map-staff-directory"
@@ -7,6 +7,12 @@ import {
   type PaginationWithHandlers,
 } from "@/components/common/pagination-component"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -26,6 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import type { Role } from "@/lib/auth"
+import { can } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 import { ClsStatusBadge } from "./cls-status-badge"
@@ -46,7 +53,15 @@ type Props = {
   searchActive?: boolean
   onClearSearch?: () => void
   onOpenUser?: (row: StaffDirectoryRow) => void
+  actorRole?: Role
+  onEditUser?: (row: StaffDirectoryRow) => void
+  onDeleteUser?: (row: StaffDirectoryRow) => void
   pagination?: PaginationWithHandlers
+}
+
+function canManageStaffRow(actorRole: Role, row: StaffDirectoryRow) {
+  if (can(actorRole, "staff.create.any")) return true
+  return row.role === "teacher" && can(actorRole, "staff.create.teacher")
 }
 
 function SortHint() {
@@ -78,10 +93,14 @@ export function StaffDirectoryTable({
   searchActive = false,
   onClearSearch,
   onOpenUser,
+  actorRole,
+  onEditUser,
+  onDeleteUser,
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
-  const colSpan = 5
+  const showActions = Boolean(actorRole && (onEditUser || onDeleteUser))
+  const colSpan = showActions ? 6 : 5
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
@@ -146,6 +165,11 @@ export function StaffDirectoryTable({
               <TableHead className="h-11 w-[110px] text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
                 Status
               </TableHead>
+              {showActions ? (
+                <TableHead className="h-11 w-12 text-right text-xs font-semibold uppercase tracking-wide text-[var(--cls-muted)]">
+                  <span className="sr-only">Actions</span>
+                </TableHead>
+              ) : null}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -189,7 +213,7 @@ export function StaffDirectoryTable({
               >
                 <TableCell className="py-3.5">
                   <div className="flex items-center gap-3">
-                    <StaffAvatar name={row.name} />
+                    <StaffAvatar name={row.name} photoUrl={row.photoUrl} />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-[var(--cls-ink)]">
                         {row.name}
@@ -210,6 +234,45 @@ export function StaffDirectoryTable({
                 <TableCell className="py-3.5">
                   <ClsStatusBadge status={row.status} />
                 </TableCell>
+                {showActions && actorRole ? (
+                  <TableCell
+                    className="py-3.5 text-right"
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    {canManageStaffRow(actorRole, row) ? (
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon-sm"
+                            className="text-[var(--cls-muted)]"
+                            aria-label={`Actions for ${row.name}`}
+                          >
+                            <MoreHorizontal className="size-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {onEditUser ? (
+                            <DropdownMenuItem
+                              onClick={() => onEditUser(row)}
+                            >
+                              Edit
+                            </DropdownMenuItem>
+                          ) : null}
+                          {onDeleteUser ? (
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={() => onDeleteUser(row)}
+                            >
+                              Delete
+                            </DropdownMenuItem>
+                          ) : null}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    ) : null}
+                  </TableCell>
+                ) : null}
               </TableRow>
             ))}
           </TableBody>

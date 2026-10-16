@@ -2,7 +2,7 @@ import { useEffect, useState } from "react"
 
 import {
   buildClassLabel,
-  isDuplicateClassLabel,
+  isDuplicateClassGradeSection,
 } from "@/api/classes/map-class"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,7 +22,7 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   sessionLabel: string
-  existingClasses: { id: string; label: string }[]
+  existingClasses: { id: string; label: string; grade: string; section: string }[]
   saving?: boolean
   onSubmit: (payload: {
     grade: string
@@ -43,40 +43,65 @@ export function CreateClassModal({
   const [grade, setGrade] = useState("")
   const [section, setSection] = useState("Main")
   const [room, setRoom] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [gradeError, setGradeError] = useState<string | null>(null)
+  const [sectionError, setSectionError] = useState<string | null>(null)
+  const [classError, setClassError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!open) return
     setGrade("")
     setSection("Main")
     setRoom("")
-    setError(null)
+    setGradeError(null)
+    setSectionError(null)
+    setClassError(null)
   }, [open])
 
   async function handleSubmit() {
     const gradeTrimmed = grade.trim()
+    setGradeError(null)
+    setSectionError(null)
+    setClassError(null)
+
     if (!gradeTrimmed) {
-      setError("Class name is required.")
+      setGradeError("Class name is required.")
       return
     }
     if (!section.trim()) {
-      setError("Enter a section name or choose Standard.")
+      setSectionError("Enter a section name or choose Standard.")
       return
     }
     const sectionTrimmed = section.trim()
     const label = buildClassLabel(gradeTrimmed, sectionTrimmed)
-    if (isDuplicateClassLabel(existingClasses, label)) {
-      setError("A class with this name already exists in the current session.")
+    if (
+      isDuplicateClassGradeSection(
+        existingClasses,
+        gradeTrimmed,
+        sectionTrimmed
+      )
+    ) {
+      setClassError(
+        "A class with this name already exists in the current session."
+      )
       return
     }
-    setError(null)
     const roomTrimmed = room.trim()
-    await onSubmit({
-      grade: gradeTrimmed,
-      section: sectionTrimmed,
-      label,
-      room: roomTrimmed || null,
-    })
+    try {
+      await onSubmit({
+        grade: gradeTrimmed,
+        section: sectionTrimmed,
+        label,
+        room: roomTrimmed || null,
+      })
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Could not create class."
+      if (message.toLowerCase().includes("class")) {
+        setClassError(message)
+      } else {
+        setClassError(message)
+      }
+    }
   }
 
   return (
@@ -97,16 +122,36 @@ export function CreateClassModal({
             </Label>
             <Input
               value={grade}
-              onChange={(e) => setGrade(e.target.value)}
+              onChange={(e) => {
+                setGrade(e.target.value)
+                if (gradeError) setGradeError(null)
+                if (classError) setClassError(null)
+              }}
               placeholder="e.g. Class 1, Nursery, Grade 7"
+              aria-invalid={Boolean(gradeError)}
             />
+            {gradeError ? (
+              <p className="mt-1 text-sm text-destructive">{gradeError}</p>
+            ) : null}
           </div>
-          <ClassSectionField
-            grade={grade}
-            section={section}
-            onSectionChange={setSection}
-            disabled={saving}
-          />
+          <div>
+            <ClassSectionField
+              grade={grade}
+              section={section}
+              onSectionChange={(value) => {
+                setSection(value)
+                if (sectionError) setSectionError(null)
+                if (classError) setClassError(null)
+              }}
+              disabled={saving}
+            />
+            {sectionError ? (
+              <p className="mt-1 text-sm text-destructive">{sectionError}</p>
+            ) : null}
+            {classError ? (
+              <p className="mt-2 text-sm text-destructive">{classError}</p>
+            ) : null}
+          </div>
           <div>
             <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
               Home room <span className="text-[var(--cls-muted)]">(optional)</span>
@@ -118,9 +163,6 @@ export function CreateClassModal({
               disabled={saving}
             />
           </div>
-          {error ? (
-            <p className="text-sm text-destructive">{error}</p>
-          ) : null}
         </div>
         <DialogFooter className={CLS_MODAL_FOOTER}>
           <Button

@@ -7,6 +7,7 @@ import { ConfirmDialog } from "@/components/app/kit"
 import { useSchool } from "@/data/store"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
+import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 
 import {
@@ -21,6 +22,7 @@ import { UserDetailOfficePanel } from "./user-detail-office-panel"
 import { UserDetailProfileCard } from "./user-detail-profile-card"
 import { UserDetailStatTile } from "./user-detail-stat-tile"
 import { UserDetailTeacherPanel } from "./user-detail-teacher-panel"
+import { EditStaffUserModal } from "./edit-staff-user-modal"
 
 type Props = {
   userId: string
@@ -34,6 +36,9 @@ export function StaffDetailPage({ userId, onBack }: Props) {
   const [saving, setSaving] = useState(false)
   const [resending, setResending] = useState(false)
   const [inviteConfirmOpen, setInviteConfirmOpen] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   const { data: rows = [], isLoading, isError, refetch } = useStaffDirectory()
   const { data: subjects = [] } = useSubjectsList()
@@ -87,6 +92,54 @@ export function StaffDetailPage({ userId, onBack }: Props) {
       )
     } finally {
       setSaving(false)
+    }
+  }
+
+  const canManageStaff = useMemo(() => {
+    if (!staff) return false
+    if (can(actor.role, "staff.create.any")) return true
+    return (
+      staff.role === "teacher" && can(actor.role, "staff.create.teacher")
+    )
+  }, [actor.role, staff])
+
+  async function handleEditSave(payload: {
+    firstName: string
+    lastName: string
+    phone: string
+    photo: string
+  }) {
+    if (!staff) return
+    setSaving(true)
+    try {
+      await usersService.update(Number(staff.id), {
+        firstName: payload.firstName,
+        lastName: payload.lastName,
+        phone: payload.phone || null,
+        photo: payload.photo || null,
+      })
+      await afterMutation("Staff profile updated")
+      setEditOpen(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update user.")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDeleteStaff() {
+    if (!staff) return
+    setDeleting(true)
+    try {
+      await usersService.remove(Number(staff.id))
+      toast.success("Staff member removed")
+      setDeleteConfirmOpen(false)
+      onBack()
+      await invalidateStaffDirectory(queryClient)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete user.")
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -183,6 +236,9 @@ export function StaffDetailPage({ userId, onBack }: Props) {
         canResendInvite={canResendInvite}
         resending={resending}
         onResendInvite={() => setInviteConfirmOpen(true)}
+        onEdit={canManageStaff ? () => setEditOpen(true) : undefined}
+        onDelete={canManageStaff ? () => setDeleteConfirmOpen(true) : undefined}
+        deleting={deleting}
       />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr] lg:items-start">
@@ -214,6 +270,31 @@ export function StaffDetailPage({ userId, onBack }: Props) {
           {mainPanel}
         </div>
       </div>
+
+      <EditStaffUserModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        staff={staff}
+        saving={saving}
+        onSubmit={handleEditSave}
+      />
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        title="Delete staff member?"
+        description={
+          staff.role === "teacher" && staff.classLabels.length > 0
+            ? `${staff.name} is still linked to classes. Remove timetable and class assignments first, or deletion will be blocked.`
+            : `Remove ${staff.name} from the staff directory? Their login will be archived.`
+        }
+        confirmLabel="Delete"
+        confirmingLabel="Deleting…"
+        confirming={deleting}
+        onConfirm={() => void handleDeleteStaff()}
+        onClose={() => {
+          if (!deleting) setDeleteConfirmOpen(false)
+        }}
+      />
 
       <ConfirmDialog
         open={inviteConfirmOpen}

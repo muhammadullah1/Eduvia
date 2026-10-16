@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react"
 
 import {
   buildClassLabel,
-  isDuplicateClassLabel,
+  isDuplicateClassGradeSection,
 } from "@/api/classes/map-class"
 import { Button } from "@/components/ui/button"
 import {
@@ -32,7 +32,7 @@ type Props = {
   onOpenChange: (open: boolean) => void
   klass: ClassSection | null
   sessionLabel: string
-  existingClasses: { id: string; label: string }[]
+  existingClasses: { id: string; label: string; grade: string; section: string }[]
   saving?: boolean
   onSubmit: (payload: {
     id: string
@@ -81,7 +81,14 @@ export function EditClassModal({
     }
     const sectionTrimmed = section.trim()
     const label = buildClassLabel(gradeTrimmed, sectionTrimmed)
-    if (isDuplicateClassLabel(existingClasses, label, klass.id)) {
+    if (
+      isDuplicateClassGradeSection(
+        existingClasses,
+        gradeTrimmed,
+        sectionTrimmed,
+        klass.id
+      )
+    ) {
       setError("A class with this name already exists in the current session.")
       return
     }

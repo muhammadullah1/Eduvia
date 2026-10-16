@@ -217,7 +217,7 @@ export function SubstitutesDayBoard({
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                {row.status === "Covered" ? (
+                                {sub || row.status === "Covered" ? (
                                   <DropdownMenuItem
                                     onClick={() => onRemoveCover(row.id)}
                                   >

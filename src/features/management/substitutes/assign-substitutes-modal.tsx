@@ -30,7 +30,10 @@ type Props = {
   teachers: SubstituteTeacherOption[]
   classes: ClassSection[]
   teacherNameById: (id: string) => string
-  onAssign: (absenceId: string, substituteId: string) => string | undefined
+  onAssign: (
+    absenceId: string,
+    substituteId: string
+  ) => Promise<string | undefined>
   onDone: () => void
 }
 
@@ -84,12 +87,12 @@ export function AssignSubstitutesModal({
     setPendingPicks((prev) => ({ ...prev, [absenceId]: substituteId }))
   }
 
-  function confirmAssignments() {
+  async function confirmAssignments() {
     for (const row of rows) {
       const subId = pendingPicks[row.id]
       if (!subId) continue
       if (subForAbsence(row.id)) continue
-      const err = onAssign(row.id, subId)
+      const err = await onAssign(row.id, subId)
       if (err) {
         setConfirmOpen(false)
         return
@@ -207,7 +210,7 @@ export function AssignSubstitutesModal({
         title="Confirm substitute assignments?"
         description={`You are assigning cover for ${pickedCount} period(s) for ${teacherName} on ${formatDate(date)}. This will be recorded in the substitution log.`}
         confirmLabel="Confirm"
-        onConfirm={confirmAssignments}
+        onConfirm={() => void confirmAssignments()}
         onClose={() => setConfirmOpen(false)}
       />
     </>

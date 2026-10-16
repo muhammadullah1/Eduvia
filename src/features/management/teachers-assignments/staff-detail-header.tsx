@@ -11,6 +11,9 @@ type Props = {
   canResendInvite?: boolean
   resending?: boolean
   onResendInvite?: () => void
+  onEdit?: () => void
+  onDelete?: () => void
+  deleting?: boolean
 }
 
 export function StaffDetailHeader({
@@ -20,6 +23,9 @@ export function StaffDetailHeader({
   canResendInvite = false,
   resending = false,
   onResendInvite,
+  onEdit,
+  onDelete,
+  deleting = false,
 }: Props) {
   let timetableAction = null
   if (staff.role === "teacher" && timetableHref) {
@@ -78,6 +84,23 @@ export function StaffDetailHeader({
         </div>
       </div>
       <div className="flex flex-wrap gap-2 sm:justify-end">
+        {onEdit ? (
+          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
+            Edit
+          </Button>
+        ) : null}
+        {onDelete ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="text-destructive hover:text-destructive"
+            disabled={deleting}
+            onClick={onDelete}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </Button>
+        ) : null}
         {inviteAction}
         {timetableAction}
       </div>

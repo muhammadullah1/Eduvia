@@ -4,9 +4,12 @@ import { useNavigate } from "react-router-dom"
 
 import classesService from "@/api/classes/classes.service"
 import { subjectsFromTimetableSlots } from "@/api/timetable/map-timetable"
-import { classDisplayName, isDuplicateClassLabel } from "@/api/classes/map-class"
+import {
+  classDisplayName,
+  isDuplicateClassGradeSection,
+} from "@/api/classes/map-class"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
-import { useSchool } from "@/data/store"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { ClassDetailHeader } from "@/features/management/classes/class-detail-header"
 import { ClassDetailStudentsTab } from "@/features/management/classes/class-detail-students-tab"
 import { ClassDetailSubjectsTab } from "@/features/management/classes/class-detail-subjects-tab"
@@ -48,15 +51,15 @@ export function ClassDetailPage({
   onTabChange,
   onBack,
 }: Props) {
-  const { state, syncPortalForRoute } = useSchool()
   const actor = useActor()
+  const { data: sessions = [] } = useSessionsList()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [editOpen, setEditOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [periodTimes, setPeriodTimes] = useState<PeriodTimeMap>({})
 
-  const currentSession = state.sessions.find((s) => s.current)
+  const currentSession = sessions.find((s) => s.current)
   const sessionNumericId = currentSession
     ? Number(currentSession.id)
     : undefined
@@ -71,10 +74,8 @@ export function ClassDetailPage({
   )
 
   const klass = useMemo(
-    () =>
-      classes.find((c) => c.id === classId) ??
-      state.classes.find((c) => c.id === classId),
-    [classes, classId, state.classes]
+    () => classes.find((c) => c.id === classId),
+    [classes, classId]
   )
 
   useEffect(() => {
@@ -115,7 +116,13 @@ export function ClassDetailPage({
   }))
 
   const existingClassLabels = useMemo(
-    () => classes.map((c) => ({ id: c.id, label: c.label })),
+    () =>
+      classes.map((c) => ({
+        id: c.id,
+        label: c.label,
+        grade: c.grade,
+        section: c.section,
+      })),
     [classes]
   )
 
@@ -127,7 +134,6 @@ export function ClassDetailPage({
 
   async function afterMutation(message: string) {
     await invalidateClassesList(queryClient)
-    await syncPortalForRoute(actor.role, "classes")
     toast.success(message)
   }
 
@@ -139,7 +145,14 @@ export function ClassDetailPage({
     room?: string | null
     periodCount: number
   }) {
-    if (isDuplicateClassLabel(existingClassLabels, payload.label, payload.id)) {
+    if (
+      isDuplicateClassGradeSection(
+        existingClassLabels,
+        payload.grade,
+        payload.section,
+        payload.id
+      )
+    ) {
       toast.error("A class with this name already exists in the current session.")
       return
     }
