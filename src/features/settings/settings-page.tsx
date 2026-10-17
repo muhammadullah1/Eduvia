@@ -5,6 +5,7 @@ import {
   ChevronRight,
   DoorOpen,
   GraduationCap,
+  Shield,
   Settings2,
 } from "lucide-react"
 import { useEffect, useMemo } from "react"
@@ -12,13 +13,18 @@ import { Link, useSearchParams } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
-import { ArchivedClassesPanel } from "@/features/management/classes/archived-classes-panel"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 import { SettingsGeneralRules } from "./settings-general-rules"
+import {
+  ArchivesHub,
+  BlockDatesPanel,
+  LocationsPanel,
+  RolesPanel,
+} from "./settings-operations"
 
 export type SettingsPanelId =
   | "general"
@@ -26,6 +32,7 @@ export type SettingsPanelId =
   | "calendar"
   | "rooms"
   | "archives"
+  | "roles"
 
 const NAV: {
   id: SettingsPanelId
@@ -37,6 +44,7 @@ const NAV: {
   { id: "calendar", label: "Calendar & black-out dates", icon: CalendarOff },
   { id: "rooms", label: "Rooms & locations", icon: DoorOpen },
   { id: "archives", label: "Archives", icon: Archive },
+  { id: "roles", label: "Roles & permissions", icon: Shield },
 ]
 
 function parsePanel(value: string | null): SettingsPanelId {
@@ -214,20 +222,12 @@ export function SettingsPage() {
                     Calendar &amp; black-out dates
                   </h2>
                   <p className="mt-1 text-sm text-[var(--cls-muted)]">
-                    ASAMAN provides a dedicated black-out calendar. CLS-SMS does
-                    not yet persist school holidays or black-out dates.
+                    Closures for this school. A range cannot exceed one month
+                    and cannot overlap another active block. Archive removes it
+                    from the calendar; restore is explicit.
                   </p>
                 </header>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
-                  <p className="font-medium">Backend not implemented</p>
-                  <p className="mt-2 text-amber-900/90">
-                    Needed: a <code className="text-xs">school_blackout_dates</code>{" "}
-                    table (or <code className="text-xs">school_settings</code>{" "}
-                    key) with date, label, optional session scope, and CRUD APIs
-                    under <code className="text-xs">/calendar/blackouts</code>.
-                    Until then, this screen documents the gap — no mock data.
-                  </p>
-                </div>
+                <BlockDatesPanel />
               </section>
             ) : null}
 
@@ -238,25 +238,11 @@ export function SettingsPage() {
                     Rooms &amp; locations
                   </h2>
                   <p className="mt-1 text-sm text-[var(--cls-muted)]">
-                    ASAMAN maintains a rooms catalog. CLS-SMS stores a free-text{" "}
-                    <strong>room</strong> field on each class only.
+                    School rooms used as a catalog. Class forms still store a
+                    room name on the class; this list is the managed directory.
                   </p>
                 </header>
-                <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 text-sm text-amber-950">
-                  <p className="font-medium">Central room catalog not implemented</p>
-                  <p className="mt-2 text-amber-900/90">
-                    Needed: <code className="text-xs">rooms</code> table
-                    (school, name, building, capacity), list/create APIs, and
-                    optional link from classes. Edit room on each class from{" "}
-                    <Link
-                      to={portalPath(actor.role, "classes")}
-                      className="font-medium underline"
-                    >
-                      Classes
-                    </Link>{" "}
-                    in the meantime.
-                  </p>
-                </div>
+                <LocationsPanel />
               </section>
             ) : null}
 
@@ -267,17 +253,23 @@ export function SettingsPage() {
                     Archives
                   </h2>
                   <p className="mt-1 text-sm text-[var(--cls-muted)]">
-                    Archived classes keep their IDs and history. Creating a new
-                    class with the same grade and section does{" "}
-                    <strong>not</strong> restore an archived row — use Restore
-                    explicitly.
+                    Soft-deleted classes, subjects, staff, rooms, and block
+                    dates. Restore is a deliberate action and fails if an active
+                    duplicate already exists.
                   </p>
                 </header>
-                <ArchivedClassesPanel embedded />
-                <p className="text-xs text-[var(--cls-muted)]">
-                  Other archives (subjects, users) will appear here when the
-                  product supports soft-delete + restore for those entities.
-                </p>
+                <ArchivesHub />
+              </section>
+            ) : null}
+
+            {panel === "roles" ? (
+              <section className="space-y-4">
+                <header className="border-b border-[var(--cls-border)] pb-4">
+                  <h2 className="text-base font-semibold text-[var(--cls-ink)]">
+                    Roles &amp; permissions
+                  </h2>
+                </header>
+                <RolesPanel />
               </section>
             ) : null}
           </div>

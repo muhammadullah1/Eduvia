@@ -26,11 +26,17 @@ export type CreateStaffUserBody = {
 }
 
 const usersService = {
-  list: (params?: { role?: Role; page?: number; pageSize?: number }) =>
+  list: (params?: {
+    role?: Role
+    page?: number
+    pageSize?: number
+    archived?: boolean
+  }) =>
     api.get<UsersListResponse>("/users", {
       role: params?.role,
       page: params?.page,
       pageSize: params?.pageSize,
+      archived: params?.archived ? "1" : undefined,
     }),
 
   create: (body: CreateStaffUserBody) =>
@@ -55,6 +61,8 @@ const usersService = {
 
   remove: (userId: number) =>
     api.delete<{ deleted: boolean }>(`/users/${userId}`),
+
+  restore: (userId: number) => api.post<ApiUser>(`/users/${userId}/restore`, {}),
 }
 
 export default usersService

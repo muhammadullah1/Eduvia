@@ -8,7 +8,6 @@ import {
   isDuplicateClassGradeSection,
 } from "@/api/classes/map-class"
 import { ConfirmDialog } from "@/components/app/kit"
-import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { Button } from "@/components/ui/button"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import type { ClassSection } from "@/data/types"
@@ -40,8 +39,6 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
-  const [listTab, setListTab] = useState<"active" | "archived">("active")
-  const [restoringId, setRestoringId] = useState<string | null>(null)
 
   const { data: sessions = [], isLoading: sessionsLoading } = useSessionsList()
 
@@ -56,11 +53,9 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   const sessionIdForQuery = Number.isFinite(sessionNumericId)
     ? sessionNumericId
     : undefined
-  const archivedView = listTab === "archived"
 
   const { data: classes = [], isLoading, isError, refetch } = useClassesList(
-    sessionIdForQuery,
-    { archived: archivedView }
+    sessionIdForQuery
   )
 
   const rows = useMemo(() => {
@@ -74,19 +69,15 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     }))
   }, [classes])
 
-  const { data: activeClasses = [] } = useClassesList(sessionIdForQuery, {
-    archived: false,
-  })
-
   const existingClassLabels = useMemo(
     () =>
-      activeClasses.map((c) => ({
+      classes.map((c) => ({
         id: c.id,
         label: c.label,
         grade: c.grade,
         section: c.section,
       })),
-    [activeClasses]
+    [classes]
   )
 
   const needle = (search || globalQuery).trim().toLowerCase()
@@ -207,23 +198,6 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     }
   }
 
-  async function handleRestore(classId: string) {
-    const id = Number(classId)
-    if (!Number.isFinite(id)) return
-    setRestoringId(classId)
-    try {
-      await classesService.restore(id)
-      await afterMutation("Class restored")
-      setListTab("active")
-    } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not restore class."
-      )
-    } finally {
-      setRestoringId(null)
-    }
-  }
-
   function clearSearch() {
     setSearch("")
   }
@@ -244,29 +218,16 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
               : null}
           </p>
         </div>
-        {listTab === "active" ? (
-          <Button
-            type="button"
-            className="shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-            onClick={() => setModalOpen(true)}
-            disabled={!currentSession}
-          >
-            <Plus data-icon="inline-start" />
-            Add class
-          </Button>
-        ) : null}
+        <Button
+          type="button"
+          className="shrink-0 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+          onClick={() => setModalOpen(true)}
+          disabled={!currentSession}
+        >
+          <Plus data-icon="inline-start" />
+          Add class
+        </Button>
       </div>
-
-      <ClsSubTabs
-        value={listTab}
-        onValueChange={(value) =>
-          setListTab(value === "archived" ? "archived" : "active")
-        }
-        items={[
-          { value: "active", label: "Active classes" },
-          { value: "archived", label: "Archived" },
-        ]}
-      />
 
       {!currentSession ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
@@ -290,24 +251,21 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
             <Layers className="size-6" />
           </div>
           <p className="text-base font-medium text-[var(--cls-ink)]">
-            {archivedView ? "No archived classes" : "No classes yet"}
+            No classes yet
           </p>
           <p className="max-w-sm text-sm text-[var(--cls-muted)]">
-            {archivedView
-              ? "Archived classes for this session appear here. Restore one to use it again in admissions and timetables."
-              : "Create your first class for the current session. Admissions and timetables will use these sections."}
+            Create your first class for the current session. Archived classes
+            are restored from Settings → Archives.
           </p>
-          {!archivedView ? (
-            <Button
-              type="button"
-              className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-              onClick={() => setModalOpen(true)}
-              disabled={!currentSession}
-            >
-              <Plus data-icon="inline-start" />
-              Add class
-            </Button>
-          ) : null}
+          <Button
+            type="button"
+            className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+            onClick={() => setModalOpen(true)}
+            disabled={!currentSession}
+          >
+            <Plus data-icon="inline-start" />
+            Add class
+          </Button>
         </div>
       ) : (
         <ClassesDataTable
@@ -317,20 +275,9 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
           loading={sessionsLoading || isLoading}
           searchActive={Boolean(needle)}
           onClearSearch={clearSearch}
-          archivedView={archivedView}
-          onOpenClass={
-            archivedView || !onOpenClass
-              ? undefined
-              : (row) => onOpenClass(row.id)
-          }
-          onEdit={archivedView ? undefined : (row) => setEditClass(row)}
-          onDelete={archivedView ? undefined : setDeleteId}
-          onRestore={
-            archivedView
-              ? (id) => void handleRestore(id)
-              : undefined
-          }
-          restoringId={restoringId}
+          onOpenClass={onOpenClass ? (row) => onOpenClass(row.id) : undefined}
+          onEdit={(row) => setEditClass(row)}
+          onDelete={setDeleteId}
           pagination={pagination}
         />
       )}
@@ -361,7 +308,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         title="Archive class"
         description={
           deletingRow
-            ? `Archive "${classDisplayName(deletingRow)}" for this session? It will move to Archived and you can restore it later. Students already assigned may need to be moved first.`
+            ? `Archive "${classDisplayName(deletingRow)}" for this session? Restore it later from Settings → Archives. Students already assigned may need to be moved first.`
             : "Archive this class?"
         }
         confirmLabel="Archive class"

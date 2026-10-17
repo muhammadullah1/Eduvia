@@ -56,7 +56,7 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   /** Absences/substitutions load via React Query on the substitutes page. */
   substitutes: ["slots"],
   absences: ["slots"],
-  "lesson-plan": ["plannedChapters"],
+  "lesson-plan": [],
   curriculum: ["plannedChapters"],
   "lesson-review": ["dailyLessons"],
   "daily-test-schedule": ["testSchedules", "weeklyTests"],
@@ -91,6 +91,7 @@ const REACT_QUERY_SECTIONS = new Set([
   "classes",
   "admissions",
   "teachers-assignments",
+  "lesson-plan",
 ])
 
 export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPlan {

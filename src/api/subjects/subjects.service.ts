@@ -11,7 +11,11 @@ export type CreateSubjectBody = {
 export type UpdateSubjectBody = Partial<CreateSubjectBody>
 
 const subjectsService = {
-  list: () => api.get<ApiSubject[]>("/subjects"),
+  list: (params?: { archived?: boolean; search?: string }) =>
+    api.get<ApiSubject[]>("/subjects", {
+      archived: params?.archived ? "1" : undefined,
+      search: params?.search,
+    }),
 
   create: (body: CreateSubjectBody) =>
     api.post<ApiSubject>("/subjects", body),
@@ -20,6 +24,8 @@ const subjectsService = {
     api.patch<ApiSubject>(`/subjects/${id}`, body),
 
   remove: (id: number) => api.delete<void>(`/subjects/${id}`),
+
+  restore: (id: number) => api.post<ApiSubject>(`/subjects/${id}/restore`, {}),
 }
 
 export default subjectsService
