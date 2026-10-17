@@ -6,14 +6,26 @@ import { mapClassDto } from "@/api/classes/map-class"
 import type { ClassSection } from "@/data/types"
 import { loadAuth } from "@/lib/auth"
 
-export function useClassesList(sessionId?: number) {
+export function useClassesList(
+  sessionId?: number,
+  options?: { archived?: boolean }
+) {
+  const archived = options?.archived ?? false
+  const sessionReady =
+    sessionId !== undefined && Number.isFinite(sessionId) && sessionId > 0
   return useQuery({
-    queryKey: [CLASSES_QUERY_KEY, sessionId ?? "current"],
-    enabled: Boolean(loadAuth()?.token),
+    queryKey: [
+      CLASSES_QUERY_KEY,
+      sessionReady ? sessionId : "pending",
+      archived ? "archived" : "active",
+    ],
+    enabled: Boolean(loadAuth()?.token) && sessionReady,
     queryFn: async () => {
-      const rows = await classesService.list(
-        sessionId ? { sessionId, stats: true } : { stats: true }
-      )
+      const rows = await classesService.list({
+        sessionId,
+        stats: !archived,
+        archived,
+      })
       return rows.map(mapClassDto)
     },
   })

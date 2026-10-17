@@ -9,6 +9,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { useSchool } from "@/data/store"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import {
   AcademicSetup,
   Admissions,
@@ -23,9 +24,11 @@ import {
   MessagesDesk,
   People,
   Reports,
+  TeachersAssignments,
 } from "@/features/management/screens"
+import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
+import { SubstitutesPage } from "@/features/management/substitutes/substitutes-page"
 import {
-  AbsencesPanel,
   AccountantPortal,
   CurriculumPanel,
   LessonReviewPanel,
@@ -89,10 +92,13 @@ export function PortalShell() {
 
   const current =
     navigation[role].find((item) => item.id === section) ?? navigation[role][0]
+  const { data: sessionsFromApi = [] } = useSessionsList()
   const sessionLabel = useMemo(() => {
-    const current = state.sessions.find((item) => item.current)
+    const sessions =
+      sessionsFromApi.length > 0 ? sessionsFromApi : state.sessions
+    const current = sessions.find((item) => item.current)
     return current?.name ?? "2026–2027"
-  }, [state.sessions])
+  }, [sessionsFromApi, state.sessions])
   const useClsShell = CLS_SHELL_ROLES.has(role)
   const session = loadAuth()
   const authRole = session?.role
@@ -165,6 +171,9 @@ export function PortalShell() {
     if (section === "sessions") return <Sessions />
     if (section === "subjects") return <Subjects query={query} />
     if (section === "timetable") return <Timetable />
+    if (section === "teachers-assignments") {
+      return <TeachersAssignments query={query} />
+    }
     {
       const academicFocus = academicFocusForSection(section)
       if (academicFocus && academicFocus !== "sessions") {
@@ -186,11 +195,10 @@ export function PortalShell() {
       return <SectionPlaceholder section={section} />
     }
     if (section === "substitutes" || section === "absences") {
-      return <AbsencesPanel />
+      return <SubstitutesPage />
     }
-    if (section === "daily-test-schedule" || section === "weekly-tests") {
-      return <WeeklyTestsPanel />
-    }
+    if (section === "daily-test-schedule") return <DailyTestSchedulePage />
+    if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
     if (section === "results-gate") return <ResultsGatePanel />
     if (

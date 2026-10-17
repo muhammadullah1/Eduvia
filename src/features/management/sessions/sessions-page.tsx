@@ -119,6 +119,7 @@ export function SessionsPage() {
 
   async function handleActivateConfirm() {
     if (!activateId) return
+    setSaving(true)
     try {
       await sessionsService.activate(Number(activateId))
       await afterMutation("Session activated")
@@ -127,6 +128,8 @@ export function SessionsPage() {
       toast.error(
         err instanceof Error ? err.message : "Could not activate session."
       )
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -240,8 +243,10 @@ export function SessionsPage() {
             : "Set this session as current?"
         }
         confirmLabel="Activate session"
+        confirming={saving && Boolean(activateId)}
+        confirmingLabel="Activating…"
         onConfirm={() => void handleActivateConfirm()}
-        onClose={() => setActivateId(null)}
+        onClose={() => !saving && setActivateId(null)}
       />
 
       <ConfirmDialog
@@ -254,8 +259,10 @@ export function SessionsPage() {
         }
         confirmLabel="Delete session"
         destructive
+        confirming={saving && Boolean(deleteId)}
+        confirmingLabel="Deleting…"
         onConfirm={() => void handleDeleteConfirm()}
-        onClose={() => setDeleteId(null)}
+        onClose={() => !saving && setDeleteId(null)}
       />
     </div>
   )

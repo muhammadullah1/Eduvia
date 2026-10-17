@@ -5,6 +5,7 @@ export function mapTimetableSlotDto(dto: ApiTimetableSlot): TimetableSlot {
   return {
     id: String(dto.id),
     classId: String(dto.fkClassId),
+    classLabel: dto.class?.label || undefined,
     day: dto.day || "",
     time: String(
       dto.time ?? (dto as { startTime?: string }).startTime ?? ""

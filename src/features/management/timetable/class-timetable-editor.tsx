@@ -1,6 +1,6 @@
 import { classDisplayName } from "@/api/classes/map-class"
 import type { SubjectRow } from "@/api/subjects/map-subject"
-import type { ClassSection, Staff } from "@/data/types"
+import type { ClassSection, Staff, TimetableSlot } from "@/data/types"
 import {
   ClassSchedulePeriodModal,
 } from "@/features/management/classes/class-schedule-period-modal"
@@ -15,6 +15,8 @@ type Props = {
   teachers: Staff[]
   syncPortal: () => Promise<void>
   editablePeriodTimes?: boolean
+  focusSlot?: TimetableSlot | null
+  onFocusSlotHandled?: () => void
 }
 
 export function ClassTimetableEditor({
@@ -24,8 +26,16 @@ export function ClassTimetableEditor({
   teachers,
   syncPortal,
   editablePeriodTimes = true,
+  focusSlot,
+  onFocusSlotHandled,
 }: Props) {
-  const editor = useClassTimetableEditor({ classId, klass, syncPortal })
+  const editor = useClassTimetableEditor({
+    classId,
+    klass,
+    syncPortal,
+    focusSlot,
+    onFocusSlotHandled,
+  })
   const activeSubjects = subjects.filter((s) => s.status === "Active")
 
   if (!klass) {
@@ -80,15 +90,13 @@ export function ClassTimetableEditor({
       <ClassSchedulePeriodModal
         open={editor.scheduleOpen}
         onOpenChange={(open) => !open && editor.closeSchedule()}
+        classId={classId}
         classLabel={classDisplayName(klass)}
         periodCount={klass.periodCount}
         periodTimes={editor.periodTimes}
-        roomSuggestion={
-          klass.room && klass.room !== "Unassigned" ? klass.room : undefined
-        }
         subjects={activeSubjects}
         teachers={teachers.filter((person) => person.role === "Teacher")}
-        existingSlots={editor.slots}
+        schoolSlots={editor.schoolSlots}
         editingSlot={editor.editingSlot}
         prefill={editor.schedulePrefill}
         saving={editor.saving}

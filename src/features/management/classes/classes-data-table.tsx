@@ -42,6 +42,9 @@ type Props = {
   onOpenClass?: (row: ClassRow) => void
   onEdit?: (row: ClassRow) => void
   onDelete?: (id: string) => void
+  onRestore?: (id: string) => void
+  restoringId?: string | null
+  archivedView?: boolean
   pagination?: PaginationWithHandlers
 }
 
@@ -64,6 +67,9 @@ export function ClassesDataTable({
   onOpenClass,
   onEdit,
   onDelete,
+  onRestore,
+  restoringId = null,
+  archivedView = false,
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
@@ -180,23 +186,39 @@ export function ClassesDataTable({
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuGroup>
-                        <DropdownMenuItem
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onEdit?.(item)
-                          }}
-                        >
-                          Edit class
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive focus:text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onDelete?.(item.id)
-                          }}
-                        >
-                          Delete class
-                        </DropdownMenuItem>
+                        {archivedView ? (
+                          <DropdownMenuItem
+                            disabled={restoringId === item.id}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onRestore?.(item.id)
+                            }}
+                          >
+                            {restoringId === item.id
+                              ? "Restoring…"
+                              : "Restore class"}
+                          </DropdownMenuItem>
+                        ) : (
+                          <>
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onEdit?.(item)
+                              }}
+                            >
+                              Edit class
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              className="text-destructive focus:text-destructive"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onDelete?.(item.id)
+                              }}
+                            >
+                              Archive class
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuGroup>
                     </DropdownMenuContent>
                   </DropdownMenu>

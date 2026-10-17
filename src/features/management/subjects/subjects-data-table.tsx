@@ -40,6 +40,7 @@ type Props = {
   onClearSearch?: () => void
   onEdit?: (row: SubjectTableRow) => void
   onToggleActive?: (row: SubjectTableRow) => void
+  onDelete?: (row: SubjectTableRow) => void
   pagination?: PaginationWithHandlers
 }
 
@@ -61,6 +62,7 @@ export function SubjectsDataTable({
   onClearSearch,
   onEdit,
   onToggleActive,
+  onDelete,
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
@@ -180,6 +182,12 @@ export function SubjectsDataTable({
                           {item.status === "Active"
                             ? "Deactivate"
                             : "Activate"}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => onDelete?.(item)}
+                        >
+                          Delete subject
                         </DropdownMenuItem>
                       </DropdownMenuGroup>
                     </DropdownMenuContent>

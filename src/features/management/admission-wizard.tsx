@@ -33,8 +33,36 @@ import {
   ReadOnlyRefCard,
   WizardStepHeader,
 } from "@/features/management/admissions/admission-ui"
+import { AdmissionDocumentUpload } from "@/features/management/admissions/admission-document-upload"
+import { mapAdmissionSaveError } from "@/features/management/admissions/admission-form-errors"
+import {
+  enrollmentDateBounds,
+  interviewDateBounds,
+  isIsoDateInRange,
+  studentDobBounds,
+} from "@/lib/admission-date-bounds"
+import {
+  formatInterviewScore,
+  interviewMarksError,
+  marksDigitsOnly,
+  parseInterviewScore,
+} from "@/lib/interview-score"
 import { useActor } from "@/lib/actor"
+import {
+  cnicError,
+  formatCnic,
+  formatPhonePk,
+  normalizePhonePk,
+  phonePkError,
+} from "@/lib/pakistan-validation"
 import { cn } from "@/lib/utils"
+
+function classSelectionValid(
+  classId: string,
+  classes: { id: string }[]
+) {
+  return Boolean(classId && classes.some((item) => item.id === classId))
+}
 
 const DOC_DEFAULTS: AdmissionDocument[] = [
   { id: "birth", label: "Birth Certificate / B-Form", status: "Pending" },
@@ -115,7 +143,7 @@ export function AdmissionWizard({
     address: "",
     previousSchool: "",
     previousClass: "",
-    classId: state.classes[0]?.id ?? "",
+    classId: "",
   })
   const [guardians, setGuardians] = useState<GuardianRow[]>([emptyGuardian()])
   const [documents, setDocuments] = useState(() =>
@@ -126,7 +154,8 @@ export function AdmissionWizard({
     date: "",
     type: "Interview",
     evaluator: "",
-    score: "",
+    scoreObtained: "",
+    scoreTotal: "",
     remarks: "",
     result: "",
   })
@@ -135,7 +164,7 @@ export function AdmissionWizard({
     remarks: "",
   })
   const [enrollment, setEnrollment] = useState({
-    classId: state.classes[0]?.id ?? "",
+    classId: "",
     enrollDate: "",
   })
 
@@ -143,6 +172,10 @@ export function AdmissionWizard({
     () => state.sessions.find((session) => session.current),
     [state.sessions]
   )
+
+  const dobBounds = useMemo(() => studentDobBounds(), [])
+  const interviewBounds = useMemo(() => interviewDateBounds(), [])
+  const enrollBounds = useMemo(() => enrollmentDateBounds(), [])
 
   const resumeNumericId = useMemo(() => {
     if (!resumeApplicationId) return undefined
@@ -173,7 +206,7 @@ export function AdmissionWizard({
       name: resumeApplication.name,
       dob: resumeApplication.dob,
       gender: resumeApplication.gender,
-      phone: resumeApplication.phone,
+      phone: formatPhonePk(resumeApplication.phone || ""),
       email: resumeApplication.email ?? "",
       address: resumeApplication.address,
       previousSchool: resumeApplication.previousSchool,
@@ -185,7 +218,7 @@ export function AdmissionWizard({
         id: `g-resume-${resumeApplication.id}`,
         type: resumeApplication.guardianRelation || "Father",
         name: resumeApplication.guardian || "",
-        phone: resumeApplication.phone,
+        phone: formatPhonePk(resumeApplication.phone || ""),
         whatsapp: "",
         cnic: "",
         occupation: "",
@@ -197,12 +230,24 @@ export function AdmissionWizard({
     if (resumeApplication.documents?.length) {
       setDocuments(resumeApplication.documents.map((item) => ({ ...item })))
     }
+    const bounds = interviewDateBounds()
+    const safeInterviewDate =
+      resumeApplication.interviewDate &&
+      isIsoDateInRange(
+        resumeApplication.interviewDate,
+        bounds.fromDate,
+        bounds.toDate
+      )
+        ? resumeApplication.interviewDate
+        : ""
+    const parsedScore = parseInterviewScore(resumeApplication.interviewScore)
     setInterview({
       waived: resumeApplication.interviewType === "Waived",
-      date: resumeApplication.interviewDate,
+      date: safeInterviewDate,
       type: resumeApplication.interviewType || "Interview",
       evaluator: "",
-      score: resumeApplication.interviewScore,
+      scoreObtained: parsedScore.obtained,
+      scoreTotal: parsedScore.total,
       remarks: resumeApplication.notes,
       result: resumeApplication.interviewResult,
     })
@@ -226,18 +271,29 @@ export function AdmissionWizard({
   }, [createdId, state.applications])
 
   useEffect(() => {
-    if (!open || state.classes.length === 0) return
-    setStudent((current) =>
-      current.classId
-        ? current
-        : { ...current, classId: state.classes[0]?.id ?? "" }
-    )
-    setEnrollment((current) =>
-      current.classId
-        ? current
-        : { ...current, classId: state.classes[0]?.id ?? "" }
-    )
-  }, [open, state.classes])
+    if (!open || interview.waived) return
+    if (
+      interview.date &&
+      !isIsoDateInRange(
+        interview.date,
+        interviewBounds.fromDate,
+        interviewBounds.toDate
+      )
+    ) {
+      setInterview((current) => ({ ...current, date: "" }))
+    }
+  }, [open, interview.waived, interview.date, interviewBounds])
+
+  useEffect(() => {
+    if (
+      step === 5 &&
+      decision.choice === "Admit" &&
+      !enrollment.classId &&
+      classSelectionValid(student.classId, state.classes)
+    ) {
+      setEnrollment((current) => ({ ...current, classId: student.classId }))
+    }
+  }, [step, decision.choice, student.classId, enrollment.classId, state.classes])
 
   function reset() {
     setStep(0)
@@ -253,7 +309,7 @@ export function AdmissionWizard({
       address: "",
       previousSchool: "",
       previousClass: "",
-      classId: state.classes[0]?.id ?? "",
+      classId: "",
     })
     setGuardians([emptyGuardian()])
     setDocuments(DOC_DEFAULTS.map((item) => ({ ...item })))
@@ -262,13 +318,14 @@ export function AdmissionWizard({
       date: "",
       type: "Interview",
       evaluator: "",
-      score: "",
+      scoreObtained: "",
+      scoreTotal: "",
       remarks: "",
       result: "",
     })
     setDecision({ choice: "", remarks: "" })
     setEnrollment({
-      classId: state.classes[0]?.id ?? "",
+      classId: "",
       enrollDate: "",
     })
   }
@@ -282,19 +339,72 @@ export function AdmissionWizard({
     return guardians.find((g) => g.isPrimary) ?? guardians[0]
   }
 
+  function showSaveError(message: string) {
+    const { fields, step: jump } = mapAdmissionSaveError(message)
+    if (Object.keys(fields).length > 0) {
+      setErrors((prev) => ({ ...prev, ...fields }))
+      if (jump !== undefined) setStep(jump)
+      return true
+    }
+    toast.error(message)
+    return false
+  }
+
   function validateStep(index: number) {
     const next: Record<string, string> = {}
     if (index === 0) {
       if (!student.name.trim()) next.name = "Full name is required."
       if (!student.dob) next.dob = "Date of birth is required."
-      if (!student.phone.trim()) next.phone = "Contact number is required."
+      else if (
+        !isIsoDateInRange(student.dob, dobBounds.fromDate, dobBounds.toDate)
+      ) {
+        next.dob = "Date of birth is outside the allowed range."
+      }
+      const phoneErr = phonePkError(student.phone, "Contact number")
+      if (phoneErr) next.phone = phoneErr
       if (!student.address.trim()) next.address = "Home address is required."
-      if (!student.classId) next.classId = "Choose a class."
+      if (!classSelectionValid(student.classId, state.classes)) {
+        next.classId =
+          state.classes.length === 0
+            ? "No classes are available. Add a class in school setup first."
+            : "Select the class this student is applying for."
+      }
     }
     if (index === 1) {
       const primary = primaryGuardian()
       if (!primary?.name.trim()) next.guardian = "Guardian name is required."
-      if (!primary?.phone.trim()) next.guardianPhone = "Guardian phone is required."
+      const gPhone = phonePkError(primary?.phone ?? "", "Guardian phone")
+      if (gPhone) next.guardianPhone = gPhone
+      if (primary?.cnic.trim()) {
+        const cErr = cnicError(primary.cnic)
+        if (cErr) next.guardianCnic = cErr
+      }
+      for (const g of guardians) {
+        if (!g.whatsapp.trim()) continue
+        const waErr = phonePkError(g.whatsapp, "WhatsApp")
+        if (waErr) {
+          next.guardianWhatsapp = waErr
+          break
+        }
+      }
+    }
+    if (index === 3 && !interview.waived) {
+      if (interview.date) {
+        if (
+          !isIsoDateInRange(
+            interview.date,
+            interviewBounds.fromDate,
+            interviewBounds.toDate
+          )
+        ) {
+          next.interviewDate = `Choose a date from ${interviewBounds.fromDate} onward (no past dates).`
+        }
+      }
+      const marksErr = interviewMarksError(
+        interview.scoreObtained,
+        interview.scoreTotal
+      )
+      if (marksErr) next.interviewScore = marksErr
     }
     if (index === 4) {
       if (!decision.choice) {
@@ -305,7 +415,9 @@ export function AdmissionWizard({
     }
     if (index === 5) {
       if (decision.choice === "Admit") {
-        if (!enrollment.classId) next.classId = "Choose the enrollment class."
+        if (!classSelectionValid(enrollment.classId, state.classes)) {
+          next.classId = "Select the class for enrollment."
+        }
         if (!enrollment.enrollDate)
           next.enrollDate = "Enrollment date is required."
       } else if (!decision.choice) {
@@ -316,12 +428,9 @@ export function AdmissionWizard({
     return Object.keys(next).length === 0
   }
 
-  function buildPayload(classIdOverride?: string) {
+  function buildPayload(classIdOverride?: string, upToStep = step) {
     const primary = primaryGuardian()
-    const notes = [decision.remarks, interview.remarks]
-      .filter(Boolean)
-      .join("\n")
-    return {
+    const payload: Record<string, unknown> = {
       name: student.name,
       dob: student.dob,
       gender: student.gender,
@@ -329,22 +438,56 @@ export function AdmissionWizard({
       previousSchool: student.previousSchool,
       previousClass: student.previousClass,
       classId: classIdOverride || enrollment.classId || student.classId,
-      guardian: primary?.name ?? "",
-      guardianRelation: primary?.type,
-      phone: student.phone || primary?.phone || "",
-      guardianAddress: primary?.address || student.address,
+      phone: normalizePhonePk(student.phone || primary?.phone || ""),
       email: student.email.trim(),
-      documents,
-      interviewType: interview.waived ? "Waived" : interview.type,
-      interviewDate: interview.waived ? "" : interview.date,
-      interviewScore: interview.score,
-      interviewResult: interview.result,
-      notes,
     }
+
+    if (upToStep >= 1) {
+      payload.guardian = primary?.name ?? ""
+      payload.guardianRelation = primary?.type
+      payload.guardianAddress = primary?.address || student.address
+      payload.phone = normalizePhonePk(primary?.phone || student.phone || "")
+    }
+
+    if (upToStep >= 2) {
+      payload.documents = documents
+    }
+
+    if (upToStep >= 3) {
+      payload.interviewType = interview.waived ? "Waived" : interview.type
+      if (!interview.waived && interview.date) {
+        if (
+          isIsoDateInRange(
+            interview.date,
+            interviewBounds.fromDate,
+            interviewBounds.toDate
+          )
+        ) {
+          payload.interviewDate = interview.date
+        }
+      } else if (interview.waived) {
+        payload.interviewDate = null
+      }
+      const scoreStr = formatInterviewScore(
+        interview.scoreObtained,
+        interview.scoreTotal
+      )
+      if (scoreStr) payload.interviewScore = scoreStr
+      if (interview.result) payload.interviewResult = interview.result
+    }
+
+    if (upToStep >= 4) {
+      const notes = [decision.remarks, interview.remarks]
+        .filter(Boolean)
+        .join("\n")
+      if (notes) payload.notes = notes
+    }
+
+    return payload
   }
 
   async function persistStepProgress() {
-    const payload = buildPayload(student.classId)
+    const payload = buildPayload(student.classId, step)
     if (!createdId) {
       const result = await persistApplicationDraft(payload, actor.name)
       if ("error" in result) return result
@@ -362,7 +505,7 @@ export function AdmissionWizard({
     const save = await persistStepProgress()
     setSaving(false)
     if ("error" in save && typeof save.error === "string") {
-      toast.error(save.error)
+      showSaveError(save.error)
       return
     }
     setStep((value) => value + 1)
@@ -382,12 +525,13 @@ export function AdmissionWizard({
     let appId = createdId
     if (!appId) {
       const draft = await persistApplicationDraft(
-        buildPayload(enrollment.classId || student.classId),
+        buildPayload(enrollment.classId || student.classId, 99),
         actor.name
       )
       if ("error" in draft) {
         setSaving(false)
-        toast.error(draft.error)
+        setSaving(false)
+        showSaveError(draft.error)
         return
       }
       appId = draft.id
@@ -395,12 +539,12 @@ export function AdmissionWizard({
     } else {
       const patch = await patchApplicationRecord(
         appId,
-        buildPayload(enrollment.classId || student.classId),
+        buildPayload(enrollment.classId || student.classId, 99),
         actor.name
       )
       if (patch) {
         setSaving(false)
-        toast.error(patch)
+        showSaveError(patch)
         return
       }
     }
@@ -409,13 +553,13 @@ export function AdmissionWizard({
       {
         decision: decision.choice,
         remarks: decision.remarks,
-        payload: buildPayload(enrollment.classId || student.classId),
+        payload: buildPayload(enrollment.classId || student.classId, 99),
       },
       actor.name
     )
     setSaving(false)
     if (finalize) {
-      toast.error(finalize)
+      showSaveError(finalize)
       return
     }
     toast.success(
@@ -427,30 +571,54 @@ export function AdmissionWizard({
     setDone(true)
   }
 
-  function setDocStatus(id: string, status: AdmissionDocument["status"]) {
-    setDocuments((current) =>
-      current.map((item) => (item.id === id ? { ...item, status } : item))
+  async function ensureApplicationId(): Promise<string | null> {
+    if (createdId) return createdId
+    setSaving(true)
+    const result = await persistApplicationDraft(
+      buildPayload(student.classId, step),
+      actor.name
     )
+    setSaving(false)
+    if ("error" in result) {
+      showSaveError(result.error)
+      return null
+    }
+    setCreatedId(result.id)
+    return result.id
+  }
+
+  async function handleDocumentUpdated(doc: AdmissionDocument) {
+    const nextDocs = documents.map((item) => (item.id === doc.id ? doc : item))
+    setDocuments(nextDocs)
+    const appId = createdId ?? (await ensureApplicationId())
+    if (!appId) return
+    const patch = await patchApplicationRecord(
+      appId,
+      { ...buildPayload(student.classId, Math.max(step, 2)), documents: nextDocs },
+      actor.name
+    )
+    if (patch) showSaveError(patch)
   }
 
   return (
     <Dialog
       open={open}
       onOpenChange={(value) => {
-        if (!value) close()
-        else onOpenChange(true)
+        if (value) onOpenChange(true)
       }}
     >
       <DialogContent
         showCloseButton={false}
         overlayClassName="bg-black/30"
         className="flex max-h-[min(92vh,820px)] w-[min(100vw-2rem,48rem)] max-w-none flex-col gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-[48rem]"
+        onPointerDownOutside={(event) => event.preventDefault()}
+        onInteractOutside={(event) => event.preventDefault()}
       >
         <DialogTitle className="sr-only">New Admission Application</DialogTitle>
         <div className="flex shrink-0 items-start justify-between border-b border-[var(--cls-border)] bg-white px-6 py-4">
           <div>
             <h2 className="text-lg font-semibold text-[var(--cls-ink)]">
-              New admission application
+              {resumeApplicationId ? "Edit admission application" : "New admission application"}
             </h2>
             <p className="mt-1 text-sm text-[var(--cls-muted)]">
               Reference{" "}
@@ -546,6 +714,8 @@ export function AdmissionWizard({
                     value={student.dob}
                     onChange={(dob) => setStudent({ ...student, dob })}
                     aria-invalid={Boolean(errors.dob)}
+                    fromDate={dobBounds.fromDate}
+                    maxDate={dobBounds.toDate}
                   />
                   <FieldError message={errors.dob} />
                 </div>
@@ -578,12 +748,25 @@ export function AdmissionWizard({
                   </Label>
                   <Input
                     value={student.phone}
-                    onChange={(e) =>
-                      setStudent({ ...student, phone: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const phone = formatPhonePk(e.target.value)
+                      setStudent({ ...student, phone })
+                      setErrors((prev) => {
+                        if (!prev.phone) return prev
+                        const err = phonePkError(phone, "Contact number")
+                        if (!err) {
+                          const next = { ...prev }
+                          delete next.phone
+                          return next
+                        }
+                        return { ...prev, phone: err }
+                      })
+                    }}
                     placeholder="0300-1234567"
+                    inputMode="tel"
                     aria-invalid={Boolean(errors.phone)}
                   />
+                  <FieldError message={errors.phone} />
                 </div>
                 <div>
                   <Label className="mb-1.5 block">
@@ -650,12 +833,18 @@ export function AdmissionWizard({
                     </AdmissionFieldLabel>
                   </Label>
                   <Select
-                    value={student.classId}
-                    onValueChange={(classId) =>
+                    value={student.classId || undefined}
+                    onValueChange={(classId) => {
                       setStudent({ ...student, classId })
-                    }
+                      setErrors((prev) => {
+                        if (!prev.classId) return prev
+                        const next = { ...prev }
+                        delete next.classId
+                        return next
+                      })
+                    }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger aria-invalid={Boolean(errors.classId)}>
                       <SelectValue placeholder="Select class" />
                     </SelectTrigger>
                     <SelectContent>
@@ -668,6 +857,7 @@ export function AdmissionWizard({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
+                  <FieldError message={errors.classId} />
                 </div>
               </div>
               <ReadOnlyRefCard refNo={refNo} />
@@ -770,34 +960,64 @@ export function AdmissionWizard({
                     <Input
                       placeholder="Phone"
                       value={guardian.phone}
-                      onChange={(e) =>
+                      inputMode="tel"
+                      onChange={(e) => {
+                        const phone = formatPhonePk(e.target.value)
                         setGuardians((rows) =>
                           rows.map((row, i) =>
-                            i === index ? { ...row, phone: e.target.value } : row
+                            i === index ? { ...row, phone } : row
                           )
                         )
-                      }
+                        setErrors((prev) => {
+                          if (!prev.guardianPhone) return prev
+                          const err = phonePkError(phone, "Guardian phone")
+                          if (!err) {
+                            const next = { ...prev }
+                            delete next.guardianPhone
+                            return next
+                          }
+                          return { ...prev, guardianPhone: err }
+                        })
+                      }}
                     />
                     <Input
                       placeholder="WhatsApp"
                       value={guardian.whatsapp}
+                      inputMode="tel"
+                      onChange={(e) => {
+                        const whatsapp = formatPhonePk(e.target.value)
+                        setGuardians((rows) =>
+                          rows.map((row, i) =>
+                            i === index ? { ...row, whatsapp } : row
+                          )
+                        )
+                        setErrors((prev) => {
+                          if (!prev.guardianWhatsapp) return prev
+                          if (!whatsapp.trim()) {
+                            const next = { ...prev }
+                            delete next.guardianWhatsapp
+                            return next
+                          }
+                          const err = phonePkError(whatsapp, "WhatsApp")
+                          if (!err) {
+                            const next = { ...prev }
+                            delete next.guardianWhatsapp
+                            return next
+                          }
+                          return { ...prev, guardianWhatsapp: err }
+                        })
+                      }}
+                    />
+                    <Input
+                      placeholder="CNIC (XXXXX-XXXXXXX-X)"
+                      value={guardian.cnic}
+                      inputMode="numeric"
                       onChange={(e) =>
                         setGuardians((rows) =>
                           rows.map((row, i) =>
                             i === index
-                              ? { ...row, whatsapp: e.target.value }
+                              ? { ...row, cnic: formatCnic(e.target.value) }
                               : row
-                          )
-                        )
-                      }
-                    />
-                    <Input
-                      placeholder="CNIC"
-                      value={guardian.cnic}
-                      onChange={(e) =>
-                        setGuardians((rows) =>
-                          rows.map((row, i) =>
-                            i === index ? { ...row, cnic: e.target.value } : row
                           )
                         )
                       }
@@ -836,6 +1056,15 @@ export function AdmissionWizard({
               {errors.guardian ? (
                 <p className="text-xs text-destructive">{errors.guardian}</p>
               ) : null}
+              {errors.guardianPhone ? (
+                <p className="text-xs text-destructive">{errors.guardianPhone}</p>
+              ) : null}
+              {errors.guardianWhatsapp ? (
+                <p className="text-xs text-destructive">{errors.guardianWhatsapp}</p>
+              ) : null}
+              {errors.guardianCnic ? (
+                <p className="text-xs text-destructive">{errors.guardianCnic}</p>
+              ) : null}
               <button
                 type="button"
                 className="inline-flex items-center gap-2 text-sm font-medium text-[var(--cls-brand)]"
@@ -855,7 +1084,7 @@ export function AdmissionWizard({
               <WizardStepHeader
                 step={step}
                 title="Required documents"
-                description="Track each document through upload and verification. File storage connects when the API is ready."
+                description="Upload PDF or image files (max 10 MB). Documents are stored securely for this application."
               />
               {documents.map((doc) => (
                 <div
@@ -870,48 +1099,12 @@ export function AdmissionWizard({
                       {doc.status}
                     </p>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    {doc.status === "Pending" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-                        onClick={() => setDocStatus(doc.id, "Uploaded")}
-                      >
-                        Upload
-                      </Button>
-                    ) : null}
-                    {doc.status === "Uploaded" ? (
-                      <>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setDocStatus(doc.id, "Verified")}
-                        >
-                          Verify
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          onClick={() => setDocStatus(doc.id, "Rejected")}
-                        >
-                          Reject
-                        </Button>
-                      </>
-                    ) : null}
-                    {doc.status !== "Pending" ? (
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => setDocStatus(doc.id, "Pending")}
-                      >
-                        Replace
-                      </Button>
-                    ) : null}
-                  </div>
+                  <AdmissionDocumentUpload
+                    applicationId={createdId}
+                    document={doc}
+                    onEnsureApplication={ensureApplicationId}
+                    onUpdated={(updated) => void handleDocumentUpdated(updated)}
+                  />
                 </div>
               ))}
             </div>
@@ -946,7 +1139,15 @@ export function AdmissionWizard({
                           setInterview({ ...interview, date })
                         }
                         placeholder="Interview date"
+                        defaultMonthKind="today"
+                        fromDate={interviewBounds.fromDate}
+                        maxDate={interviewBounds.toDate}
+                        popoverClassName="z-[100]"
                       />
+                      <FieldError message={errors.interviewDate} />
+                      <p className="mt-1 text-[11px] text-[var(--cls-muted)]">
+                        From today through the next 18 months (past dates not allowed).
+                      </p>
                     </div>
                     <div>
                       <Label className="mb-1.5 block">Type</Label>
@@ -982,14 +1183,60 @@ export function AdmissionWizard({
                       />
                     </div>
                     <div>
-                      <Label className="mb-1.5 block">Score</Label>
+                      <Label className="mb-1.5 block">Marks obtained</Label>
                       <Input
-                        value={interview.score}
-                        onChange={(e) =>
-                          setInterview({ ...interview, score: e.target.value })
-                        }
-                        placeholder="38/50"
+                        inputMode="numeric"
+                        value={interview.scoreObtained}
+                        onChange={(e) => {
+                          const scoreObtained = marksDigitsOnly(e.target.value)
+                          setInterview({ ...interview, scoreObtained })
+                          setErrors((prev) => {
+                            if (!prev.interviewScore) return prev
+                            const err = interviewMarksError(
+                              scoreObtained,
+                              interview.scoreTotal
+                            )
+                            if (!err) {
+                              const next = { ...prev }
+                              delete next.interviewScore
+                              return next
+                            }
+                            return { ...prev, interviewScore: err }
+                          })
+                        }}
+                        placeholder="e.g. 38"
+                        aria-invalid={Boolean(errors.interviewScore)}
                       />
+                    </div>
+                    <div>
+                      <Label className="mb-1.5 block">Total marks</Label>
+                      <Input
+                        inputMode="numeric"
+                        value={interview.scoreTotal}
+                        onChange={(e) => {
+                          const scoreTotal = marksDigitsOnly(e.target.value)
+                          setInterview({ ...interview, scoreTotal })
+                          setErrors((prev) => {
+                            if (!prev.interviewScore) return prev
+                            const err = interviewMarksError(
+                              interview.scoreObtained,
+                              scoreTotal
+                            )
+                            if (!err) {
+                              const next = { ...prev }
+                              delete next.interviewScore
+                              return next
+                            }
+                            return { ...prev, interviewScore: err }
+                          })
+                        }}
+                        placeholder="e.g. 50"
+                        aria-invalid={Boolean(errors.interviewScore)}
+                      />
+                      <p className="mt-1 text-[11px] text-[var(--cls-muted)]">
+                        Optional if the test or interview is not completed yet.
+                      </p>
+                      <FieldError message={errors.interviewScore} />
                     </div>
                     <div>
                       <Label className="mb-1.5 block">Result</Label>
@@ -1076,12 +1323,18 @@ export function AdmissionWizard({
                 description="Assign the student to a class and record the enrollment date."
               />
               <Select
-                value={enrollment.classId}
-                onValueChange={(classId) =>
+                value={enrollment.classId || undefined}
+                onValueChange={(classId) => {
                   setEnrollment({ ...enrollment, classId })
-                }
+                  setErrors((prev) => {
+                    if (!prev.classId) return prev
+                    const next = { ...prev }
+                    delete next.classId
+                    return next
+                  })
+                }}
               >
-                <SelectTrigger>
+                <SelectTrigger aria-invalid={Boolean(errors.classId)}>
                   <SelectValue placeholder="Assign to class" />
                 </SelectTrigger>
                 <SelectContent>
@@ -1094,6 +1347,7 @@ export function AdmissionWizard({
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              <FieldError message={errors.classId} />
               <div>
                 <Label className="mb-1.5 block">Academic Session</Label>
                 <Input
@@ -1110,6 +1364,10 @@ export function AdmissionWizard({
                   }
                   aria-invalid={Boolean(errors.enrollDate)}
                   placeholder="Enrollment date"
+                  defaultMonthKind="today"
+                  fromDate={enrollBounds.fromDate}
+                  maxDate={enrollBounds.toDate}
+                  popoverClassName="z-[100]"
                 />
               </div>
               <div className="rounded-lg border border-[#a8d5bc] bg-[#e8f7ee] p-3 text-xs text-[var(--cls-brand)]">
@@ -1145,7 +1403,10 @@ export function AdmissionWizard({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setStep((value) => value - 1)}
+                  onClick={() => {
+                    setErrors({})
+                    setStep((value) => value - 1)
+                  }}
                 >
                   ← Back
                 </Button>

@@ -52,3 +52,20 @@ export function isDuplicateClassLabel(
       row.id !== excludeId && normalizeClassLabel(row.label) === norm
   )
 }
+
+/** Uniqueness in a session is grade + section (section defaults to Main). */
+export function isDuplicateClassGradeSection(
+  existing: { id: string; grade: string; section: string }[],
+  grade: string,
+  section: string,
+  excludeId?: string
+) {
+  const g = grade.trim().toLowerCase()
+  const s = (section.trim() || "Main").toLowerCase()
+  if (!g) return false
+  return existing.some((row) => {
+    if (row.id === excludeId) return false
+    const rowSection = (row.section.trim() || "Main").toLowerCase()
+    return row.grade.trim().toLowerCase() === g && rowSection === s
+  })
+}

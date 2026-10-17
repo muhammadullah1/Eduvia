@@ -13,7 +13,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme="light"
       position="top-center"
       richColors={false}
-      closeButton
+      closeButton={false}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4 text-emerald-600" />,
@@ -29,8 +29,6 @@ const Toaster = ({ ...props }: ToasterProps) => {
             "flex items-center gap-2 rounded-lg border border-[var(--cls-border)] bg-white px-4 py-3 text-[var(--cls-ink)] shadow-sm",
           title: "text-sm font-medium text-[var(--cls-ink)]",
           description: "text-sm text-[var(--cls-muted)]",
-          closeButton:
-            "border-[var(--cls-border)] bg-white text-[var(--cls-muted)] hover:bg-[var(--page-wash)]",
         },
       }}
       {...props}

@@ -63,6 +63,17 @@ export type ApiTeacher = {
     grade: string
     section: string
   }>
+  subjectHistory?: Array<{
+    id: number
+    effectiveFrom: string
+    effectiveTo?: string | null
+    reason?: string | null
+    subject?: {
+      id: number
+      name: string
+      code: string
+    } | null
+  }>
 }
 
 export type ApiUser = {
@@ -71,6 +82,7 @@ export type ApiUser = {
   lastName: string
   email: string
   phone?: string | null
+  photo?: string | null
   role: string
   status: string
 }
@@ -277,6 +289,7 @@ export type ApiDailyLesson = {
 export type ApiTimetableSlot = {
   id: number
   fkClassId: number
+  class?: { id: number; label?: string; grade?: string; section?: string } | null
   day: string
   time?: string
   startTime?: string

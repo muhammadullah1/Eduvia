@@ -34,6 +34,11 @@ const PERMISSIONS = {
 
 export type Permission = keyof typeof PERMISSIONS
 
+export const PERMISSION_ENTRIES = Object.entries(PERMISSIONS) as [
+  Permission,
+  readonly Role[],
+][]
+
 export function can(role: Role, permission: Permission) {
   return (PERMISSIONS[permission] as readonly Role[]).includes(role)
 }

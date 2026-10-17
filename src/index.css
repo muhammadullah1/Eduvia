@@ -39,7 +39,7 @@
   --cls-role-bg: #fef9ec;
   --cls-role-border: #c9a227;
   --heading: #0F172A;
-  --placeholder: #94a3b8;
+  --placeholder: #c5ced6;
   --warning: #D97706;
   --warning-light: #FFFBEB;
   --success-light: #F0FDF4;
@@ -81,6 +81,15 @@
     color: var(--placeholder);
     font-weight: 400;
     opacity: 1;
+  }
+  [data-slot="select-trigger"][data-placeholder],
+  [data-slot="select-trigger"][data-placeholder] [data-slot="select-value"] {
+    color: var(--placeholder);
+    font-weight: 400;
+  }
+  [data-slot="date-picker"][data-empty="true"] {
+    color: var(--placeholder);
+    font-weight: 400;
   }
   input::selection,
   textarea::selection {

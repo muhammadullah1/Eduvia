@@ -59,6 +59,10 @@ import type {
   ApiUpdate,
   ApiUser,
 } from "@/lib/api-types"
+import {
+  mapTeacherAbsencesFromApi,
+  type AbsenceRow,
+} from "@/api/teacher-absences/map-absences"
 import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
 import { ADMISSIONS_LIST_MAX_PAGE_SIZE } from "@/api/admissions/constants"
 import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
@@ -181,6 +185,20 @@ export async function fetchPortalCore(): Promise<
   return { classes, sessions, subjects, settings }
 }
 
+async function fetchSettingsFromApi(): Promise<
+  Pick<SchoolState, "settings">
+> {
+  const settingsData = await safeGet<ApiSettings>("/settings", undefined, {})
+  return {
+    settings: {
+      dailyTestRules:
+        settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
+      resultVisibility:
+        settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
+    },
+  }
+}
+
 async function fetchClassesAndSessions(): Promise<
   Pick<SchoolState, "classes" | "sessions">
 > {
@@ -218,6 +236,15 @@ async function fetchClassesAndSessions(): Promise<
   return { classes, sessions }
 }
 
+function wantsOnlyClasses(want: Set<SchoolDataSlice>) {
+  return (
+    want.has("classes") &&
+    !want.has("sessions") &&
+    !want.has("subjects") &&
+    !want.has("settings")
+  )
+}
+
 function wantsOnlyClassesAndSessions(want: Set<SchoolDataSlice>) {
   return (
     want.has("classes") &&
@@ -225,6 +252,51 @@ function wantsOnlyClassesAndSessions(want: Set<SchoolDataSlice>) {
     !want.has("subjects") &&
     !want.has("settings")
   )
+}
+
+async function fetchClassesFromApi(): Promise<
+  Pick<SchoolState, "classes">
+> {
+  const classesData = await safeGet<ApiClass[]>("/classes", undefined, [])
+  const classes: ClassSection[] = classesData.length
+    ? classesData.map((c) => ({
+        id: String(c.id),
+        label: `${c.grade} · ${c.section}`,
+        grade: c.grade,
+        section: c.section,
+        room: c.room || "Room",
+        periodCount: Number(c.periodCount) || 8,
+        monthlyFee:
+          Number(
+            (c as { monthlyTuitionFee?: string | number }).monthlyTuitionFee ??
+              c.monthlyFee
+          ) || 0,
+      }))
+    : []
+  return { classes }
+}
+
+async function fetchTimetableSlotsFromApi(): Promise<Pick<SchoolState, "slots">> {
+  const timetableData = await safeGet<ApiTimetableSlot[]>(
+    "/timetable",
+    undefined,
+    []
+  )
+  const slots = timetableData.length
+    ? timetableData.map((slot) => mapTimetableSlotDto(slot))
+    : []
+  return { slots }
+}
+
+async function fetchTeacherAbsencesBundle(): Promise<
+  Pick<SchoolState, "teacherAbsences" | "substitutions">
+> {
+  const absencesData = await safeGet<AbsenceRow[]>(
+    "/teacher-absences",
+    undefined,
+    []
+  )
+  return mapTeacherAbsencesFromApi(absencesData)
 }
 
 async function fetchStudentsFromApi(): Promise<Student[]> {
@@ -362,6 +434,9 @@ const LIGHT_FETCH_SLICES = new Set<SchoolDataSlice>([
   "staff",
   "feeMonths",
   "payments",
+  "slots",
+  "teacherAbsences",
+  "substitutions",
 ])
 
 /** Fetch only the school-state slices requested (avoids loading the whole portal). */
@@ -369,10 +444,24 @@ export async function fetchSchoolDataSlices(
   slices: SchoolDataSlice[]
 ): Promise<Partial<SchoolState>> {
   const want = new Set(slices)
+  if (want.size === 0) return {}
   const partial: Partial<SchoolState> = {}
   const tasks: Promise<void>[] = []
 
-  if (PORTAL_CORE_SLICES.some((slice) => want.has(slice))) {
+  if (want.has("settings") && !PORTAL_CORE_SLICES.filter((s) => s !== "settings").some((s) => want.has(s))) {
+    tasks.push(
+      fetchSettingsFromApi().then((slice) => {
+        Object.assign(partial, slice)
+      })
+    )
+  }
+  if (wantsOnlyClasses(want)) {
+    tasks.push(
+      fetchClassesFromApi().then((slice) => {
+        Object.assign(partial, slice)
+      })
+    )
+  } else if (PORTAL_CORE_SLICES.some((slice) => want.has(slice))) {
     if (wantsOnlyClassesAndSessions(want)) {
       tasks.push(
         fetchClassesAndSessions().then((slice) => {
@@ -386,6 +475,21 @@ export async function fetchSchoolDataSlices(
         })
       )
     }
+  }
+  if (want.has("slots")) {
+    tasks.push(
+      fetchTimetableSlotsFromApi().then((slice) => {
+        Object.assign(partial, slice)
+      })
+    )
+  }
+  if (want.has("teacherAbsences") || want.has("substitutions")) {
+    tasks.push(
+      fetchTeacherAbsencesBundle().then((bundle) => {
+        partial.teacherAbsences = bundle.teacherAbsences
+        partial.substitutions = bundle.substitutions
+      })
+    )
   }
   if (want.has("applications")) {
     tasks.push(
@@ -793,6 +897,11 @@ export async function fetchBackendState(): Promise<SchoolState> {
     const cover = coversFor(a)[0]
     const slot = cover?.slot
     const rawStatus = String(a.status ?? "Pending")
+    let status: AbsenceStatus = rawStatus as AbsenceStatus
+    if (rawStatus === "Cancelled") status = "Cancelled"
+    else if (cover) status = "Covered"
+    else if (rawStatus === "Approved") status = "Pending"
+
     return {
       id: String(a.id),
       teacherId: String(a.fkTeacherId ?? a.teacher?.id ?? ""),
@@ -805,18 +914,15 @@ export async function fetchBackendState(): Promise<SchoolState> {
           ? String(slot.fkClassId)
           : undefined,
       subject: a.subject?.name ?? slot?.subject?.name,
-      status: (cover
-        ? "Covered"
-        : rawStatus === "Approved"
-          ? "Pending"
-          : rawStatus) as AbsenceStatus,
+      status,
       markedBy: a.markedBy ?? "",
       notes: a.notes ?? a.reason ?? "",
     }
   })
 
-  const substitutions: Substitution[] = absenceRows.flatMap((a) =>
-    coversFor(a).map((sub) => {
+  const substitutions: Substitution[] = absenceRows.flatMap((a) => {
+    if (String(a.status ?? "") === "Cancelled") return []
+    return coversFor(a).map((sub) => {
       const slot = sub.slot
       return {
         id: String(sub.id),
@@ -834,7 +940,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         at: sub.createdAt ?? new Date().toISOString(),
       }
     })
-  )
+  })
 
   // 17. Test Schedules & Weekly Tests
   const testSchedules: TestSchedule[] = schedulesData.length
@@ -845,7 +951,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         weekday: s.weekday || (s as { dayOfWeek?: string }).dayOfWeek || "",
         periodIndex: Number(s.periodIndex) || 4,
         max: Number(s.maxScore) || 20,
-        active: Boolean(s.isActive),
+        active: s.isActive == null ? true : Boolean(s.isActive),
       }))
     : []
 
