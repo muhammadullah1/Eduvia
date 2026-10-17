@@ -4,6 +4,7 @@ import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Field } from "@/components/app/kit"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -128,21 +129,19 @@ export function AcademicSetup({
               />
             </Field>
             <Field label="Start date">
-              <Input
-                type="date"
+              <DatePicker
                 value={sessionForm.start}
-                onChange={(event) =>
-                  setSessionForm({ ...sessionForm, start: event.target.value })
-                }
+                onChange={(start) => setSessionForm({ ...sessionForm, start })}
+                placeholder="Start date"
+                defaultMonthKind="today"
               />
             </Field>
             <Field label="End date">
-              <Input
-                type="date"
+              <DatePicker
                 value={sessionForm.end}
-                onChange={(event) =>
-                  setSessionForm({ ...sessionForm, end: event.target.value })
-                }
+                onChange={(end) => setSessionForm({ ...sessionForm, end })}
+                placeholder="End date"
+                defaultMonthKind="today"
               />
             </Field>
           </CardContent>

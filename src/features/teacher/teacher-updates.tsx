@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -97,10 +98,11 @@ export function TeacherUpdates() {
             />
           </Field>
           <Field label="Due date">
-            <Input
-              type="date"
+            <DatePicker
               value={due}
-              onChange={(event) => setDue(event.target.value)}
+              onChange={setDue}
+              placeholder="Due date"
+              defaultMonthKind="today"
             />
           </Field>
           <Field label="Message" error={error}>

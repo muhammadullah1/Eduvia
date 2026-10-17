@@ -289,6 +289,7 @@ export type ApiDailyLesson = {
 export type ApiTimetableSlot = {
   id: number
   fkClassId: number
+  class?: { id: number; label?: string; grade?: string; section?: string } | null
   day: string
   time?: string
   startTime?: string

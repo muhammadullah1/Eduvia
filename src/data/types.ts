@@ -353,6 +353,7 @@ export type SchoolUpdate = {
 export type TimetableSlot = {
   id: string
   classId: string
+  classLabel?: string
   day: string
   time: string
   /** 1-based period index within the class period_count. */

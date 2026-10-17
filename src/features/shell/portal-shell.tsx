@@ -26,6 +26,7 @@ import {
   Reports,
   TeachersAssignments,
 } from "@/features/management/screens"
+import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
 import { SubstitutesPage } from "@/features/management/substitutes/substitutes-page"
 import {
   AccountantPortal,
@@ -196,9 +197,8 @@ export function PortalShell() {
     if (section === "substitutes" || section === "absences") {
       return <SubstitutesPage />
     }
-    if (section === "daily-test-schedule" || section === "weekly-tests") {
-      return <WeeklyTestsPanel />
-    }
+    if (section === "daily-test-schedule") return <DailyTestSchedulePage />
+    if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
     if (section === "results-gate") return <ResultsGatePanel />
     if (

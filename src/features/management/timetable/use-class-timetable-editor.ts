@@ -10,6 +10,7 @@ import {
 } from "@/features/management/classes/hooks/use-classes"
 import {
   useClassTimetableQuery,
+  useSchoolTimetableQuery,
 } from "@/features/management/classes/hooks/use-class-detail-queries"
 import type {
   SchedulePeriodPrefill,
@@ -51,7 +52,9 @@ export function useClassTimetableEditor({
   const lastSavedPeriodTimes = useRef<PeriodTimeMap>({})
 
   const timetableQuery = useClassTimetableQuery(classId || undefined, Boolean(classId))
+  const schoolTimetableQuery = useSchoolTimetableQuery(Boolean(classId))
   const slots = timetableQuery.data ?? []
+  const schoolSlots = schoolTimetableQuery.data ?? slots
 
   useEffect(() => {
     if (!klass) return
@@ -137,6 +140,11 @@ export function useClassTimetableEditor({
       toast.error("Invalid class or subject.")
       return
     }
+    const teacherNumericId = Number(payload.teacherId)
+    if (!payload.teacherId || !Number.isFinite(teacherNumericId)) {
+      toast.error("Teacher is required.")
+      return
+    }
     setSaving(true)
     try {
       const shared = {
@@ -144,8 +152,8 @@ export function useClassTimetableEditor({
         time: payload.time,
         periodIndex: payload.periodIndex,
         fkSubjectId: subjectNumericId,
-        fkTeacherId: payload.teacherId ? Number(payload.teacherId) : null,
-        room: payload.room || null,
+        fkTeacherId: teacherNumericId,
+        room: null,
       }
       if (editingSlot) {
         await timetableService.update(Number(editingSlot.id), {
@@ -154,34 +162,19 @@ export function useClassTimetableEditor({
         })
         await refreshAfterMutation("Period updated")
       } else {
-        let created = 0
-        const failures: string[] = []
-        for (const day of payload.days) {
-          try {
-            await timetableService.create({ ...shared, day })
-            created += 1
-          } catch (err) {
-            failures.push(
-              err instanceof Error ? err.message : "Could not schedule."
-            )
-          }
-        }
-        if (created === 0) {
-          toast.error(failures[0] ?? "Could not assign subject.")
-          return
-        }
+        await timetableService.createBatch({
+          ...shared,
+          days: payload.days,
+        })
         await refreshAfterMutation(
-          created === payload.days.length
-            ? `Subject assigned on ${created} day${created === 1 ? "" : "s"}`
-            : `Assigned on ${created} of ${payload.days.length} days`
+          payload.days.length === 1
+            ? "Subject assigned"
+            : `Subject assigned on ${payload.days.length} days`
         )
-        if (failures.length > 0) toast.error(failures[0])
       }
       closeSchedule()
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Could not save timetable period."
-      )
+      throw err instanceof Error ? err : new Error("Could not save timetable period.")
     } finally {
       setSaving(false)
     }
@@ -205,6 +198,7 @@ export function useClassTimetableEditor({
 
   return {
     slots,
+    schoolSlots,
     timetableQuery,
     periodTimes,
     periodSaveError,

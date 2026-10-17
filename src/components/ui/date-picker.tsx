@@ -88,9 +88,11 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           aria-invalid={ariaInvalid}
+          data-slot="date-picker"
+          data-empty={selected ? "false" : "true"}
           className={cn(
             "h-10 w-full justify-start border-[var(--cls-border)] bg-background text-left font-normal",
-            value ? "text-[var(--cls-ink)]" : "text-muted-foreground",
+            selected ? "text-[var(--cls-ink)]" : "text-[var(--placeholder)]",
             className
           )}
         >

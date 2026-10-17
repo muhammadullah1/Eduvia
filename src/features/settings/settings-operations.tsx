@@ -6,6 +6,7 @@ import subjectsService from "@/api/subjects/subjects.service"
 import usersService from "@/api/users/users.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -16,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { ArchivedClassesPanel } from "@/features/management/classes/archived-classes-panel"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { PERMISSION_ENTRIES, ROLE_LABELS } from "@/lib/permissions"
 import { ALL_ROLES } from "@/lib/auth"
 import { toast } from "@/lib/toast"
@@ -91,19 +93,38 @@ export function BlockDatesPanel() {
       >
         <div className="sm:col-span-2">
           <Label className="mb-1.5 block text-xs">Name</Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} required />
+          <Input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Holiday or event name"
+            required
+          />
         </div>
         <div>
           <Label className="mb-1.5 block text-xs">Start</Label>
-          <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} required />
+          <DatePicker
+            value={startDate}
+            onChange={setStartDate}
+            placeholder="Start date"
+            defaultMonthKind="today"
+          />
         </div>
         <div>
           <Label className="mb-1.5 block text-xs">End</Label>
-          <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} required />
+          <DatePicker
+            value={endDate}
+            onChange={setEndDate}
+            placeholder="End date"
+            defaultMonthKind="today"
+          />
         </div>
         <div className="sm:col-span-2">
           <Label className="mb-1.5 block text-xs">Description</Label>
-          <Input value={description} onChange={(e) => setDescription(e.target.value)} />
+          <Input
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Optional note"
+          />
         </div>
         <div className="sm:col-span-2">
           <Button type="submit" disabled={create.isPending}>
@@ -150,31 +171,38 @@ export function BlockDatesPanel() {
 
 export function LocationsPanel() {
   const queryClient = useQueryClient()
+  const sessions = useSessionsList()
+  const current = (sessions.data ?? []).find((row) => row.current) ?? sessions.data?.[0]
+  const [sessionId, setSessionId] = useState("")
+  const activeSession = sessionId || current?.id || ""
   const [search, setSearch] = useState("")
   const [name, setName] = useState("")
-  const [roomName, setRoomName] = useState("")
-  const [selectionType, setSelectionType] = useState<"home" | "away">("home")
+  const [locationCode, setLocationCode] = useState("")
   const [locationType, setLocationType] = useState<string>("classroom")
   const [capacity, setCapacity] = useState("30")
 
   const query = useQuery({
-    queryKey: ["locations", search],
+    queryKey: ["locations", activeSession, search],
+    enabled: Boolean(activeSession),
     queryFn: () =>
-      schoolCatalogService.listLocations({ search: search || undefined }),
+      schoolCatalogService.listLocations({
+        search: search || undefined,
+        sessionId: Number(activeSession),
+      }),
   })
 
   const create = useMutation({
     mutationFn: () =>
       schoolCatalogService.createLocation({
         name: name.trim(),
-        roomName: roomName.trim(),
-        selectionType,
+        fkSessionId: Number(activeSession),
+        locationCode: locationCode.trim() || null,
         locationType,
         capacity: Number(capacity),
       }),
     onSuccess: async () => {
       setName("")
-      setRoomName("")
+      setLocationCode("")
       await queryClient.invalidateQueries({ queryKey: ["locations"] })
       toast.success("Location saved")
     },
@@ -201,26 +229,33 @@ export function LocationsPanel() {
           create.mutate()
         }}
       >
+        <div className="sm:col-span-2">
+          <Label className="mb-1.5 block text-xs">Session</Label>
+          <Select value={activeSession} onValueChange={setSessionId}>
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Choose a session" />
+            </SelectTrigger>
+            <SelectContent>
+              {(sessions.data ?? []).map((session) => (
+                <SelectItem key={session.id} value={session.id}>
+                  {session.name}
+                  {session.current ? " · Current" : ""}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div>
-          <Label className="mb-1.5 block text-xs">Building / location</Label>
+          <Label className="mb-1.5 block text-xs">Location name</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} required />
         </div>
         <div>
-          <Label className="mb-1.5 block text-xs">Room name</Label>
-          <Input value={roomName} onChange={(e) => setRoomName(e.target.value)} required />
-        </div>
-        <div>
-          <Label className="mb-1.5 block text-xs">Home or away</Label>
-          <Select
-            value={selectionType}
-            onValueChange={(value) => setSelectionType(value as "home" | "away")}
-          >
-            <SelectTrigger><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="home">Home</SelectItem>
-              <SelectItem value="away">Away</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label className="mb-1.5 block text-xs">Location code</Label>
+          <Input
+            value={locationCode}
+            onChange={(e) => setLocationCode(e.target.value)}
+            placeholder="Optional"
+          />
         </div>
         <div>
           <Label className="mb-1.5 block text-xs">Type</Label>
@@ -245,7 +280,7 @@ export function LocationsPanel() {
           />
         </div>
         <div className="flex items-end">
-          <Button type="submit" disabled={create.isPending}>
+          <Button type="submit" disabled={create.isPending || !activeSession}>
             {create.isPending ? "Saving…" : "Add location"}
           </Button>
         </div>
@@ -253,20 +288,21 @@ export function LocationsPanel() {
       <Input
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Search rooms…"
+        placeholder="Search locations…"
       />
       <ul className="divide-y divide-[var(--cls-border)] rounded-xl border border-[var(--cls-border)]">
         {rows.length === 0 && !query.isLoading ? (
           <li className="px-4 py-8 text-center text-sm text-[var(--cls-muted)]">
-            No active rooms.
+            No active locations in this session.
           </li>
         ) : null}
         {rows.map((row) => (
           <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div>
-              <p className="text-sm font-medium text-[var(--cls-ink)]">{row.roomName}</p>
+              <p className="text-sm font-medium text-[var(--cls-ink)]">{row.name}</p>
               <p className="text-xs text-[var(--cls-muted)]">
-                {row.name} · {row.selectionType} · {row.locationType ?? "room"} · capacity {row.capacity}
+                {row.locationCode ? `${row.locationCode} · ` : ""}
+                {row.locationType ?? "room"} · capacity {row.capacity}
               </p>
             </div>
             <Button type="button" variant="outline" size="sm" onClick={() => archive.mutate(row.id)}>
@@ -287,7 +323,7 @@ export function ArchivesHub() {
     { id: "classes", label: "Classes" },
     { id: "subjects", label: "Subjects" },
     { id: "staff", label: "Staff" },
-    { id: "locations", label: "Rooms" },
+    { id: "locations", label: "Locations" },
     { id: "dates", label: "Block dates" },
   ]
 
@@ -389,8 +425,8 @@ function ArchivedLocations() {
       loading={query.isLoading}
       rows={(query.data ?? []).map((row) => ({
         id: row.id,
-        title: row.roomName,
-        meta: row.name,
+        title: row.name,
+        meta: row.locationCode || row.locationType || "Location",
       }))}
       onRestore={(id) => {
         void schoolCatalogService.restoreLocation(id).then(async () => {

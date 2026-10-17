@@ -11,9 +11,9 @@ export type BlockDateRow = {
 
 export type LocationRow = {
   id: number
+  fkSessionId: number
   name: string
-  roomName: string
-  selectionType: "home" | "away"
+  locationCode?: string | null
   locationType?: string | null
   description?: string | null
   capacity: number
@@ -40,15 +40,20 @@ const schoolCatalogService = {
   restoreBlockDate: (id: number) =>
     api.post<BlockDateRow>(`/settings/block-dates/${id}/restore`, {}),
 
-  listLocations: (params?: { search?: string; archived?: boolean }) =>
+  listLocations: (params?: {
+    search?: string
+    archived?: boolean
+    sessionId?: number
+  }) =>
     api.get<LocationRow[]>("/settings/locations", {
       search: params?.search,
       archived: params?.archived ? "1" : undefined,
+      sessionId: params?.sessionId,
     }),
   createLocation: (body: {
     name: string
-    roomName: string
-    selectionType: "home" | "away"
+    fkSessionId: number
+    locationCode?: string | null
     locationType?: string | null
     capacity: number
     description?: string | null

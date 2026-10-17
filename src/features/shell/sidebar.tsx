@@ -6,7 +6,7 @@ import {
   SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { type Role } from "@/lib/auth"
+import { defaultSection, type Role } from "@/lib/auth"
 
 import { Logo } from "./logo"
 import { navigationMenuTreeForRole } from "./navigation-menu-tree"
@@ -34,7 +34,14 @@ export function Sidebar({
   return (
     <UiSidebar className="border-r border-sidebar-border bg-sidebar">
       <SidebarHeader className="border-b border-sidebar-border p-3.5">
-        <Logo inverted />
+        <button
+          type="button"
+          onClick={() => navigate(defaultSection[role])}
+          className="w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          aria-label="Go to dashboard"
+        >
+          <Logo inverted />
+        </button>
       </SidebarHeader>
       <SidebarContent className="gap-0 py-2.5">
         <SidebarMenu className="gap-0 px-1.5">

@@ -1,4 +1,4 @@
-import { BookOpenText, GripVertical, Pencil, Plus, Trash2 } from "lucide-react"
+import { BookOpenText, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
@@ -9,6 +9,7 @@ import plannedChaptersService, {
 import { classDisplayName } from "@/api/classes/map-class"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -29,7 +30,6 @@ import { useClassesList } from "@/features/management/classes/hooks/use-classes"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
-import { formatDate } from "@/lib/format"
 import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
@@ -44,10 +44,23 @@ function chapterNumber(row: PlannedChapterDto) {
   return Number(row.chapterNo ?? row.sequence) || 0
 }
 
-function statusTone(status: ChapterStatus) {
-  if (status === "Completed") return "border-emerald-200 bg-emerald-50 text-emerald-800"
-  if (status === "InProgress") return "border-amber-200 bg-amber-50 text-amber-900"
-  return "border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-muted)]"
+function statusBadge(status: ChapterStatus) {
+  if (status === "InProgress") {
+    return {
+      wrap: "border-[#fde68a] bg-[#fef3c7] text-[#92400e]",
+      dot: "bg-[#e8a317]",
+    }
+  }
+  if (status === "Completed") {
+    return {
+      wrap: "border-emerald-200 bg-emerald-50 text-emerald-800",
+      dot: "bg-emerald-500",
+    }
+  }
+  return {
+    wrap: "border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-muted)]",
+    dot: "bg-[var(--cls-muted)]",
+  }
 }
 
 export function LessonPlanPage() {
@@ -70,8 +83,8 @@ export function LessonPlanPage() {
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [dragId, setDragId] = useState<number | null>(null)
 
-  const selectedClass = classId || classes[0]?.id || ""
-  const selectedSubject = subjectId || (subjects[0] ? String(subjects[0].id) : "")
+  const selectedClass = classId
+  const selectedSubject = subjectId
   const classNum = Number(selectedClass)
   const subjectNum = Number(selectedSubject)
 
@@ -197,31 +210,37 @@ export function LessonPlanPage() {
         ) : null}
       </div>
 
-      <div className="flex flex-wrap gap-2">
-        <Select value={selectedClass} onValueChange={setClassId}>
-          <SelectTrigger className="h-9 w-[160px] bg-white">
-            <SelectValue placeholder="Class" />
-          </SelectTrigger>
-          <SelectContent>
-            {classes.map((row) => (
-              <SelectItem key={row.id} value={row.id}>
-                {classDisplayName(row)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={selectedSubject} onValueChange={setSubjectId}>
-          <SelectTrigger className="h-9 w-[180px] bg-white">
-            <SelectValue placeholder="Subject" />
-          </SelectTrigger>
-          <SelectContent>
-            {subjects.map((row) => (
-              <SelectItem key={row.id} value={String(row.id)}>
-                {row.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1">
+          <Label className="mb-1.5 block text-xs text-[var(--cls-muted)]">Class</Label>
+          <Select value={selectedClass || undefined} onValueChange={setClassId}>
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Select class" />
+            </SelectTrigger>
+            <SelectContent>
+              {classes.map((row) => (
+                <SelectItem key={row.id} value={row.id}>
+                  {classDisplayName(row)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="min-w-0 flex-1">
+          <Label className="mb-1.5 block text-xs text-[var(--cls-muted)]">Subject</Label>
+          <Select value={selectedSubject || undefined} onValueChange={setSubjectId}>
+            <SelectTrigger className="bg-white">
+              <SelectValue placeholder="Select subject" />
+            </SelectTrigger>
+            <SelectContent>
+              {subjects.map((row) => (
+                <SelectItem key={row.id} value={String(row.id)}>
+                  {row.code ? `${row.name} (${row.code})` : row.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <div className="rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -286,54 +305,49 @@ export function LessonPlanPage() {
               onDragOver={(event) => event.preventDefault()}
               onDrop={() => void dropOn(row.id)}
               className={cn(
-                "flex items-center gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-3 py-3",
+                "flex items-center gap-[10.5px] rounded-[10px] border border-[var(--cls-border)] bg-white px-[14px] py-[10.5px]",
                 dragId === row.id && "opacity-60"
               )}
             >
-              <GripVertical className="size-4 shrink-0 text-[var(--cls-muted)]" />
-              <span className="flex size-6 shrink-0 items-center justify-center rounded-md bg-[var(--page-wash)] text-xs font-semibold">
+              <img src="/lesson-plan/book-open-text.svg" alt="" />
+              <span className="flex size-[24.5px] shrink-0 items-center justify-center rounded-full border border-[var(--cls-border)] bg-[var(--page-wash)] text-[10.5px] font-bold leading-[14px] text-[var(--cls-muted)]">
                 {chapterNumber(row)}
               </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-[var(--cls-ink)]">
-                  Chapter {chapterNumber(row)} — {row.title}
-                </p>
-                <p className="text-xs text-[var(--cls-muted)]">
-                  {row.status === "Completed" && row.plannedEndDate
-                    ? `Covered: ${formatDate(row.plannedEndDate)}`
-                    : row.plannedEndDate
-                      ? `${STATUS_LABEL[row.status]}: ${formatDate(row.plannedEndDate)}`
-                      : STATUS_LABEL[row.status]}
-                </p>
-              </div>
+              <p className="min-w-0 flex-1 truncate text-[12.25px] font-medium leading-[17.5px] text-[var(--cls-ink)]">
+                Chapter {chapterNumber(row)} — {row.title}
+              </p>
               <span
                 className={cn(
-                  "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                  statusTone(row.status)
+                  "inline-flex shrink-0 items-center gap-[3.5px] rounded-full border px-[7px] py-[1.75px] text-[10.5px] font-medium leading-[14px]",
+                  statusBadge(row.status).wrap
                 )}
               >
+                <span
+                  className={cn(
+                    "size-[5.243px] rounded-full",
+                    statusBadge(row.status).dot
+                  )}
+                />
                 {STATUS_LABEL[row.status]}
               </span>
               {canManage ? (
-                <div className="flex gap-1">
-                  <Button
+                <div className="flex shrink-0 gap-[3.5px]">
+                  <button
                     type="button"
-                    size="icon-sm"
-                    variant="ghost"
+                    className="rounded-[6px] p-[5.25px]"
                     aria-label="Edit chapter"
                     onClick={() => setEditRow({ ...row })}
                   >
-                    <Pencil className="size-4" />
-                  </Button>
-                  <Button
+                    <img src="/lesson-plan/chapter-edit.svg" alt="" />
+                  </button>
+                  <button
                     type="button"
-                    size="icon-sm"
-                    variant="ghost"
+                    className="rounded-[6px] p-[5.25px]"
                     aria-label="Remove chapter"
                     onClick={() => setDeleteId(row.id)}
                   >
-                    <Trash2 className="size-4" />
-                  </Button>
+                    <img src="/lesson-plan/chapter-close.svg" alt="" />
+                  </button>
                 </div>
               ) : null}
             </li>
@@ -349,11 +363,21 @@ export function LessonPlanPage() {
           <div className="grid gap-3">
             <div>
               <Label className="mb-1.5 block text-xs">Title</Label>
-              <Input value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Chapter title"
+              />
             </div>
             <div>
               <Label className="mb-1.5 block text-xs">Target date</Label>
-              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+              <DatePicker
+                value={endDate}
+                onChange={setEndDate}
+                placeholder="Target date"
+                defaultMonthKind="today"
+                popoverClassName="z-[100]"
+              />
             </div>
           </div>
           <DialogFooter>
@@ -383,6 +407,7 @@ export function LessonPlanPage() {
                 <Input
                   value={editRow.title}
                   onChange={(e) => setEditRow({ ...editRow, title: e.target.value })}
+                  placeholder="Chapter title"
                 />
               </div>
               <div>
@@ -405,12 +430,14 @@ export function LessonPlanPage() {
               </div>
               <div>
                 <Label className="mb-1.5 block text-xs">Covered / target date</Label>
-                <Input
-                  type="date"
+                <DatePicker
                   value={editRow.plannedEndDate?.slice(0, 10) ?? ""}
-                  onChange={(e) =>
-                    setEditRow({ ...editRow, plannedEndDate: e.target.value || null })
+                  onChange={(value) =>
+                    setEditRow({ ...editRow, plannedEndDate: value || null })
                   }
+                  placeholder="Target date"
+                  defaultMonthKind="today"
+                  popoverClassName="z-[100]"
                 />
               </div>
             </div>

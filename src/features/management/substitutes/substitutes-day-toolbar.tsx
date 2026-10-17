@@ -1,8 +1,5 @@
-import { CalendarDays } from "lucide-react"
-
 import { DatePicker } from "@/components/ui/date-picker"
 import { cn } from "@/lib/utils"
-import { formatDate } from "@/lib/format"
 
 type Props = {
   viewDate: string
@@ -22,27 +19,20 @@ function Stat({
   value: number
   tone?: "neutral" | "warning" | "success"
 }) {
-  let toneClass =
-    "border-[var(--cls-border)] bg-white text-[var(--cls-ink)]"
-  if (tone === "warning") {
-    toneClass = "border-amber-200/90 bg-amber-50/80 text-amber-950"
-  }
-  if (tone === "success") {
-    toneClass = "border-emerald-200/90 bg-emerald-50/80 text-emerald-950"
-  }
-
   return (
-    <div
-      className={cn(
-        "flex min-w-[5.5rem] flex-1 flex-col rounded-lg border px-3 py-2 sm:min-w-0 sm:flex-none",
-        toneClass
-      )}
-    >
-      <span className="text-[10px] font-semibold uppercase tracking-wide opacity-70">
-        {label}
-      </span>
-      <span className="text-lg font-semibold tabular-nums leading-tight">
+    <div className="flex min-h-11 items-center gap-2.5 px-3.5 py-2">
+      <span
+        className={cn(
+          "text-[22px] font-semibold leading-none tabular-nums",
+          tone === "warning" && "text-amber-700",
+          tone === "success" && "text-emerald-700",
+          tone === "neutral" && "text-[var(--cls-ink)]"
+        )}
+      >
         {value}
+      </span>
+      <span className="text-sm leading-tight text-[var(--cls-muted)]">
+        {label}
       </span>
     </div>
   )
@@ -60,25 +50,16 @@ export function SubstitutesDayToolbar({
 
   return (
     <div className="rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-      <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between lg:p-5">
-        <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="flex items-center gap-2 text-sm font-medium text-[var(--cls-ink)]">
-            <CalendarDays
-              className="size-4 shrink-0 text-[var(--cls-brand)]"
-              aria-hidden
-            />
-            <span>{formatDate(viewDate)}</span>
-          </div>
-          <DatePicker
-            value={viewDate}
-            onChange={onViewDateChange}
-            placeholder="Change date"
-            defaultMonthKind="today"
-            className="h-9 w-full border-[var(--cls-border)] bg-[var(--page-wash)]/50 text-sm sm:max-w-[11.5rem]"
-          />
-        </div>
+      <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:p-5">
+        <DatePicker
+          value={viewDate}
+          onChange={onViewDateChange}
+          placeholder="Choose date"
+          defaultMonthKind="today"
+          className="h-11 w-full text-[15px] sm:w-56"
+        />
 
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-stretch lg:justify-end">
+        <div className="grid grid-cols-2 divide-x divide-y divide-[var(--cls-border)] overflow-hidden rounded-lg border border-[var(--cls-border)] sm:grid-cols-4 sm:divide-y-0">
           <Stat label="Absent staff" value={absentTeacherCount} />
           <Stat label="Periods" value={totalPeriods} />
           <Stat

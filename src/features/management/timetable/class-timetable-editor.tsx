@@ -90,15 +90,13 @@ export function ClassTimetableEditor({
       <ClassSchedulePeriodModal
         open={editor.scheduleOpen}
         onOpenChange={(open) => !open && editor.closeSchedule()}
+        classId={classId}
         classLabel={classDisplayName(klass)}
         periodCount={klass.periodCount}
         periodTimes={editor.periodTimes}
-        roomSuggestion={
-          klass.room && klass.room !== "Unassigned" ? klass.room : undefined
-        }
         subjects={activeSubjects}
         teachers={teachers.filter((person) => person.role === "Teacher")}
-        existingSlots={editor.slots}
+        schoolSlots={editor.schoolSlots}
         editingSlot={editor.editingSlot}
         prefill={editor.schedulePrefill}
         saving={editor.saving}

@@ -951,7 +951,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
         weekday: s.weekday || (s as { dayOfWeek?: string }).dayOfWeek || "",
         periodIndex: Number(s.periodIndex) || 4,
         max: Number(s.maxScore) || 20,
-        active: Boolean(s.isActive),
+        active: s.isActive == null ? true : Boolean(s.isActive),
       }))
     : []
 

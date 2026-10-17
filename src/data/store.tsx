@@ -231,6 +231,7 @@ type SchoolContextValue = {
     input: Omit<TestSchedule, "id" | "active">,
     actor: Actor
   ) => Result
+  removeTestSchedule: (id: string, actor: Actor) => Result
   generateMonthTests: (month: string, actor: Actor) => Result
   saveWeeklyMarks: (
     testId: string,
@@ -1796,7 +1797,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         if (input.max <= 0) return { error: "Maximum marks must be positive." }
         const existing = current.testSchedules.find(
           (row) =>
-            row.classId === input.classId && row.subject === input.subject
+            row.classId === input.classId &&
+            row.subject === input.subject &&
+            row.weekday === input.weekday
         )
         const schedule: TestSchedule = {
           ...input,
@@ -1833,6 +1836,36 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             },
             actor.name,
             `Set ${input.subject} weekly test for ${input.classId} to ${input.weekday}`
+          ),
+        }
+      }),
+    [simple, syncBackend]
+  )
+
+  const removeTestSchedule = useCallback(
+    (id: string, actor: Actor) =>
+      simple((current) => {
+        const blocked = denied(actor, "tests.schedule")
+        if (blocked) return { error: blocked }
+        const row = current.testSchedules.find((item) => item.id === id)
+        if (!row) return { error: "That test day is already gone." }
+        const numericId = Number(id)
+        if (Number.isFinite(numericId)) {
+          api
+            .delete(`/daily-tests/schedules/${numericId}`)
+            .then(syncBackend)
+            .catch(console.error)
+        }
+        return {
+          next: withAudit(
+            {
+              ...current,
+              testSchedules: current.testSchedules.filter(
+                (item) => item.id !== id
+              ),
+            },
+            actor.name,
+            `Removed the ${row.subject} test day for ${row.classId}`
           ),
         }
       }),
@@ -2444,6 +2477,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       submitDailyLesson,
       reviewDailyLesson,
       saveTestSchedule,
+      removeTestSchedule,
       generateMonthTests,
       saveWeeklyMarks,
       publishWeeklyTest,
@@ -2486,6 +2520,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       submitDailyLesson,
       reviewDailyLesson,
       saveTestSchedule,
+      removeTestSchedule,
       generateMonthTests,
       saveWeeklyMarks,
       publishWeeklyTest,
