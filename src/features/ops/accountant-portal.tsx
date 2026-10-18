@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Select,
   SelectContent,
@@ -230,11 +230,13 @@ function MyCollections() {
           </div>
           <div className="flex items-end gap-2">
             <Field label="Day">
-              <Input
-                type="date"
+              <DatePicker
                 value={day}
-                max={getToday()}
-                onChange={(event) => setDay(event.target.value || getToday())}
+                maxDate={getToday()}
+                onChange={(value) => setDay(value || getToday())}
+                placeholder="Receipt day"
+                defaultMonthKind="today"
+                className="w-44"
               />
             </Field>
             <Button

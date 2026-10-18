@@ -88,7 +88,7 @@ export function RequiredMark() {
 }
 
 export const authInputClassName =
-  "h-10 w-full rounded-lg border border-[#e3e8ee] bg-white px-3 py-2 text-sm text-[#1b2430] ring-offset-background outline-none placeholder:text-[#667085] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a5c3a] disabled:cursor-not-allowed disabled:opacity-60"
+  "h-10 w-full rounded-lg border border-[#e3e8ee] bg-white px-3 py-2 text-sm text-[#1b2430] ring-offset-background outline-none placeholder:font-normal placeholder:text-[var(--placeholder)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a5c3a] disabled:cursor-not-allowed disabled:opacity-60"
 
 export const authPrimaryButtonClassName =
   "flex h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-[#1a5c3a] bg-[#1a5c3a] px-4 text-[12.25px] leading-[17.5px] font-medium text-white transition-colors hover:bg-[#144a2f] disabled:cursor-not-allowed disabled:opacity-70 md:h-12 md:text-[13px] md:leading-5"

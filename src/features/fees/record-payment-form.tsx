@@ -3,6 +3,7 @@ import { toast } from "sonner"
 
 import { Field, StatusBadge } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -151,11 +152,12 @@ export function RecordPaymentForm({
           />
         </Field>
         <Field label="Payment date">
-          <Input
-            type="date"
+          <DatePicker
             value={date}
-            max={getToday()}
-            onChange={(event) => setDate(event.target.value)}
+            maxDate={getToday()}
+            onChange={setDate}
+            placeholder="Payment date"
+            defaultMonthKind="today"
           />
         </Field>
         <Field label="Method">

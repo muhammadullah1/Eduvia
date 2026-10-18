@@ -12,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Select,
   SelectContent,
@@ -111,13 +111,15 @@ export function TeacherAttendance() {
                   </SelectGroup>
                 </SelectContent>
               </Select>
-              <Input
-                type="date"
+              <DatePicker
                 value={date}
-                onChange={(event) => {
-                  setDate(event.target.value)
+                onChange={(value) => {
+                  setDate(value)
                   setMarks({})
                 }}
+                placeholder="Attendance date"
+                defaultMonthKind="today"
+                className="sm:max-w-48"
               />
             </div>
           </div>

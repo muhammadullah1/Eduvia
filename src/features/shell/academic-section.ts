@@ -1,9 +1,8 @@
-export type AcademicFocusTab = "sessions" | "teachers"
+export type AcademicFocusTab = "sessions"
 
 const ACADEMIC_SECTIONS: Record<string, AcademicFocusTab> = {
   sessions: "sessions",
   academic: "sessions",
-  "teachers-assignments": "teachers",
 }
 
 export function academicFocusForSection(
@@ -12,9 +11,6 @@ export function academicFocusForSection(
   return ACADEMIC_SECTIONS[section] ?? null
 }
 
-export function academicPortalSectionForTab(
-  tab: AcademicFocusTab
-): string {
-  if (tab === "sessions") return "sessions"
-  return "teachers-assignments"
+export function academicPortalSectionForTab(_tab: AcademicFocusTab): string {
+  return "sessions"
 }

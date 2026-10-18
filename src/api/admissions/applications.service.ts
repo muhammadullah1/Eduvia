@@ -24,9 +24,23 @@ function cleanListParams(params?: ListApplicationsRequest) {
   return next
 }
 
+export type ApplicationStatusCounts = {
+  all: number
+  draft: number
+  submitted: number
+  under_review: number
+  test_interview: number
+  admitted: number
+  rejected: number
+  waitlisted: number
+  withdrawn: number
+}
+
 const applicationsService = {
   list: (params?: ListApplicationsRequest) =>
     api.get<ListApplicationsData>("/applications", cleanListParams(params)),
+
+  summary: () => api.get<ApplicationStatusCounts>("/applications/summary"),
 
   getById: (id: number) => api.get<ApplicationDto>(`/applications/${id}`),
 
@@ -50,6 +64,22 @@ const applicationsService = {
 
   enroll: (id: number, body: Record<string, unknown> = {}) =>
     api.post<EnrollApplicationData>(`/applications/${id}/enroll`, body),
+
+  presignDocument: (
+    applicationId: number,
+    body: { documentId: number; contentType: string; fileName: string }
+  ) =>
+    api.post<{
+      documentId: number
+      uploadUrl: string
+      fileUrl: string
+      maxBytes: number
+    }>(`/applications/${applicationId}/documents/presign`, body),
+
+  clearDocument: (applicationId: number, documentId: number) =>
+    api.delete<ApplicationDto>(
+      `/applications/${applicationId}/documents/${documentId}`
+    ),
 }
 
 export default applicationsService

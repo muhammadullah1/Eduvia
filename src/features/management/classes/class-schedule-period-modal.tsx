@@ -10,7 +10,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -47,7 +46,6 @@ export type SchedulePeriodSubmit = {
   time: string
   subjectId: string
   teacherId: string
-  room: string
 }
 
 type SubjectOption = { id: string; name: string; code: string }
@@ -55,13 +53,13 @@ type SubjectOption = { id: string; name: string; code: string }
 type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  classId: string
   classLabel: string
   periodCount: number
   periodTimes: PeriodTimeMap
-  roomSuggestion?: string
   subjects: SubjectOption[]
   teachers: Staff[]
-  existingSlots: TimetableSlot[]
+  schoolSlots: TimetableSlot[]
   editingSlot?: TimetableSlot | null
   prefill?: SchedulePeriodPrefill
   saving?: boolean
@@ -69,26 +67,20 @@ type Props = {
   onRemove?: () => Promise<void>
 }
 
-const NONE_TEACHER = "__none__"
-
 function subjectNameById(subjects: SubjectOption[], id: string) {
   return subjects.find((s) => s.id === id)?.name ?? ""
-}
-
-function shortDayLabel(day: string) {
-  return WEEKDAY_OPTIONS.find((item) => item.value === day)?.short ?? day
 }
 
 export function ClassSchedulePeriodModal({
   open,
   onOpenChange,
+  classId,
   classLabel,
   periodCount,
   periodTimes,
-  roomSuggestion = "",
   subjects,
   teachers,
-  existingSlots,
+  schoolSlots,
   editingSlot,
   prefill,
   saving = false,
@@ -100,9 +92,10 @@ export function ClassSchedulePeriodModal({
   )
   const [periodIndex, setPeriodIndex] = useState("1")
   const [subjectId, setSubjectId] = useState("")
-  const [teacherId, setTeacherId] = useState(NONE_TEACHER)
-  const [room, setRoom] = useState("")
-  const [error, setError] = useState<string | null>(null)
+  const [teacherId, setTeacherId] = useState("")
+  const [formError, setFormError] = useState<string | null>(null)
+  const [blockedDays, setBlockedDays] = useState<string[]>([])
+  const [notice, setNotice] = useState<string | null>(null)
 
   const isEdit = Boolean(editingSlot)
 
@@ -127,11 +120,10 @@ export function ClassSchedulePeriodModal({
       subjects[0]?.id ??
       ""
     setSubjectId(matchedSubject)
-    setTeacherId(editingSlot?.teacherId || NONE_TEACHER)
-    setRoom(
-      editingSlot?.room && editingSlot.room !== "—" ? editingSlot.room : ""
-    )
-    setError(null)
+    setTeacherId(editingSlot?.teacherId || "")
+    setFormError(null)
+    setBlockedDays([])
+    setNotice(null)
   }, [open, editingSlot, prefill, subjects])
 
   const subjectName = subjectNameById(subjects, subjectId)
@@ -145,11 +137,8 @@ export function ClassSchedulePeriodModal({
   }, [teachers, subjectName])
 
   useEffect(() => {
-    if (
-      teacherId !== NONE_TEACHER &&
-      !eligibleTeachers.some((t) => t.id === teacherId)
-    ) {
-      setTeacherId(NONE_TEACHER)
+    if (teacherId && !eligibleTeachers.some((t) => t.id === teacherId)) {
+      setTeacherId("")
     }
   }, [eligibleTeachers, teacherId])
 
@@ -186,64 +175,96 @@ export function ClassSchedulePeriodModal({
     setSelectedDays(new Set([WEEKDAYS[0]]))
   }
 
-  function validate(): string | null {
+  function sameClock(slotTime: string, scheduled: string) {
+    return slotTime.slice(0, 5) === scheduled.slice(0, 5)
+  }
+
+  function findConflicts() {
     const period = Number(periodIndex)
-    if (!subjectId) return "Choose a subject."
-    if (sortedSelectedDays.length === 0) return "Select at least one day."
+    if (!subjectId) return { formError: "Choose a subject.", blockedDays: [] as string[], notice: null }
+    if (!teacherId) {
+      return { formError: "Teacher is required.", blockedDays: [] as string[], notice: null }
+    }
+    if (sortedSelectedDays.length === 0) {
+      return { formError: "Select at least one day.", blockedDays: [] as string[], notice: null }
+    }
     if (!Number.isFinite(period) || period < 1 || period > periodCount) {
-      return `Period must be between 1 and ${periodCount}.`
+      return {
+        formError: `Period must be between 1 and ${periodCount}.`,
+        blockedDays: [] as string[],
+        notice: null,
+      }
     }
     if (!isValidTime(scheduledTime)) {
-      return "Set a valid start time for this period under Admin → Timetable."
-    }
-    const classClashes: string[] = []
-    const teacherClashes: string[] = []
-    for (const day of sortedSelectedDays) {
-      const clash = existingSlots.find(
-        (slot) =>
-          slot.day === day &&
-          slot.periodIndex === period &&
-          slot.id !== editingSlot?.id
-      )
-      if (clash) {
-        classClashes.push(`${shortDayLabel(day)} (${clash.subject})`)
+      return {
+        formError: "Set a valid start time for this period on the timetable.",
+        blockedDays: [] as string[],
+        notice: null,
       }
-      if (teacherId !== NONE_TEACHER) {
-        const teacherClash = existingSlots.find(
-          (slot) =>
-            slot.teacherId === teacherId &&
-            slot.day === day &&
-            slot.periodIndex === period &&
-            slot.id !== editingSlot?.id
-        )
-        if (teacherClash) {
-          teacherClashes.push(shortDayLabel(day))
+    }
+
+    const taken = new Set<string>()
+    const subjectsTaken = new Set<string>()
+    let ownClass = false
+    const teacherName =
+      teachers.find((person) => person.id === teacherId)?.name ?? "This teacher"
+
+    for (const day of sortedSelectedDays) {
+      for (const slot of schoolSlots) {
+        if (slot.id === editingSlot?.id || slot.day !== day) continue
+        const samePeriod = slot.periodIndex === period
+        const sameTime = sameClock(slot.time, scheduledTime)
+        if (slot.classId === classId && (samePeriod || sameTime)) {
+          taken.add(day)
+          ownClass = true
+          continue
+        }
+        if (slot.teacherId === teacherId && sameTime) {
+          taken.add(day)
+          subjectsTaken.add(slot.subject || "another subject")
         }
       }
     }
-    if (classClashes.length > 0) {
-      return `This class already has a lesson in period ${period} on ${classClashes.join(", ")}.`
+
+    const blocked = WEEKDAYS.filter((day) => taken.has(day))
+    if (blocked.length === 0) {
+      return { formError: null, blockedDays: [] as string[], notice: null }
     }
-    if (teacherClashes.length > 0) {
-      return `That teacher is busy in period ${period} on ${teacherClashes.join(", ")}.`
-    }
-    return null
+
+    const subjectsBusy = [...subjectsTaken]
+    const notice = subjectsBusy.length
+      ? `${teacherName} is already teaching ${subjectsBusy.length === 1 ? subjectsBusy[0] : "another subject"} at ${scheduledTime}. The red days are taken.`
+      : ownClass
+        ? `${classLabel} already has a lesson at ${scheduledTime}. The red days are taken.`
+        : null
+
+    return { formError: null, blockedDays: blocked, notice }
   }
 
   async function handleSubmit() {
-    const message = validate()
-    if (message) {
-      setError(message)
-      return
+    const found = findConflicts()
+    setFormError(found.formError)
+    setBlockedDays(found.blockedDays)
+    setNotice(
+      found.notice ??
+        (found.formError &&
+        found.formError !== "Teacher is required." &&
+        found.formError !== "Choose a subject."
+          ? found.formError
+          : null)
+    )
+    if (found.formError || found.blockedDays.length > 0) return
+    try {
+      await onSubmit({
+        days: sortedSelectedDays,
+        periodIndex: Number(periodIndex),
+        time: scheduledTime,
+        subjectId,
+        teacherId,
+      })
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "Could not save this period.")
     }
-    await onSubmit({
-      days: sortedSelectedDays,
-      periodIndex: Number(periodIndex),
-      time: scheduledTime,
-      subjectId,
-      teacherId: teacherId === NONE_TEACHER ? "" : teacherId,
-      room: room.trim(),
-    })
   }
 
   const scheduleCount = sortedSelectedDays.length
@@ -268,7 +289,7 @@ export function ClassSchedulePeriodModal({
         </DialogHeader>
 
         <div className="grid gap-4 px-6 py-5">
-          <Field label="Subject" error={error && !subjectId ? error : undefined}>
+          <Field label="Subject" error={!subjectId ? formError ?? undefined : undefined}>
             <Select value={subjectId} onValueChange={setSubjectId}>
               <SelectTrigger>
                 <SelectValue placeholder="Choose subject" />
@@ -318,6 +339,7 @@ export function ClassSchedulePeriodModal({
               <div className="flex flex-wrap gap-2">
                 {WEEKDAY_OPTIONS.map(({ value, short }) => {
                   const active = selectedDays.has(value)
+                  const blocked = blockedDays.includes(value)
                   return (
                     <button
                       key={value}
@@ -326,9 +348,11 @@ export function ClassSchedulePeriodModal({
                       onClick={() => toggleDay(value)}
                       className={cn(
                         "inline-flex min-w-[52px] items-center justify-center gap-1 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
-                        active
-                          ? "border-[var(--cls-brand)] bg-[var(--cls-brand)]/10 text-[var(--cls-brand)]"
-                          : "border-[var(--cls-border)] bg-white text-[var(--cls-muted)] hover:border-[var(--cls-brand)]/30 hover:text-[var(--cls-ink)]"
+                        blocked && active
+                          ? "border-red-300 bg-red-50 text-red-800"
+                          : active
+                            ? "border-[var(--cls-brand)] bg-[var(--cls-brand)]/10 text-[var(--cls-brand)]"
+                            : "border-[var(--cls-border)] bg-white text-[var(--cls-muted)] hover:border-[var(--cls-brand)]/30 hover:text-[var(--cls-ink)]"
                       )}
                     >
                       {active ? <Check className="size-3.5 shrink-0" /> : null}
@@ -337,6 +361,11 @@ export function ClassSchedulePeriodModal({
                   )
                 })}
               </div>
+              {notice ? (
+                <p className="text-sm text-red-700" role="alert">
+                  {notice}
+                </p>
+              ) : null}
             </div>
           </Field>
 
@@ -372,21 +401,17 @@ export function ClassSchedulePeriodModal({
 
           <Field
             label="Teacher"
-            hint={
-              subjectName
-                ? eligibleTeachers.length === 0
-                  ? "No teacher is tagged with this subject yet — you can still save without one."
-                  : "Only teachers assigned to this subject are listed."
-                : undefined
-            }
+            error={formError === "Teacher is required." ? formError : undefined}
           >
-            <Select value={teacherId} onValueChange={setTeacherId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Optional" />
+            <Select value={teacherId || undefined} onValueChange={setTeacherId}>
+              <SelectTrigger
+                aria-invalid={formError === "Teacher is required." || undefined}
+                className={formError === "Teacher is required." ? "border-destructive" : undefined}
+              >
+                <SelectValue placeholder="Choose teacher" />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  <SelectItem value={NONE_TEACHER}>No teacher yet</SelectItem>
                   {eligibleTeachers.map((person) => (
                     <SelectItem key={person.id} value={person.id}>
                       {person.name}
@@ -396,22 +421,6 @@ export function ClassSchedulePeriodModal({
               </SelectContent>
             </Select>
           </Field>
-
-          <Field label="Room (optional)">
-            <Input
-              value={room}
-              onChange={(event) => setRoom(event.target.value)}
-              placeholder={
-                roomSuggestion
-                  ? `e.g. ${roomSuggestion}`
-                  : "e.g. C-02 (optional)"
-              }
-            />
-          </Field>
-
-          {error && subjectId ? (
-            <p className="text-sm text-red-600">{error}</p>
-          ) : null}
         </div>
 
         <DialogFooter className={CLS_MODAL_FOOTER}>

@@ -145,6 +145,10 @@ export function Admissions({ query }: { query: string }) {
             setResumeApplicationId(id)
             setOpenWizard(true)
           }}
+          onEdit={(id) => {
+            setResumeApplicationId(id)
+            setOpenWizard(true)
+          }}
           onReview={handleReview}
           onWaitlist={(id) => setConfirm({ id, status: "Waitlist" })}
           onEnroll={(id) => setConfirm({ id, status: "Enrolled" })}

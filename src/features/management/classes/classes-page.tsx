@@ -1,12 +1,15 @@
 import { Layers, Plus } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import classesService from "@/api/classes/classes.service"
-import { isDuplicateClassLabel } from "@/api/classes/map-class"
+import {
+  classDisplayName,
+  isDuplicateClassGradeSection,
+} from "@/api/classes/map-class"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
-import { useSchool } from "@/data/store"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import type { ClassSection } from "@/data/types"
 import { CreateClassModal } from "@/features/management/classes/create-class-modal"
 import { ClassesDataTable } from "@/features/management/classes/classes-data-table"
@@ -16,11 +19,9 @@ import {
   useClassesList,
 } from "@/features/management/classes/hooks/use-classes"
 import { useClientPagination } from "@/hooks/use-client-pagination"
-import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
 const CLASS_API_DEFAULTS = {
-  room: "Unassigned",
   periodCount: 8,
   monthlyFee: 0,
 }
@@ -31,29 +32,30 @@ type Props = {
 }
 
 export function ClassesPage({ globalQuery, onOpenClass }: Props) {
-  const { state, syncPortalForRoute } = useSchool()
-  const actor = useActor()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [editClass, setEditClass] = useState<ClassSection | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+
+  const { data: sessions = [], isLoading: sessionsLoading } = useSessionsList()
 
   const currentSession = useMemo(
-    () => state.sessions.find((session) => session.current),
-    [state.sessions]
+    () => sessions.find((session) => session.current),
+    [sessions]
   )
   const sessionNumericId = currentSession
     ? Number(currentSession.id)
     : undefined
 
-  useEffect(() => {
-    void syncPortalForRoute(actor.role, "classes")
-  }, [actor.role, syncPortalForRoute])
+  const sessionIdForQuery = Number.isFinite(sessionNumericId)
+    ? sessionNumericId
+    : undefined
 
   const { data: classes = [], isLoading, isError, refetch } = useClassesList(
-    Number.isFinite(sessionNumericId) ? sessionNumericId : undefined
+    sessionIdForQuery
   )
 
   const rows = useMemo(() => {
@@ -68,7 +70,13 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   }, [classes])
 
   const existingClassLabels = useMemo(
-    () => classes.map((c) => ({ id: c.id, label: c.label })),
+    () =>
+      classes.map((c) => ({
+        id: c.id,
+        label: c.label,
+        grade: c.grade,
+        section: c.section,
+      })),
     [classes]
   )
 
@@ -90,7 +98,6 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
 
   async function afterMutation(message: string) {
     await invalidateClassesList(queryClient)
-    await syncPortalForRoute(actor.role, "classes")
     toast.success(message)
   }
 
@@ -98,12 +105,19 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     grade: string
     section: string
     label: string
+    room?: string | null
   }) {
     if (!sessionNumericId || !Number.isFinite(sessionNumericId)) {
       toast.error("Activate an academic session before adding classes.")
       return
     }
-    if (isDuplicateClassLabel(existingClassLabels, payload.label)) {
+    if (
+      isDuplicateClassGradeSection(
+        existingClassLabels,
+        payload.grade,
+        payload.section
+      )
+    ) {
       toast.error("A class with this name already exists in the current session.")
       return
     }
@@ -114,14 +128,16 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         grade: payload.grade,
         section: payload.section,
         label: payload.label,
+        room: payload.room || undefined,
         ...CLASS_API_DEFAULTS,
       })
       await afterMutation("Class created")
       setModalOpen(false)
     } catch (err) {
-      toast.error(
+      const message =
         err instanceof Error ? err.message : "Could not create class."
-      )
+      toast.error(message)
+      throw err instanceof Error ? err : new Error(message)
     } finally {
       setSaving(false)
     }
@@ -132,8 +148,17 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     grade: string
     section: string
     label: string
+    room?: string | null
+    periodCount: number
   }) {
-    if (isDuplicateClassLabel(existingClassLabels, payload.label, payload.id)) {
+    if (
+      isDuplicateClassGradeSection(
+        existingClassLabels,
+        payload.grade,
+        payload.section,
+        payload.id
+      )
+    ) {
       toast.error("A class with this name already exists in the current session.")
       return
     }
@@ -143,6 +168,8 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         grade: payload.grade,
         section: payload.section,
         label: payload.label,
+        room: payload.room ?? null,
+        periodCount: payload.periodCount,
       })
       await afterMutation("Class updated")
       setEditClass(null)
@@ -157,17 +184,17 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
 
   async function handleDeleteConfirm() {
     if (!deleteId) return
-    setSaving(true)
+    setDeleting(true)
     try {
       await classesService.remove(Number(deleteId))
-      await afterMutation("Class deleted")
+      await afterMutation("Class archived")
       setDeleteId(null)
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Could not delete class."
       )
     } finally {
-      setSaving(false)
+      setDeleting(false)
     }
   }
 
@@ -227,8 +254,8 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
             No classes yet
           </p>
           <p className="max-w-sm text-sm text-[var(--cls-muted)]">
-            Create your first class for the current session. Admissions and
-            timetables will use these sections.
+            Create your first class for the current session. Archived classes
+            are restored from Settings → Archives.
           </p>
           <Button
             type="button"
@@ -245,12 +272,10 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
           rows={paginatedItems}
           search={search}
           onSearchChange={setSearch}
-          loading={isLoading}
+          loading={sessionsLoading || isLoading}
           searchActive={Boolean(needle)}
           onClearSearch={clearSearch}
-          onOpenClass={
-            onOpenClass ? (row) => onOpenClass(row.id) : undefined
-          }
+          onOpenClass={onOpenClass ? (row) => onOpenClass(row.id) : undefined}
           onEdit={(row) => setEditClass(row)}
           onDelete={setDeleteId}
           pagination={pagination}
@@ -280,16 +305,18 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
 
       <ConfirmDialog
         open={Boolean(deleteId)}
-        title="Delete class"
+        title="Archive class"
         description={
           deletingRow
-            ? `Remove "${deletingRow.label}" from this session? Students already assigned may need to be moved first.`
-            : "Delete this class?"
+            ? `Archive "${classDisplayName(deletingRow)}" for this session? Restore it later from Settings → Archives. Students already assigned may need to be moved first.`
+            : "Archive this class?"
         }
-        confirmLabel="Delete class"
+        confirmLabel="Archive class"
         destructive
+        confirming={deleting}
+        confirmingLabel="Deleting…"
         onConfirm={() => void handleDeleteConfirm()}
-        onClose={() => setDeleteId(null)}
+        onClose={() => !deleting && setDeleteId(null)}
       />
     </div>
   )

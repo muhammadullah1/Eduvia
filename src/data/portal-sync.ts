@@ -48,16 +48,18 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   finance: ["expenses", "payments"],
   academic: ["staff", "slots"],
   sessions: ["staff", "slots"],
-  classes: ["students", "slots", "feeMonths"],
+  /** List/detail load via React Query (`useClassesList`, etc.). */
+  classes: [],
   subjects: ["staff", "slots"],
   "teachers-assignments": ["staff"],
   timetable: ["staff", "slots"],
-  substitutes: ["teacherAbsences", "substitutions"],
-  absences: ["teacherAbsences", "substitutions"],
-  "lesson-plan": ["plannedChapters"],
+  /** Absences/substitutions load via React Query on the substitutes page. */
+  substitutes: ["slots"],
+  absences: ["slots"],
+  "lesson-plan": [],
   curriculum: ["plannedChapters"],
   "lesson-review": ["dailyLessons"],
-  "daily-test-schedule": ["testSchedules", "weeklyTests"],
+  "daily-test-schedule": ["testSchedules", "weeklyTests", "slots"],
   "weekly-tests": ["testSchedules", "weeklyTests"],
   students: ["staff", "students"],
   "enrollment-promotion": ["applications", "students"],
@@ -82,17 +84,36 @@ export const ADMISSION_WIZARD_SLICES: SchoolDataSlice[] = [
   "sessions",
 ]
 
+const MINIMAL_CORE_SECTIONS = new Set(["substitutes", "absences"])
+
+/** Primary data comes from React Query — do not pull portal core or legacy store slices. */
+const REACT_QUERY_SECTIONS = new Set([
+  "classes",
+  "admissions",
+  "teachers-assignments",
+  "lesson-plan",
+])
+
 export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPlan {
   if (role === "teacher" || role === "parent" || role === "accountant") {
     return { mode: "full" }
+  }
+  if (section === "settings") {
+    return { mode: "partial", slices: ["settings"] }
   }
   const sectionSlices = ADMIN_SECTION_SLICES[section]
   if (!sectionSlices) {
     return { mode: "full" }
   }
-  const includeCore = section !== "admissions"
-  const slices = includeCore
-    ? [...new Set([...PORTAL_CORE_SLICES, ...sectionSlices])]
-    : [...new Set(sectionSlices)]
+  if (REACT_QUERY_SECTIONS.has(section)) {
+    return { mode: "partial", slices: [...new Set(sectionSlices)] }
+  }
+  if (section === "admissions") {
+    return { mode: "partial", slices: [...new Set(sectionSlices)] }
+  }
+  const core = MINIMAL_CORE_SECTIONS.has(section)
+    ? (["classes"] as const)
+    : PORTAL_CORE_SLICES
+  const slices = [...new Set([...core, ...sectionSlices])]
   return { mode: "partial", slices }
 }

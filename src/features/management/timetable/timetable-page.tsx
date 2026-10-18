@@ -1,5 +1,7 @@
 import { Info } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+
+import type { TimetableSlot } from "@/data/types"
 import { useSearchParams } from "react-router-dom"
 
 import { classDisplayName } from "@/api/classes/map-class"
@@ -19,6 +21,7 @@ import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjec
 import { useActor } from "@/lib/actor"
 
 import { ClassTimetableEditor } from "./class-timetable-editor"
+import { TimetableTeacherPanel } from "./timetable-teacher-panel"
 
 type ViewMode = "class" | "teacher"
 
@@ -26,7 +29,21 @@ export function TimetablePage() {
   const { state, syncPortalForRoute } = useSchool()
   const actor = useActor()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [viewMode, setViewMode] = useState<ViewMode>("class")
+  const viewParam = searchParams.get("view")
+  const teacherIdParam = searchParams.get("teacherId") ?? ""
+
+  const initialView: ViewMode = viewParam === "teacher" ? "teacher" : "class"
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView)
+  const [focusSlot, setFocusSlot] = useState<TimetableSlot | null>(null)
+
+  useEffect(() => {
+    if (viewParam === "teacher") {
+      setViewMode("teacher")
+    }
+    if (viewParam === "class") {
+      setViewMode("class")
+    }
+  }, [viewParam])
 
   useEffect(() => {
     void syncPortalForRoute(actor.role, "timetable")
@@ -78,6 +95,27 @@ export function TimetablePage() {
     })
   }
 
+  function setViewModeInUrl(mode: ViewMode) {
+    setViewMode(mode)
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set("view", mode)
+      if (mode === "class") {
+        next.delete("teacherId")
+      }
+      return next
+    })
+  }
+
+  function selectTeacherInUrl(id: string) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      next.set("view", "teacher")
+      next.set("teacherId", id)
+      return next
+    })
+  }
+
   const syncPortal = () => syncPortalForRoute(actor.role, "timetable")
 
   const sessionLabel = currentSession?.name ?? "—"
@@ -116,7 +154,7 @@ export function TimetablePage() {
               aria-label="Timetable view"
               className="!flex-row !items-center !justify-start !gap-0"
               value={viewMode}
-              onValueChange={(v) => setViewMode(v as ViewMode)}
+              onValueChange={(v) => setViewModeInUrl(v as ViewMode)}
               items={[
                 { value: "class", label: "Class" },
                 { value: "teacher", label: "Teacher" },
@@ -164,9 +202,14 @@ export function TimetablePage() {
             </span>
             {classMeta ? ` · ${classMeta}` : null}
             {" · "}
-            Set start times in the period column, then use{" "}
+            Period rows come from this class&apos;s{" "}
+            <span className="font-medium text-[var(--cls-ink)]">
+              {klass.periodCount} periods/day
+            </span>{" "}
+            (change under Classes → Edit class). Set start times in the period
+            column, then click{" "}
             <span className="font-medium text-[var(--cls-ink)]">+</span> on an
-            empty cell to assign.
+            empty cell to assign a subject to this class.
           </p>
         ) : null}
       </section>
@@ -183,15 +226,17 @@ export function TimetablePage() {
       </div>
 
       {viewMode === "teacher" ? (
-        <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-20 text-center">
-          <p className="text-sm font-medium text-[var(--cls-ink)]">
-            Teacher view coming soon
-          </p>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-[var(--cls-muted)]">
-            Switch to <span className="font-medium">Class</span> to edit the
-            weekly grid.
-          </p>
-        </div>
+        <TimetableTeacherPanel
+          teachers={teachers}
+          classes={classes}
+          initialTeacherId={teacherIdParam}
+          onTeacherIdChange={selectTeacherInUrl}
+          onEditSlotInClassView={(slot) => {
+            setFocusSlot(slot)
+            setViewModeInUrl("class")
+            selectClass(slot.classId)
+          }}
+        />
       ) : !klass && !classesLoading ? (
         <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-20 text-center text-sm text-[var(--cls-muted)]">
           Add a class for the current session to build a timetable.
@@ -203,6 +248,8 @@ export function TimetablePage() {
           subjects={catalogSubjects}
           teachers={teachers}
           syncPortal={syncPortal}
+          focusSlot={focusSlot}
+          onFocusSlotHandled={() => setFocusSlot(null)}
         />
       )}
     </div>

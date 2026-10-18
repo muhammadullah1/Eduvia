@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import {
@@ -175,12 +176,12 @@ export function Finance() {
               />
             </Field>
             <Field label="Date">
-              <Input
-                type="date"
+              <DatePicker
                 value={form.date}
-                onChange={(event) =>
-                  setForm({ ...form, date: event.target.value })
-                }
+                onChange={(date) => setForm({ ...form, date })}
+                placeholder="Expense date"
+                defaultMonthKind="today"
+                popoverClassName="z-[100]"
               />
             </Field>
           </div>

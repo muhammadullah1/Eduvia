@@ -1,4 +1,5 @@
 import { format, parseISO, subYears } from "date-fns"
+import type { Matcher } from "react-day-picker"
 import { CalendarIcon } from "lucide-react"
 import { useMemo } from "react"
 
@@ -26,6 +27,12 @@ type DatePickerProps = {
   defaultAgeYears?: number
   /** Which month to show when no date is selected yet. */
   defaultMonthKind?: "admission" | "today"
+  /** Extra classes on the calendar popover (e.g. `z-[100]` inside dialogs). */
+  popoverClassName?: string
+  /** Inclusive minimum selectable date (`yyyy-MM-dd`). */
+  fromDate?: string
+  /** Inclusive maximum selectable date (`yyyy-MM-dd`). */
+  maxDate?: string
 }
 
 function toDate(iso: string) {
@@ -47,8 +54,24 @@ export function DatePicker({
   className,
   defaultAgeYears = DEFAULT_ADMISSION_AGE_YEARS,
   defaultMonthKind = "admission",
+  popoverClassName,
+  fromDate,
+  maxDate,
 }: DatePickerProps) {
   const selected = toDate(value)
+
+  const disabledMatchers = useMemo(() => {
+    const matchers: Matcher[] = []
+    if (fromDate) {
+      const min = toDate(fromDate)
+      if (min) matchers.push({ before: min })
+    }
+    if (maxDate) {
+      const max = toDate(maxDate)
+      if (max) matchers.push({ after: max })
+    }
+    return matchers.length ? matchers : undefined
+  }, [fromDate, maxDate])
 
   const defaultMonth = useMemo(() => {
     if (selected) return selected
@@ -65,9 +88,11 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           aria-invalid={ariaInvalid}
+          data-slot="date-picker"
+          data-empty={selected ? "false" : "true"}
           className={cn(
             "h-10 w-full justify-start border-[var(--cls-border)] bg-background text-left font-normal",
-            value ? "text-[var(--cls-ink)]" : "text-muted-foreground",
+            selected ? "text-[var(--cls-ink)]" : "text-[var(--placeholder)]",
             className
           )}
         >
@@ -75,11 +100,15 @@ export function DatePicker({
           {selected ? format(selected, "dd MMM yyyy") : placeholder}
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent
+        className={cn("w-auto p-0", popoverClassName)}
+        align="start"
+      >
         <Calendar
           mode="single"
           selected={selected}
           defaultMonth={defaultMonth}
+          disabled={disabledMatchers}
           onSelect={(date) => {
             onChange(date ? format(date, "yyyy-MM-dd") : "")
           }}

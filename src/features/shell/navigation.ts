@@ -3,35 +3,16 @@ import {
   BookOpen,
   Building2,
   Calculator,
-  CalendarClock,
-  CalendarDays,
-  ClipboardCheck,
-  ClipboardList,
-  CloudUpload,
-  CreditCard,
-  FileCheck2,
-  FolderOpen,
-  GitBranch,
-  GraduationCap,
-  Landmark,
-  LayoutDashboard,
-  LayoutGrid,
-  Layers,
   MessageSquareText,
   ReceiptText,
-  RefreshCw,
-  Settings2,
   ShieldCheck,
-  UserCheck,
   UserRound,
-  UserRoundPlus,
-  Users,
-  WalletCards,
-  Workflow,
 } from "lucide-react"
 import { type ComponentType } from "react"
 
 import { ALL_ROLES, type Role } from "@/lib/auth"
+
+import { navIcons } from "./nav-icons"
 
 type Icon = ComponentType<{ className?: string }>
 
@@ -73,47 +54,47 @@ export const roles: Record<
 
 /** Shared by the super admin and the operations manager; fee sections are super-admin only. */
 const managementNav: { id: string; label: string; icon: Icon }[] = [
-  { id: "sessions", label: "Sessions", icon: CalendarDays },
-  { id: "classes", label: "Classes", icon: Layers },
-  { id: "subjects", label: "Subjects", icon: BookOpen },
+  { id: "sessions", label: "Sessions", icon: navIcons.sessions },
+  { id: "classes", label: "Classes", icon: navIcons.classes },
+  { id: "subjects", label: "Subjects", icon: navIcons.subjects },
   {
     id: "teachers-assignments",
-    label: "Teachers & Assignments",
-    icon: UserRound,
+    label: "Staff",
+    icon: navIcons.staff,
   },
-  { id: "timetable", label: "Timetable", icon: CalendarClock },
-  { id: "substitutes", label: "Substitutes", icon: RefreshCw },
-  { id: "lesson-plan", label: "Lesson Plan", icon: ClipboardList },
+  { id: "timetable", label: "Timetable", icon: navIcons.timetable },
+  { id: "substitutes", label: "Substitutes", icon: navIcons.substitutes },
+  { id: "lesson-plan", label: "Lesson Plan", icon: navIcons.lessonPlan },
   {
     id: "daily-test-schedule",
     label: "Daily Test Schedule",
-    icon: ClipboardCheck,
+    icon: navIcons.dailyTests,
   },
-  { id: "admissions", label: "Admissions", icon: UserRoundPlus },
-  { id: "students", label: "Students", icon: GraduationCap },
+  { id: "admissions", label: "Admissions", icon: navIcons.admissions },
+  { id: "students", label: "Students", icon: navIcons.students },
   {
     id: "enrollment-promotion",
     label: "Enrollment & Promotion",
-    icon: GitBranch,
+    icon: navIcons.enrollment,
   },
-  { id: "lifecycle", label: "Lifecycle", icon: Workflow },
-  { id: "student-attendance", label: "Attendance", icon: UserCheck },
-  { id: "exams", label: "Examinations", icon: FileCheck2 },
-  { id: "fees", label: "Fee Management", icon: WalletCards },
-  { id: "collect-fee", label: "Collect Fee", icon: CreditCard },
-  { id: "offline-sync", label: "Offline Sync", icon: CloudUpload },
+  { id: "lifecycle", label: "Lifecycle", icon: navIcons.lifecycle },
+  { id: "student-attendance", label: "Attendance", icon: navIcons.attendance },
+  { id: "exams", label: "Examinations", icon: navIcons.exams },
+  { id: "fees", label: "Fee Management", icon: navIcons.fees },
+  { id: "collect-fee", label: "Collect Fee", icon: navIcons.fees },
+  { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline },
   { id: "messages", label: "Communication", icon: MessageSquareText },
 ]
 
 /** Legacy section ids kept for deep links and redirects. */
 const legacyManagementNav: { id: string; label: string; icon: Icon }[] = [
-  { id: "academic", label: "Sessions", icon: CalendarDays },
-  { id: "curriculum", label: "Lesson Plan", icon: ClipboardList },
-  { id: "lesson-review", label: "Lesson review", icon: ClipboardCheck },
-  { id: "people", label: "Students", icon: GraduationCap },
-  { id: "absences", label: "Substitutes", icon: RefreshCw },
-  { id: "weekly-tests", label: "Daily Test Schedule", icon: ClipboardCheck },
-  { id: "results-gate", label: "Lifecycle", icon: Workflow },
+  { id: "academic", label: "Sessions", icon: navIcons.sessions },
+  { id: "curriculum", label: "Lesson Plan", icon: navIcons.lessonPlan },
+  { id: "lesson-review", label: "Lesson review", icon: navIcons.dailyTests },
+  { id: "people", label: "Students", icon: navIcons.students },
+  { id: "absences", label: "Substitutes", icon: navIcons.substitutes },
+  { id: "weekly-tests", label: "Daily Test Schedule", icon: navIcons.dailyTests },
+  { id: "results-gate", label: "Lifecycle", icon: navIcons.lifecycle },
 ]
 
 export const navigation: Record<
@@ -121,42 +102,42 @@ export const navigation: Record<
   { id: string; label: string; icon: Icon }[]
 > = {
   super_admin: [
-    { id: "dashboard", label: "Dashboard", icon: LayoutGrid },
+    { id: "dashboard", label: "Dashboard", icon: navIcons.dashboard },
     ...managementNav,
-    { id: "finance", label: "Finance", icon: Landmark },
-    { id: "reports", label: "Reports", icon: FolderOpen },
-    { id: "settings", label: "Settings", icon: Settings2 },
+    { id: "finance", label: "Finance", icon: navIcons.finance },
+    { id: "reports", label: "Reports", icon: navIcons.reports },
+    { id: "settings", label: "Settings", icon: navIcons.settings },
     ...legacyManagementNav,
   ],
   operations_manager: [
-    { id: "overview", label: "Overview", icon: LayoutDashboard },
+    { id: "overview", label: "Overview", icon: navIcons.dashboard },
     ...managementNav.filter((item) =>
       !["fees", "collect-fee", "offline-sync", "finance"].includes(item.id)
     ),
-    { id: "settings", label: "Settings", icon: Settings2 },
-    { id: "reports", label: "Reports", icon: FolderOpen },
+    { id: "settings", label: "Settings", icon: navIcons.settings },
+    { id: "reports", label: "Reports", icon: navIcons.reports },
     ...legacyManagementNav,
   ],
   accountant: [
-    { id: "collect", label: "Record payment", icon: WalletCards },
+    { id: "collect", label: "Record payment", icon: navIcons.fees },
     { id: "collections", label: "My daily receipts", icon: ReceiptText },
   ],
   teacher: [
-    { id: "today", label: "Today", icon: LayoutDashboard },
-    { id: "classes", label: "My classes", icon: Users },
-    { id: "attendance", label: "Attendance", icon: UserCheck },
-    { id: "daily-update", label: "Daily update", icon: BookOpen },
-    { id: "weekly-tests", label: "Weekly tests", icon: ClipboardList },
+    { id: "today", label: "Today", icon: navIcons.dashboard },
+    { id: "classes", label: "My classes", icon: navIcons.classes },
+    { id: "attendance", label: "Attendance", icon: navIcons.attendance },
+    { id: "daily-update", label: "Daily update", icon: navIcons.lessonPlan },
+    { id: "weekly-tests", label: "Weekly tests", icon: navIcons.dailyTests },
     { id: "notices", label: "Class notices", icon: MessageSquareText },
-    { id: "marks", label: "Marks entry", icon: FileCheck2 },
+    { id: "marks", label: "Marks entry", icon: navIcons.exams },
   ],
   parent: [
-    { id: "home", label: "My child", icon: LayoutDashboard },
-    { id: "attendance", label: "Attendance", icon: UserCheck },
-    { id: "results", label: "Results & DMC", icon: GraduationCap },
-    { id: "tests", label: "Weekly tests", icon: ClipboardList },
-    { id: "fees", label: "Fees & receipts", icon: WalletCards },
-    { id: "timetable", label: "Timetable", icon: CalendarDays },
+    { id: "home", label: "My child", icon: navIcons.dashboard },
+    { id: "attendance", label: "Attendance", icon: navIcons.attendance },
+    { id: "results", label: "Results & DMC", icon: navIcons.students },
+    { id: "tests", label: "Weekly tests", icon: navIcons.dailyTests },
+    { id: "fees", label: "Fees & receipts", icon: navIcons.fees },
+    { id: "timetable", label: "Timetable", icon: navIcons.timetable },
     { id: "updates", label: "Updates", icon: Bell },
   ],
 }
@@ -180,10 +161,10 @@ export const subtitles: Record<string, string> = {
   overview: "Today’s academic operations — cover, reviews, tests and results.",
   sessions: "Only one session can be marked as Current at a time.",
   subjects: "Subject catalog for the current session.",
-  "teachers-assignments": "Teachers, subjects and class assignments.",
+  "teachers-assignments": "Portal users, teachers, and office staff.",
+  substitutes: "Mark teacher absences and assign cover for affected periods.",
   timetable:
     "Periods, rooms and conflict-aware scheduling; parents see their child's weekly timetable here.",
-  substitutes: "Mark absences and assign cover teachers.",
   "lesson-plan": "Planned chapters for daily teacher updates.",
   "daily-test-schedule": "Weekly test calendar and publishing.",
   students: "Enrolled students and class registers.",

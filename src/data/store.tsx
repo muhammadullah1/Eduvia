@@ -231,6 +231,7 @@ type SchoolContextValue = {
     input: Omit<TestSchedule, "id" | "active">,
     actor: Actor
   ) => Result
+  removeTestSchedule: (id: string, actor: Actor) => Result
   generateMonthTests: (month: string, actor: Actor) => Result
   saveWeeklyMarks: (
     testId: string,
@@ -1380,12 +1381,12 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         if (Number.isFinite(teacherNumId)) {
           api
             .post("/teacher-absences", {
-              fkTeacherId: teacherNumId,
+              teacherId: teacherNumId,
               date: input.date,
               periods: fresh,
               notes: input.notes.trim() || undefined,
             })
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
 
@@ -1401,7 +1402,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   const assignSubstitute = useCallback(
@@ -1462,14 +1463,14 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           current.classes.find((item) => item.id === absence.classId)?.label ??
           absence.classId
 
-        const absenceNumId = Number(absence.id.replace(/^abs-/, ""))
+        const absenceNumId = Number(absence.id)
         const subNumId = Number(substitute.id)
         if (Number.isFinite(absenceNumId) && Number.isFinite(subNumId)) {
           api
             .put(`/teacher-absences/${absenceNumId}/substitute`, {
               substituteTeacherId: subNumId,
             })
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
 
@@ -1482,7 +1483,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   const removeSubstitute = useCallback(
@@ -1503,11 +1504,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             row.id === absenceId ? { ...row, status: "Pending" } : row
           ),
         }
-        const absenceNumId = Number(absenceId.replace(/^abs-/, ""))
+        const absenceNumId = Number(absenceId)
         if (Number.isFinite(absenceNumId)) {
           api
             .delete(`/teacher-absences/${absenceNumId}/substitute`)
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
         return {
@@ -1519,7 +1520,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   const cancelAbsence = useCallback(
@@ -1540,11 +1541,11 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             row.id === absenceId ? { ...row, status: "Cancelled" } : row
           ),
         }
-        const absenceNumId = Number(absenceId.replace(/^abs-/, ""))
+        const absenceNumId = Number(absenceId)
         if (Number.isFinite(absenceNumId)) {
           api
             .post(`/teacher-absences/${absenceNumId}/cancel`)
-            .then(syncBackend)
+            .then(() => syncPortalForRoute(actor.role, "substitutes"))
             .catch(console.error)
         }
         return {
@@ -1556,7 +1557,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       }),
-    [simple, syncBackend]
+    [simple, syncPortalForRoute]
   )
 
   // ---- planned chapters & daily updates ----------------------------------------
@@ -1796,7 +1797,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         if (input.max <= 0) return { error: "Maximum marks must be positive." }
         const existing = current.testSchedules.find(
           (row) =>
-            row.classId === input.classId && row.subject === input.subject
+            row.classId === input.classId &&
+            row.subject === input.subject &&
+            row.weekday === input.weekday
         )
         const schedule: TestSchedule = {
           ...input,
@@ -1833,6 +1836,36 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             },
             actor.name,
             `Set ${input.subject} weekly test for ${input.classId} to ${input.weekday}`
+          ),
+        }
+      }),
+    [simple, syncBackend]
+  )
+
+  const removeTestSchedule = useCallback(
+    (id: string, actor: Actor) =>
+      simple((current) => {
+        const blocked = denied(actor, "tests.schedule")
+        if (blocked) return { error: blocked }
+        const row = current.testSchedules.find((item) => item.id === id)
+        if (!row) return { error: "That test day is already gone." }
+        const numericId = Number(id)
+        if (Number.isFinite(numericId)) {
+          api
+            .delete(`/daily-tests/schedules/${numericId}`)
+            .then(syncBackend)
+            .catch(console.error)
+        }
+        return {
+          next: withAudit(
+            {
+              ...current,
+              testSchedules: current.testSchedules.filter(
+                (item) => item.id !== id
+              ),
+            },
+            actor.name,
+            `Removed the ${row.subject} test day for ${row.classId}`
           ),
         }
       }),
@@ -2444,6 +2477,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       submitDailyLesson,
       reviewDailyLesson,
       saveTestSchedule,
+      removeTestSchedule,
       generateMonthTests,
       saveWeeklyMarks,
       publishWeeklyTest,
@@ -2486,6 +2520,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       submitDailyLesson,
       reviewDailyLesson,
       saveTestSchedule,
+      removeTestSchedule,
       generateMonthTests,
       saveWeeklyMarks,
       publishWeeklyTest,

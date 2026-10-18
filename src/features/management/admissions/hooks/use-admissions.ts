@@ -5,11 +5,12 @@ import applicationsService from "@/api/admissions/applications.service"
 import {
   ADMISSION_DETAIL_QUERY_KEY,
   ADMISSIONS_QUERY_KEY,
+  ADMISSIONS_SUMMARY_QUERY_KEY,
 } from "@/api/admissions/constants"
+import type { AdmissionStatusFilter } from "@/features/management/admissions/admission-display"
 import { mapApplicationDto } from "@/api/admissions/map-application"
 import { DEFAULT_PAGE_SIZE } from "@/constants/pagination"
 import { buildApplicationsListRequest } from "@/features/management/admissions/admission-list-params"
-import type { AdmissionStatusFilter } from "@/features/management/admissions/admission-display"
 import type { ListApplicationsRequest } from "@/types/admissions/api/request"
 import { loadAuth } from "@/lib/auth"
 
@@ -63,6 +64,15 @@ export function useAdmissionsListPage(input: {
       totalPages: 0,
     },
   }
+}
+
+export function useAdmissionStatusCounts() {
+  return useQuery({
+    queryKey: [ADMISSIONS_SUMMARY_QUERY_KEY],
+    enabled: Boolean(loadAuth()?.token),
+    queryFn: () => applicationsService.summary(),
+    staleTime: 30_000,
+  })
 }
 
 export function useGetApplication(id: number | undefined) {
