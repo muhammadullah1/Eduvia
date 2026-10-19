@@ -11,10 +11,11 @@ export type CreateSubjectBody = {
 export type UpdateSubjectBody = Partial<CreateSubjectBody>
 
 const subjectsService = {
-  list: (params?: { archived?: boolean; search?: string }) =>
+  list: (params?: { archived?: boolean; search?: string; classId?: number }) =>
     api.get<ApiSubject[]>("/subjects", {
       archived: params?.archived ? "1" : undefined,
       search: params?.search,
+      classId: params?.classId,
     }),
 
   create: (body: CreateSubjectBody) =>

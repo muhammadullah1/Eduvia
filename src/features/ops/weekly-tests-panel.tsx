@@ -465,18 +465,20 @@ export function WeeklyTestsPanel() {
           <CardFooter>
             <Button
               onClick={() => {
-                const message = saveTestSchedule(
-                  {
-                    classId: form.classId,
-                    subject: form.subject,
-                    weekday: form.weekday,
-                    periodIndex: Number(form.periodIndex) || 1,
-                    max: Number(form.max) || 0,
-                  },
-                  actor
-                )
-                if (message) toast.error(message)
-                else toast.success("Test day saved")
+                void (async () => {
+                  const message = await saveTestSchedule(
+                    {
+                      classId: form.classId,
+                      subject: form.subject,
+                      weekday: form.weekday,
+                      periodIndex: Number(form.periodIndex) || 1,
+                      max: Number(form.max) || 0,
+                    },
+                    actor
+                  )
+                  if (message) toast.error(message)
+                  else toast.success("Test day saved")
+                })()
               }}
             >
               Save

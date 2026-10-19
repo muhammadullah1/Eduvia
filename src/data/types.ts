@@ -92,6 +92,7 @@ export type Staff = {
   phone: string
   /** The single active subject for teachers; empty for non-teaching staff. */
   subject: string
+  subjectId?: string
   subjectHistory: SubjectAssignment[]
   classIds: string[]
 }

@@ -13,6 +13,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
+import { StaffPhotoField } from "@/features/management/teachers-assignments/staff-photo-field"
 import {
   formatPhonePk,
   phonePkError,
@@ -88,7 +89,7 @@ export function EditStaffUserModal({
         <DialogHeader className="border-b border-[var(--cls-border)] px-6 py-4 text-left">
           <DialogTitle className="text-lg font-semibold">Edit staff member</DialogTitle>
           <DialogDescription className="text-sm text-[var(--cls-muted)]">
-            Update contact details and profile photo URL.
+            Update contact details and profile photo.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 px-6 py-5 sm:grid-cols-2">
@@ -129,15 +130,12 @@ export function EditStaffUserModal({
               <p className="mt-1 text-xs text-destructive">{phoneError}</p>
             ) : null}
           </div>
-          <div>
-            <Label className="mb-1.5 block text-sm font-medium">Profile photo URL</Label>
-            <Input
-              value={photo}
-              onChange={(e) => setPhoto(e.target.value)}
-              placeholder="https://…"
-              disabled={saving}
-            />
-          </div>
+          <StaffPhotoField
+            value={photo}
+            onChange={setPhoto}
+            disabled={saving}
+            onError={setError}
+          />
           {error ? (
             <p className="sm:col-span-2 text-sm text-destructive">{error}</p>
           ) : null}

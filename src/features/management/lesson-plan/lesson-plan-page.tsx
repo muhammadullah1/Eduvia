@@ -1,5 +1,5 @@
 import { BookOpenText, Plus } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 import plannedChaptersService, {
@@ -73,15 +73,25 @@ export function LessonPlanPage() {
   const { data: classes = [] } = useClassesList(
     Number.isFinite(sessionId) ? sessionId : undefined
   )
-  const { data: subjects = [] } = useSubjectsList()
   const [classId, setClassId] = useState("")
   const [subjectId, setSubjectId] = useState("")
+  const classNumeric = Number(classId)
+  const { data: subjects = [] } = useSubjectsList(
+    Number.isFinite(classNumeric) && classNumeric > 0 ? classNumeric : undefined
+  )
   const [addOpen, setAddOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [endDate, setEndDate] = useState("")
   const [editRow, setEditRow] = useState<PlannedChapterDto | null>(null)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [dragId, setDragId] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (!subjectId) return
+    if (!subjects.some((row) => String(row.id) === subjectId)) {
+      setSubjectId("")
+    }
+  }, [subjects, subjectId])
 
   const selectedClass = classId
   const selectedSubject = subjectId
@@ -240,6 +250,11 @@ export function LessonPlanPage() {
               ))}
             </SelectContent>
           </Select>
+          {selectedClass && subjects.length === 0 ? (
+            <p className="mt-1.5 text-xs text-[var(--cls-muted)]">
+              No subjects are assigned to this class yet. Add them on the timetable first.
+            </p>
+          ) : null}
         </div>
       </div>
 

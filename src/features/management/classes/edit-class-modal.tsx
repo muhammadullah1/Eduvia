@@ -15,15 +15,12 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import type { ClassSection } from "@/data/types"
+import {
+  DEFAULT_PERIOD_COUNT,
+  normalizePeriodCount,
+  PeriodCountField,
+} from "@/features/management/classes/period-count-field"
 import { ClassSectionField } from "@/features/management/classes/class-section-field"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 
@@ -56,7 +53,7 @@ export function EditClassModal({
   const [grade, setGrade] = useState("")
   const [section, setSection] = useState("Main")
   const [room, setRoom] = useState("")
-  const [periodCount, setPeriodCount] = useState("8")
+  const [periodCount, setPeriodCount] = useState(String(DEFAULT_PERIOD_COUNT))
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -64,7 +61,7 @@ export function EditClassModal({
     setGrade(klass.grade)
     setSection(klass.section)
     setRoom(klass.room === "Unassigned" ? "" : klass.room)
-    setPeriodCount(String(klass.periodCount || 8))
+    setPeriodCount(String(normalizePeriodCount(klass.periodCount || DEFAULT_PERIOD_COUNT)))
     setError(null)
   }, [open, klass])
 
@@ -93,7 +90,7 @@ export function EditClassModal({
       return
     }
     setError(null)
-    const periods = Number(periodCount) || 8
+    const periods = normalizePeriodCount(Number(periodCount))
     const roomTrimmed = room.trim()
     await onSubmit({
       id: klass.id,
@@ -149,32 +146,11 @@ export function EditClassModal({
               disabled={saving}
             />
           </div>
-          <div>
-            <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
-              Periods per day
-            </Label>
-            <Select
-              value={periodCount}
-              onValueChange={setPeriodCount}
-              disabled={saving}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {[6, 7, 8, 9, 10].map((n) => (
-                    <SelectItem key={n} value={String(n)}>
-                      {n} periods
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            <p className="mt-1.5 text-xs text-[var(--cls-muted)]">
-              Controls how many rows appear on the weekly timetable for this class.
-            </p>
-          </div>
+          <PeriodCountField
+            value={periodCount}
+            onChange={setPeriodCount}
+            disabled={saving}
+          />
           {error ? (
             <p className="text-sm text-destructive">{error}</p>
           ) : null}

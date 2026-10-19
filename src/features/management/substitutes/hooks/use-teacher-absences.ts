@@ -15,9 +15,10 @@ export function useTeacherAbsencesForDate(date: string) {
   })
 }
 
-export function useSubstitutionLog() {
+export function useSubstitutionLog(enabled = true) {
   return useQuery({
     queryKey: [TEACHER_ABSENCES_QUERY_KEY, "log"],
+    enabled,
     queryFn: async () => {
       const rows = await teacherAbsencesService.list()
       return teacherAbsencesService.mapList(rows ?? [])

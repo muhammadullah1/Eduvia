@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 
 import { classDisplayName } from "@/api/classes/map-class"
 import {
@@ -18,8 +18,10 @@ import {
 } from "@/components/ui/select"
 import { useSchool } from "@/data/store"
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { ClassTimetableEditor } from "@/features/management/timetable/class-timetable-editor"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
+import { useTeachersList } from "@/features/management/substitutes/hooks/use-teachers-list"
 import { useActor } from "@/lib/actor"
 
 type Props = {
@@ -32,15 +34,12 @@ export function AcademicSetupTimetablePanel({
   classId: classIdProp,
   onClassChange,
 }: Props) {
-  const { state, syncPortalForRoute } = useSchool()
+  const { syncPortalForRoute } = useSchool()
   const actor = useActor()
   const [selectedClassId, setSelectedClassId] = useState("")
 
-  useEffect(() => {
-    void syncPortalForRoute(actor.role, "sessions")
-  }, [actor.role, syncPortalForRoute])
-
-  const currentSession = state.sessions.find((s) => s.current)
+  const { data: sessions = [] } = useSessionsList()
+  const currentSession = sessions.find((s) => s.current)
   const sessionNumericId = currentSession
     ? Number(currentSession.id)
     : undefined
@@ -61,9 +60,21 @@ export function AcademicSetupTimetablePanel({
   }, [classIdProp, selectedClassId, classes])
 
   const klass = classes.find((c) => c.id === classId)
+  const { data: teacherOptions = [], isLoading: teachersLoading } = useTeachersList()
   const teachers = useMemo(
-    () => state.staff.filter((person) => person.role === "Teacher"),
-    [state.staff]
+    () =>
+      teacherOptions.map((person) => ({
+        id: person.id,
+        name: person.name,
+        role: "Teacher",
+        email: "",
+        phone: "",
+        subject: person.subject,
+        subjectId: person.subjectId,
+        subjectHistory: [],
+        classIds: person.classIds,
+      })),
+    [teacherOptions]
   )
 
   function selectClass(id: string) {
@@ -109,6 +120,7 @@ export function AcademicSetupTimetablePanel({
           klass={klass}
           subjects={subjects}
           teachers={teachers}
+          teachersLoading={teachersLoading}
           syncPortal={syncPortal}
         />
       </CardContent>

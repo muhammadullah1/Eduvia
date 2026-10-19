@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Spinner } from "@/components/ui/spinner"
-import { api } from "@/lib/api"
+import { ApiHttpError, api } from "@/lib/api"
 import { ALL_ROLES, portalPath, saveAuth, type Role } from "@/lib/auth"
 
 import {
@@ -29,6 +29,8 @@ export function LoginScreen() {
 
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
+  const [schoolId, setSchoolId] = useState("")
+  const [schools, setSchools] = useState<{ id: number; name: string }[]>([])
   const [error, setError] = useState("")
   const [submitting, setSubmitting] = useState(false)
 
@@ -46,7 +48,11 @@ export function LoginScreen() {
     setSubmitting(true)
 
     try {
-      const res = await api.login(cleanUsername, cleanPassword)
+      const res = await api.login(
+        cleanUsername,
+        cleanPassword,
+        schoolId ? Number(schoolId) : undefined
+      )
       if (!isPortalRole(res.user.role)) {
         setError("This account cannot sign in to the school portal.")
         return
@@ -61,6 +67,17 @@ export function LoginScreen() {
           : portalPath(res.user.role)
       navigate(target, { replace: true })
     } catch (err) {
+      const body =
+        err instanceof ApiHttpError && err.data && typeof err.data === "object"
+          ? (err.data as { data?: { schools?: { id: number; name: string }[] } })
+          : null
+      const choices = body?.data?.schools
+      if (err instanceof ApiHttpError && err.status === 409 && choices?.length) {
+        setSchools(choices)
+        setSchoolId(String(choices[0].id))
+        setError("This email is used at more than one school. Choose the school, then sign in again.")
+        return
+      }
       const msg =
         err instanceof Error
           ? err.message
@@ -103,6 +120,28 @@ export function LoginScreen() {
               disabled={submitting}
             />
           </div>
+
+          {schools.length > 0 ? (
+            <div className="pt-3.5 md:pt-6">
+              <AuthLabel htmlFor="login-school">
+                School
+                <RequiredMark />
+              </AuthLabel>
+              <select
+                id="login-school"
+                value={schoolId}
+                onChange={(event) => setSchoolId(event.target.value)}
+                className={authInputClassName}
+                disabled={submitting}
+              >
+                {schools.map((school) => (
+                  <option key={school.id} value={school.id}>
+                    {school.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
 
           <div className="py-3.5 md:py-6">
             <div className="mb-[5.25px] flex items-center justify-between md:mb-2">

@@ -230,8 +230,8 @@ type SchoolContextValue = {
   saveTestSchedule: (
     input: Omit<TestSchedule, "id" | "active">,
     actor: Actor
-  ) => Result
-  removeTestSchedule: (id: string, actor: Actor) => Result
+  ) => Promise<Result>
+  removeTestSchedule: (id: string, actor: Actor) => Promise<Result>
   generateMonthTests: (month: string, actor: Actor) => Result
   saveWeeklyMarks: (
     testId: string,
@@ -1788,88 +1788,66 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   // ---- weekly tests --------------------------------------------------------------
 
   const saveTestSchedule = useCallback(
-    (input: Omit<TestSchedule, "id" | "active">, actor: Actor) =>
-      simple((current) => {
-        const blocked = denied(actor, "tests.schedule")
-        if (blocked) return { error: blocked }
-        if (!input.classId || !input.subject || !input.weekday)
-          return { error: "Class, subject and test day are required." }
-        if (input.max <= 0) return { error: "Maximum marks must be positive." }
-        const existing = current.testSchedules.find(
-          (row) =>
-            row.classId === input.classId &&
-            row.subject === input.subject &&
-            row.weekday === input.weekday
-        )
-        const schedule: TestSchedule = {
-          ...input,
-          id: existing?.id ?? uid("ts"),
-          active: true,
-        }
-
-        const classNumId = Number(input.classId)
-        const sub = current.subjects.find((s) => s.name === input.subject)
-        const subNumId = Number(sub?.id ?? 1)
-        if (Number.isFinite(classNumId) && Number.isFinite(subNumId)) {
-          api
-            .put("/daily-tests/schedules", {
-              classId: classNumId,
-              subjectId: subNumId,
-              weekday: input.weekday,
-              periodIndex: input.periodIndex,
-              maxScore: input.max,
-            })
-            .then(syncBackend)
-            .catch(console.error)
-        }
-
-        return {
-          next: withAudit(
-            {
-              ...current,
-              testSchedules: [
-                schedule,
-                ...current.testSchedules.filter(
-                  (row) => row.id !== schedule.id
-                ),
-              ],
-            },
-            actor.name,
-            `Set ${input.subject} weekly test for ${input.classId} to ${input.weekday}`
-          ),
-        }
-      }),
-    [simple, syncBackend]
+    async (
+      input: Omit<TestSchedule, "id" | "active">,
+      actor: Actor
+    ): Promise<Result> => {
+      const blocked = denied(actor, "tests.schedule")
+      if (blocked) return blocked
+      if (!input.classId || !input.subject || !input.weekday)
+        return "Class, subject and test day are required."
+      if (input.max <= 0) return "Maximum marks must be positive."
+      const current = stateRef.current
+      const classNumId = Number(input.classId)
+      const sub = current.subjects.find(
+        (row) => row.name.toLowerCase() === input.subject.toLowerCase()
+      )
+      const subNumId = Number(sub?.id)
+      if (!Number.isFinite(classNumId) || !Number.isFinite(subNumId)) {
+        return "Could not match this class and subject on the server."
+      }
+      try {
+        await api.put("/daily-tests/schedules", {
+          classId: classNumId,
+          subjectId: subNumId,
+          weekday: input.weekday,
+          periodIndex: input.periodIndex,
+          maxScore: input.max,
+        })
+        const partial = await fetchSchoolDataSlices(["testSchedules"])
+        commit((current) => ({ next: { ...current, ...partial } }))
+        return null
+      } catch (err) {
+        return err instanceof Error
+          ? err.message
+          : "Could not save the test day."
+      }
+    },
+    [commit]
   )
 
   const removeTestSchedule = useCallback(
-    (id: string, actor: Actor) =>
-      simple((current) => {
-        const blocked = denied(actor, "tests.schedule")
-        if (blocked) return { error: blocked }
-        const row = current.testSchedules.find((item) => item.id === id)
-        if (!row) return { error: "That test day is already gone." }
-        const numericId = Number(id)
-        if (Number.isFinite(numericId)) {
-          api
-            .delete(`/daily-tests/schedules/${numericId}`)
-            .then(syncBackend)
-            .catch(console.error)
-        }
-        return {
-          next: withAudit(
-            {
-              ...current,
-              testSchedules: current.testSchedules.filter(
-                (item) => item.id !== id
-              ),
-            },
-            actor.name,
-            `Removed the ${row.subject} test day for ${row.classId}`
-          ),
-        }
-      }),
-    [simple, syncBackend]
+    async (id: string, actor: Actor): Promise<Result> => {
+      const blocked = denied(actor, "tests.schedule")
+      if (blocked) return blocked
+      const row = stateRef.current.testSchedules.find((item) => item.id === id)
+      if (!row) return "That test day is already gone."
+      const numericId = Number(id)
+      if (!Number.isFinite(numericId)) {
+        return "This schedule is not saved on the server."
+      }
+      try {
+        await api.delete(`/daily-tests/schedules/${numericId}`)
+        const partial = await fetchSchoolDataSlices(["testSchedules"])
+        commit((current) => ({ next: { ...current, ...partial } }))
+        return null
+      } catch (err) {
+        return err instanceof Error
+          ? err.message
+          : "Could not remove the test day."
+      }
+    },
+    [commit]
   )
 
   const generateMonthTests = useCallback(

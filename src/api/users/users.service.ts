@@ -17,7 +17,6 @@ export type CreateStaffUserBody = {
   lastName: string
   email: string
   phone?: string | null
-  password: string
   role: Role
   subjectId?: number
   gender?: "Male" | "Female" | "Other" | null
@@ -38,6 +37,12 @@ const usersService = {
       pageSize: params?.pageSize,
       archived: params?.archived ? "1" : undefined,
     }),
+
+  presignPhoto: (body: { contentType: string; fileName?: string }) =>
+    api.post<{ uploadUrl: string; fileUrl: string; maxBytes: number }>(
+      "/users/photo/presign",
+      body
+    ),
 
   create: (body: CreateStaffUserBody) =>
     api.post<ApiUser>("/users", body),

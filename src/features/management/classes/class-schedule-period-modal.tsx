@@ -59,16 +59,13 @@ type Props = {
   periodTimes: PeriodTimeMap
   subjects: SubjectOption[]
   teachers: Staff[]
+  teachersLoading?: boolean
   schoolSlots: TimetableSlot[]
   editingSlot?: TimetableSlot | null
   prefill?: SchedulePeriodPrefill
   saving?: boolean
   onSubmit: (payload: SchedulePeriodSubmit) => Promise<void>
   onRemove?: () => Promise<void>
-}
-
-function subjectNameById(subjects: SubjectOption[], id: string) {
-  return subjects.find((s) => s.id === id)?.name ?? ""
 }
 
 export function ClassSchedulePeriodModal({
@@ -80,6 +77,7 @@ export function ClassSchedulePeriodModal({
   periodTimes,
   subjects,
   teachers,
+  teachersLoading = false,
   schoolSlots,
   editingSlot,
   prefill,
@@ -126,21 +124,20 @@ export function ClassSchedulePeriodModal({
     setNotice(null)
   }, [open, editingSlot, prefill, subjects])
 
-  const subjectName = subjectNameById(subjects, subjectId)
-
   const eligibleTeachers = useMemo(() => {
-    if (!subjectName) return teachers
-    const key = subjectName.toLowerCase()
-    return teachers.filter(
-      (person) => person.subject.toLowerCase() === key
-    )
-  }, [teachers, subjectName])
+    if (!subjectId) return []
+    return teachers.filter((person) => person.subjectId === subjectId)
+  }, [teachers, subjectId])
 
   useEffect(() => {
-    if (teacherId && !eligibleTeachers.some((t) => t.id === teacherId)) {
-      setTeacherId("")
+    if (!open || teachersLoading) return
+    if (eligibleTeachers.some((person) => person.id === teacherId)) return
+    if (editingSlot?.teacherId && eligibleTeachers.some((person) => person.id === editingSlot.teacherId)) {
+      setTeacherId(editingSlot.teacherId)
+      return
     }
-  }, [eligibleTeachers, teacherId])
+    setTeacherId(eligibleTeachers.length === 1 ? eligibleTeachers[0].id : "")
+  }, [open, teachersLoading, eligibleTeachers, teacherId, editingSlot])
 
   const sortedSelectedDays = useMemo(
     () => WEEKDAYS.filter((weekday) => selectedDays.has(weekday)),

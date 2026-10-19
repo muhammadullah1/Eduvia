@@ -1,17 +1,15 @@
 import { BookOpen, Plus } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import type { SubjectRow } from "@/api/subjects/map-subject"
 import subjectsService from "@/api/subjects/subjects.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
-import { useSchool } from "@/data/store"
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useSchoolTimetableQuery } from "@/features/management/classes/hooks/use-class-detail-queries"
 import { useClientPagination } from "@/hooks/use-client-pagination"
-import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
 import { toSubjectTableRows } from "./build-subject-rows"
@@ -29,8 +27,6 @@ type Props = {
 }
 
 export function SubjectsPage({ globalQuery }: Props) {
-  const { syncPortalForRoute } = useSchool()
-  const actor = useActor()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
@@ -38,10 +34,6 @@ export function SubjectsPage({ globalQuery }: Props) {
   const [saving, setSaving] = useState(false)
   const [deleteRow, setDeleteRow] = useState<SubjectTableRow | null>(null)
   const [deleting, setDeleting] = useState(false)
-
-  useEffect(() => {
-    void syncPortalForRoute(actor.role, "subjects")
-  }, [actor.role, syncPortalForRoute])
 
   const { data: subjects = [], isLoading, isError, refetch } =
     useSubjectsList()
@@ -95,7 +87,6 @@ export function SubjectsPage({ globalQuery }: Props) {
 
   async function afterMutation(message: string) {
     await invalidateSubjectsList(queryClient)
-    await syncPortalForRoute(actor.role, "subjects")
     toast.success(message)
   }
 
