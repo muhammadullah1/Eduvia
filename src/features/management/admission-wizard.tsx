@@ -409,8 +409,6 @@ export function AdmissionWizard({
     if (index === 4) {
       if (!decision.choice) {
         next.decision = "Choose Admit, Reject, or Waitlist."
-      } else if (decision.choice === "Admit" && !student.email.trim()) {
-        next.email = "Guardian email is required to enroll after admission."
       }
     }
     if (index === 5) {
@@ -515,10 +513,6 @@ export function AdmissionWizard({
     if (!validateStep(step)) return
     if (!decision.choice) {
       toast.error("Choose Admit, Reject, or Waitlist.")
-      return
-    }
-    if (decision.choice === "Admit" && !student.email.trim()) {
-      toast.error("Guardian email is required to enroll after admission.")
       return
     }
     setSaving(true)
@@ -780,6 +774,9 @@ export function AdmissionWizard({
                     }
                     placeholder="parent@example.com"
                   />
+                  <p className="mt-1 text-xs text-[var(--cls-muted)]">
+                    Without an email the guardian is still saved; they just won’t get a parent portal login yet.
+                  </p>
                 </div>
                 <div className="sm:col-span-2">
                   <Label className="mb-1.5 block">

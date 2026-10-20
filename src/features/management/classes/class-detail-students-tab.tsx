@@ -23,6 +23,7 @@ import type { FeeMonth, Student } from "@/data/types"
 function feeTone(status: StudentFeeUiStatus): StatusChipTone {
   if (status === "overdue") return "danger"
   if (status === "partial") return "warning"
+  if (status === "due") return "brand"
   if (status === "paid") return "success"
   return "neutral"
 }
@@ -30,6 +31,7 @@ function feeTone(status: StudentFeeUiStatus): StatusChipTone {
 function feeLabel(status: StudentFeeUiStatus) {
   if (status === "overdue") return "Overdue"
   if (status === "partial") return "Partial"
+  if (status === "due") return "Due"
   if (status === "paid") return "Paid"
   return "—"
 }

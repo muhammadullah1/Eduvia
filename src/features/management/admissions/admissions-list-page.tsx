@@ -182,6 +182,7 @@ export function AdmissionsListPage({
               ) : (
                 <AdmissionsPipeline
                   applications={applications}
+                  totals={counts}
                   classes={classes}
                   onOpen={onOpenApplication}
                 />

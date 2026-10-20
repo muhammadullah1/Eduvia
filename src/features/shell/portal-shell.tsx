@@ -22,11 +22,11 @@ import {
   Finance,
   ManagementDashboard,
   MessagesDesk,
-  People,
   Reports,
   TeachersAssignments,
 } from "@/features/management/screens"
 import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
+import { StudentsPage } from "@/features/management/students/students-page"
 import { SubstitutesPage } from "@/features/management/substitutes/substitutes-page"
 import {
   AccountantPortal,
@@ -185,7 +185,7 @@ export function PortalShell() {
     if (section === "lesson-review") return <LessonReviewPanel />
     if (section === "admissions") return <Admissions query={query} />
     if (section === "students" || section === "people") {
-      return <People query={query} />
+      return <StudentsPage query={query} />
     }
     if (section === "enrollment-promotion") {
       return <Admissions query={query} />

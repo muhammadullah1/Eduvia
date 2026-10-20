@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useEffect, useState } from "react"
 import { toast } from "sonner"
 
-import examsService, { type ExamSummary } from "@/api/exams/exams.service"
+import examsService, { type ExamSummary, type PaperStatus } from "@/api/exams/exams.service"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -20,6 +20,11 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+import { cn } from "@/lib/utils"
+
+import { Chooser } from "./exam-shared"
+import { classPapers } from "./exam-utils"
+import { AdvanceButton } from "./publish-panel"
 
 const FEE_RULES = [
   { value: "all_due_paid", label: "All dues paid through the exam month" },
@@ -27,18 +32,20 @@ const FEE_RULES = [
   { value: "disabled", label: "Show published results regardless of fees" },
 ]
 
+const ALL_PAPERS = "all"
+
 type Props = {
-  exams: ExamSummary[]
+  exam: ExamSummary
+  classId: string
+  paperId: string
+  onSelect: (classId: string, paperId: string, replace?: boolean) => void
   canManage: boolean
   canOverride: boolean
   canEditFees: boolean
 }
 
-export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Props) {
+export function ResultsPanel({ exam, classId, paperId, onSelect, canManage, canOverride, canEditFees }: Props) {
   const queryClient = useQueryClient()
-  const [examId, setExamId] = useState("")
-  const [classId, setClassId] = useState("")
-  const [subjectId, setSubjectId] = useState("")
   const [feeOpen, setFeeOpen] = useState(false)
   const [tieOpen, setTieOpen] = useState(false)
   const [reason, setReason] = useState("")
@@ -46,29 +53,22 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
   const [feeRule, setFeeRule] = useState("all_due_paid")
   const [rankTie, setRankTie] = useState<"shared" | "dense">("shared")
 
-  const exam = exams.find((item) => String(item.id) === examId)
-  const subjects = (exam?.sheets ?? []).filter((sheet) => String(sheet.classId) === classId)
+  const papers = classPapers(exam, classId)
+  const paper = papers.find((sheet) => String(sheet.id) === paperId)
+  const subjectId = paper ? paper.subjectId : undefined
 
   useEffect(() => {
-    if (!examId && exams[0]) setExamId(String(exams[0].id))
-  }, [exams, examId])
-
-  useEffect(() => {
-    if (exam && !exam.classes.some((klass) => String(klass.id) === classId)) {
-      setClassId(exam.classes[0] ? String(exam.classes[0].id) : "")
+    if (!exam.classes.some((klass) => String(klass.id) === classId)) {
+      onSelect(exam.classes[0] ? String(exam.classes[0].id) : "", "", true)
+    } else if (paperId && !paper) {
+      onSelect(classId, "", true)
     }
-  }, [exam, classId])
-
-  useEffect(() => {
-    if (!subjects.some((sheet) => String(sheet.subjectId) === subjectId)) {
-      setSubjectId(subjects[0] ? String(subjects[0].subjectId) : "")
-    }
-  }, [subjects, subjectId])
+  }, [exam, classId, paperId, paper, onSelect])
 
   const resultsQuery = useQuery({
-    queryKey: ["exam-results", examId, classId, subjectId],
-    enabled: Boolean(examId && classId && subjectId),
-    queryFn: () => examsService.results(Number(examId), Number(classId), Number(subjectId)),
+    queryKey: ["exam-results", exam.id, classId, subjectId ?? ALL_PAPERS],
+    enabled: Boolean(classId),
+    queryFn: () => examsService.results(exam.id, Number(classId), subjectId),
   })
 
   useEffect(() => {
@@ -78,18 +78,9 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
   }, [resultsQuery.data])
 
   async function refresh() {
-    await queryClient.invalidateQueries({ queryKey: ["exam-results", examId, classId, subjectId] })
+    await queryClient.invalidateQueries({ queryKey: ["exam-results", exam.id] })
     await queryClient.invalidateQueries({ queryKey: ["exams"] })
   }
-
-  const advance = useMutation({
-    mutationFn: () => examsService.advance(Number(examId)),
-    onSuccess: async (result) => {
-      toast.success(result.action === "published" ? "Results published" : "Sheets verified")
-      await refresh()
-    },
-    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not advance this exam."),
-  })
 
   const saveSettings = useMutation({
     mutationFn: () => examsService.updateVisibility({ feeRule, rankTie }),
@@ -103,8 +94,7 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
   })
 
   const override = useMutation({
-    mutationFn: () =>
-      examsService.grantOverride(Number(examId), overrideStudent!, reason.trim()),
+    mutationFn: (studentId: number) => examsService.grantOverride(exam.id, studentId, reason.trim()),
     onSuccess: async () => {
       toast.success("Result shown to the parent")
       setOverrideStudent(null)
@@ -117,7 +107,7 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
   const bulk = useMutation({
     mutationFn: () =>
       examsService.bulkOverride(
-        Number(examId),
+        exam.id,
         Number(classId),
         "Released for every hidden student in this class"
       ),
@@ -133,36 +123,42 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
   })
 
   const data = resultsQuery.data
-  const allSubmitted = exam
-    ? exam.sheets.length > 0 && exam.sheets.every((sheet) => sheet.status === "Submitted")
-    : false
-  const allVerified = exam
-    ? exam.sheets.length > 0 && exam.sheets.every((sheet) => sheet.status === "Verified")
-    : false
+  const resultPapers = data?.papers ?? []
+  const rankedRows = [...(data?.rows ?? [])].sort(
+    (a, b) => (a.classRank ?? Infinity) - (b.classRank ?? Infinity) || a.name.localeCompare(b.name)
+  )
+  const allPapers = !subjectId
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 rounded-2xl border border-[var(--cls-border)] bg-white p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
-        <div className="grid flex-1 gap-3 md:grid-cols-3">
-          <Chooser label="Exam" value={examId} onChange={setExamId} options={exams.map((item) => ({ value: String(item.id), label: item.name }))} />
-          <Chooser label="Class" value={classId} onChange={setClassId} options={(exam?.classes ?? []).map((item) => ({ value: String(item.id), label: item.label }))} />
-          <Chooser label="Subject" value={subjectId} onChange={setSubjectId} options={subjects.map((item) => ({ value: String(item.subjectId), label: item.subject }))} />
+        <div className="grid flex-1 gap-3 md:grid-cols-2">
+          <Chooser
+            label="Class"
+            value={classId}
+            placeholder="Select class"
+            onChange={(value) => onSelect(value, "")}
+            options={exam.classes.map((item) => ({ value: String(item.id), label: item.label }))}
+          />
+          <Chooser
+            label="View"
+            value={paperId || ALL_PAPERS}
+            placeholder="All papers"
+            onChange={(value) => onSelect(classId, value === ALL_PAPERS ? "" : value)}
+            options={[
+              { value: ALL_PAPERS, label: "All papers (overall result)" },
+              ...papers.map((item) => ({ value: String(item.id), label: item.subject })),
+            ]}
+          />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-start gap-2">
           <Button variant="outline" onClick={() => setTieOpen(true)} disabled={!canEditFees}>
             Tie rule
           </Button>
           <Button variant="outline" onClick={() => setFeeOpen(true)} disabled={!canEditFees}>
             Fee visibility
           </Button>
-          {canManage ? (
-            <Button
-              disabled={advance.isPending || (!allSubmitted && !allVerified)}
-              onClick={() => advance.mutate()}
-            >
-              {allVerified ? "Publish results" : "Mark reviewed"}
-            </Button>
-          ) : null}
+          {canManage ? <AdvanceButton exam={exam} onDone={refresh} /> : null}
         </div>
       </div>
 
@@ -170,56 +166,79 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
         <div className="rounded-2xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-16 text-center text-sm text-[var(--cls-muted)] shadow-sm">
           {resultsQuery.isLoading
             ? "Calculating results…"
-            : "Choose an exam, class, and subject to see the result sheet."}
+            : "Choose a class to see its result sheet."}
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-semibold text-[var(--cls-ink)]">
-                {data.exam.name} · {data.classLabel} · {data.subject}
+              <p className="font-semibold text-[#0F172A]">
+                {data.classLabel} · {data.subject}
               </p>
-              <p className="text-xs text-[var(--cls-muted)]">
-                Ranks are calculated when the sheet is opened. Ties use {data.rankTie === "dense" ? "the next number" : "a shared rank"}.
+              <p className="text-xs text-[#64748B]">
+                Ranks are within this class only. Ties use {data.rankTie === "dense" ? "the next number" : "a shared rank"}.
+                {allPapers ? " A student passes overall only by passing every paper; absent is a fail, exempt is left out." : ""}
               </p>
             </div>
             <div className="flex gap-4 text-sm">
-              <span className="text-[var(--cls-muted)]">{data.rows.length} students</span>
-              <span className="font-medium text-emerald-700">
+              <span className="text-[#64748B]">{data.rows.length} students</span>
+              <span className="font-medium text-[#0F766E]">
                 {data.rows.filter((row) => row.result === "Pass").length} pass
               </span>
               <span className="font-medium text-red-700">
+                {data.rows.filter((row) => row.result === "Fail" || row.result === "Absent").length} fail
+              </span>
+              <span className="text-[#64748B]">
                 {data.rows.filter((row) => row.visibility === "hidden").length} hidden
               </span>
             </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="bg-[var(--page-wash)] text-[11px] tracking-wide text-[var(--cls-muted)] uppercase">
+              <thead className="bg-[#F8FAFC] text-[11px] tracking-wide text-[#64748B] uppercase">
                 <tr>
-                  {["#", "Student", "Obtained", "Total", "%", "Grade", "Result", "Class rank", "Overall rank", "Parent"].map((heading) => (
+                  <th className="px-3 py-3 font-medium">Rank</th>
+                  <th className="px-3 py-3 font-medium">Student</th>
+                  {allPapers
+                    ? resultPapers.map((item) => (
+                        <th key={item.subjectId} className="px-3 py-3 font-medium">
+                          {item.subject}
+                          <span className="block font-normal normal-case">/{item.totalMarks}</span>
+                        </th>
+                      ))
+                    : null}
+                  {["Obtained", "%", "Grade", "Result", "Parent"].map((heading) => (
                     <th key={heading} className="px-3 py-3 font-medium">{heading}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {data.rows.map((row, index) => (
+                {rankedRows.map((row) => (
                   <tr key={row.studentId} className="border-b border-[var(--cls-border)] last:border-0">
-                    <td className="px-3 py-2">{index + 1}</td>
+                    <td className="px-3 py-2 font-semibold text-[#0F172A]">{row.classRank ?? "—"}</td>
                     <td className="px-3 py-2">
-                      <div className="font-medium">{row.name}</div>
-                      <div className="text-xs text-[var(--cls-muted)]">{row.admissionNo}</div>
+                      <div className="font-medium text-[#0F172A]">{row.name}</div>
+                      <div className="text-xs text-[#64748B]">{row.admissionNo}</div>
                     </td>
-                    <td className="px-3 py-2">{row.obtained ?? "—"}</td>
-                    <td className="px-3 py-2">{row.total}</td>
+                    {allPapers
+                      ? resultPapers.map((item) => {
+                          const cell = row.papers.find((entry) => entry.subjectId === item.subjectId)
+                          return (
+                            <td key={item.subjectId} className="px-3 py-2">
+                              <PaperCell status={cell?.status ?? "Pending"} obtained={cell?.obtained ?? null} />
+                            </td>
+                          )
+                        })
+                      : null}
+                    <td className="px-3 py-2">{row.obtained == null ? "—" : `${row.obtained}/${row.total}`}</td>
                     <td className="px-3 py-2">{row.percentage ?? "—"}</td>
                     <td className="px-3 py-2">{row.grade ?? "—"}</td>
-                    <td className="px-3 py-2">{row.result}</td>
-                    <td className="px-3 py-2">{row.classRank ?? "—"}</td>
-                    <td className="px-3 py-2">{row.overallRank ?? "—"}</td>
+                    <td className="px-3 py-2">
+                      <ResultBadge status={row.result} failed={allPapers ? row.failedPapers : 0} />
+                    </td>
                     <td className="px-3 py-2">
                       {row.visibility === "visible" ? (
-                        <span className="text-emerald-700">Visible</span>
+                        <span className="text-[#0F766E]">Visible</span>
                       ) : row.visibility === "override" ? (
                         <span className="text-amber-700">Manual override</span>
                       ) : (
@@ -228,7 +247,7 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
                           {canOverride ? (
                             <button
                               type="button"
-                              className="text-xs text-[var(--primary-color)]"
+                              className="text-xs text-[#0F766E]"
                               onClick={() => setOverrideStudent(row.studentId)}
                             >
                               Show anyway
@@ -303,7 +322,7 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOverrideStudent(null)}>Cancel</Button>
-            <Button disabled={override.isPending || !reason.trim()} onClick={() => override.mutate()}>
+            <Button disabled={override.isPending || !reason.trim()} onClick={() => overrideStudent != null && override.mutate(overrideStudent)}>
               Release result
             </Button>
           </DialogFooter>
@@ -313,28 +332,28 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
   )
 }
 
-function Chooser({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string
-  value: string
-  options: { value: string; label: string }[]
-  onChange: (value: string) => void
-}) {
+const STATUS_STYLE: Record<PaperStatus, string> = {
+  Pass: "bg-[#F0FDFA] text-[#0F766E]",
+  Fail: "bg-red-50 text-red-700",
+  Absent: "bg-red-50 text-red-700",
+  Exempt: "bg-[#F1F5F9] text-[#64748B]",
+  Pending: "bg-[#F8FAFC] text-[#94A3B8]",
+}
+
+function PaperCell({ status, obtained }: { status: PaperStatus; obtained: number | null }) {
+  const label = status === "Absent" ? "Abs" : status === "Exempt" ? "Ex" : status === "Pending" ? "—" : obtained
   return (
-    <label className="flex flex-col gap-1 text-xs text-[var(--cls-muted)]">
+    <span className={cn("inline-flex min-w-10 justify-center rounded-md px-2 py-0.5 text-xs font-medium", STATUS_STYLE[status])} title={status}>
       {label}
-      <Select value={value || undefined} onValueChange={onChange}>
-        <SelectTrigger><SelectValue placeholder={`Select ${label.toLowerCase()}`} /></SelectTrigger>
-        <SelectContent>
-          {options.map((option) => (
-            <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </label>
+    </span>
+  )
+}
+
+function ResultBadge({ status, failed }: { status: PaperStatus; failed: number }) {
+  return (
+    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", STATUS_STYLE[status])}>
+      {status}
+      {status === "Fail" && failed > 0 ? ` · ${failed} paper${failed === 1 ? "" : "s"}` : ""}
+    </span>
   )
 }

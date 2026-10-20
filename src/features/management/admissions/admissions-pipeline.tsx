@@ -3,12 +3,12 @@ import type { ClassSection } from "@/data/types"
 import { classLabel, formatDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-import { AdmissionStatusBadge } from "./admission-status-badge"
 import {
   ADMISSION_STATUS_LABELS,
-  resolveAdmissionUiStatus,
   type AdmissionUiStatus,
+  resolveAdmissionUiStatus,
 } from "./admission-display"
+import { AdmissionStatusBadge } from "./admission-status-badge"
 
 const PIPELINE_COLUMNS: AdmissionUiStatus[] = [
   "submitted",
@@ -32,15 +32,20 @@ type Props = {
   applications: Application[]
   classes: ClassSection[]
   onOpen: (app: Application) => void
+  /** School-wide totals per status; the cards below are only the current page. */
+  totals?: Partial<Record<AdmissionUiStatus, number>>
 }
 
-export function AdmissionsPipeline({ applications, classes, onOpen }: Props) {
+export function AdmissionsPipeline({ applications, classes, onOpen, totals }: Props) {
   const columns = PIPELINE_COLUMNS.map((status) => ({
     status,
     label: ADMISSION_STATUS_LABELS[status],
     items: applications.filter(
       (app) => resolveAdmissionUiStatus(app) === status
     ),
+  })).map((column) => ({
+    ...column,
+    total: Math.max(totals?.[column.status] ?? column.items.length, column.items.length),
   }))
 
   return (
@@ -54,8 +59,15 @@ export function AdmissionsPipeline({ applications, classes, onOpen }: Props) {
             <h3 className="text-sm font-semibold text-[var(--cls-ink)]">
               {column.label}
             </h3>
-            <span className="rounded-md bg-[var(--page-wash)] px-2 py-0.5 text-xs font-medium text-[var(--cls-muted)]">
-              {column.items.length}
+            <span
+              className="rounded-md bg-[var(--page-wash)] px-2 py-0.5 text-xs font-medium text-[var(--cls-muted)]"
+              title={
+                column.total > column.items.length
+                  ? `${column.items.length} of ${column.total} on this page`
+                  : undefined
+              }
+            >
+              {column.total}
             </span>
           </header>
           <div

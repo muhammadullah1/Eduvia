@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
 import { ExamStatusPill } from "./exam-status-pill"
+import { examLocks } from "./exam-utils"
 
 type View = "calendar" | "list"
 
@@ -23,8 +24,10 @@ type Props = {
   onSchedule: () => void
   onEdit: (exam: ExamSummary) => void
   onDelete: (exam: ExamSummary) => void
-  onMarks: (exam: ExamSummary) => void
+  onArchive: (exam: ExamSummary) => void
+  onOpen: (exam: ExamSummary) => void
 }
+
 
 function formatRange(start: string | null, end: string | null) {
   if (!start && !end) return "Dates not set"
@@ -53,7 +56,8 @@ export function ExamSetupPanel({
   onSchedule,
   onEdit,
   onDelete,
-  onMarks,
+  onArchive,
+  onOpen,
 }: Props) {
   const [view, setView] = useState<View>("list")
   const [query, setQuery] = useState("")
@@ -174,7 +178,8 @@ export function ExamSetupPanel({
           canManage={canManage}
           onEdit={onEdit}
           onDelete={onDelete}
-          onMarks={onMarks}
+          onArchive={onArchive}
+          onOpen={onOpen}
         />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
@@ -194,28 +199,18 @@ export function ExamSetupPanel({
                 {filtered.map((exam) => {
                   const marks = progress(exam)
                   return (
-                    <tr key={exam.id} className="border-t border-[var(--cls-border)]">
+                    <tr key={exam.id} className="border-t border-[var(--cls-border)] hover:bg-[#F8FAFC]">
                       <td className="px-4 py-3.5">
-                        <div className="font-medium text-[var(--cls-ink)]">{exam.name}</div>
-                        <div className="text-xs text-[var(--cls-muted)]">{exam.examType}</div>
-                        {canManage ? (
-                          <div className="mt-1.5 flex gap-3">
-                            <button
-                              type="button"
-                              className="text-sm font-medium text-[var(--primary-color)]"
-                              onClick={() => onEdit(exam)}
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              className="text-sm font-medium text-[var(--destructive)]"
-                              onClick={() => onDelete(exam)}
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        ) : null}
+                        <button
+                          type="button"
+                          className="text-left font-medium text-[#0F172A] hover:text-[#0F766E]"
+                          onClick={() => onOpen(exam)}
+                        >
+                          {exam.name}
+                        </button>
+                        <div className="text-xs text-[#64748B]">
+                          {exam.examType} · {exam.sheets.length} paper{exam.sheets.length === 1 ? "" : "s"}
+                        </div>
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap text-[var(--cls-ink)]">
                         {formatRange(exam.startDate, exam.endDate)}
@@ -253,10 +248,15 @@ export function ExamSetupPanel({
                       <td className="px-4 py-3.5">
                         <ExamStatusPill status={exam.status} />
                       </td>
-                      <td className="px-4 py-3.5 text-right">
-                        <Button variant="outline" size="sm" onClick={() => onMarks(exam)}>
-                          Marks
-                        </Button>
+                      <td className="px-4 py-3.5">
+                        <ExamRowActions
+                          exam={exam}
+                          canManage={canManage}
+                          onEdit={onEdit}
+                          onDelete={onDelete}
+                          onArchive={onArchive}
+                          onOpen={onOpen}
+                        />
                       </td>
                     </tr>
                   )
@@ -275,28 +275,36 @@ function ExamRowActions({
   canManage,
   onEdit,
   onDelete,
-  onMarks,
+  onArchive,
+  onOpen,
 }: {
   exam: ExamSummary
   canManage: boolean
   onEdit: (exam: ExamSummary) => void
   onDelete: (exam: ExamSummary) => void
-  onMarks: (exam: ExamSummary) => void
+  onArchive: (exam: ExamSummary) => void
+  onOpen: (exam: ExamSummary) => void
 }) {
+  const locks = examLocks(exam)
   return (
     <div className="flex flex-wrap justify-end gap-2">
-      <Button variant="outline" size="sm" onClick={() => onMarks(exam)}>
-        Marks
+      <Button variant="outline" size="sm" onClick={() => onOpen(exam)}>
+        Open
       </Button>
-      {canManage ? (
-        <>
-          <Button variant="outline" size="sm" onClick={() => onEdit(exam)}>
-            Edit
-          </Button>
-          <Button variant="destructive" size="sm" onClick={() => onDelete(exam)}>
-            Delete
-          </Button>
-        </>
+      {canManage && locks.canEdit ? (
+        <Button variant="ghost" size="sm" className="text-[#0F766E]" onClick={() => onEdit(exam)}>
+          Edit
+        </Button>
+      ) : null}
+      {canManage && locks.canDelete ? (
+        <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => onDelete(exam)}>
+          Delete
+        </Button>
+      ) : null}
+      {canManage && locks.canArchive ? (
+        <Button variant="ghost" size="sm" className="text-[#64748B]" onClick={() => onArchive(exam)}>
+          Archive
+        </Button>
       ) : null}
     </div>
   )
@@ -307,13 +315,15 @@ function ExamCalendar({
   canManage,
   onEdit,
   onDelete,
-  onMarks,
+  onArchive,
+  onOpen,
 }: {
   exams: ExamSummary[]
   canManage: boolean
   onEdit: (exam: ExamSummary) => void
   onDelete: (exam: ExamSummary) => void
-  onMarks: (exam: ExamSummary) => void
+  onArchive: (exam: ExamSummary) => void
+  onOpen: (exam: ExamSummary) => void
 }) {
   const initial = useMemo(() => {
     const dated = exams.find((exam) => exam.startDate)
@@ -364,9 +374,13 @@ function ExamCalendar({
                 setPicked(null)
                 onDelete(exam)
               }}
-              onMarks={(exam) => {
+              onArchive={(exam) => {
                 setPicked(null)
-                onMarks(exam)
+                onArchive(exam)
+              }}
+              onOpen={(exam) => {
+                setPicked(null)
+                onOpen(exam)
               }}
             />
           ) : null}

@@ -1,15 +1,16 @@
 import type { ExamStatus } from "@/api/exams/exams.service"
 import { cn } from "@/lib/utils"
 
+// Brand palette: teal for done/live states, soft teal for in-progress, slate for idle.
 const STYLES: Record<string, string> = {
-  Published: "bg-emerald-50 text-emerald-700",
-  Finalised: "bg-teal-50 text-teal-700",
-  Scheduled: "bg-sky-50 text-sky-700",
-  "Marks Pending": "bg-amber-50 text-amber-700",
-  Draft: "bg-slate-100 text-slate-600",
-  Submitted: "bg-sky-50 text-sky-700",
-  Verified: "bg-teal-50 text-teal-700",
-  Archived: "bg-slate-100 text-slate-500",
+  Published: "bg-[#0F766E] text-white",
+  Finalised: "bg-[#CCFBF1] text-[#115E59]",
+  Verified: "bg-[#CCFBF1] text-[#115E59]",
+  Submitted: "bg-[#F0FDFA] text-[#0F766E] ring-1 ring-inset ring-[#99F6E4]",
+  Scheduled: "bg-[#F0FDFA] text-[#0F766E] ring-1 ring-inset ring-[#99F6E4]",
+  "Marks Pending": "bg-[#FEF3C7] text-[#92400E]",
+  Draft: "bg-[#F1F5F9] text-[#475569]",
+  Archived: "bg-[#F1F5F9] text-[#64748B]",
 }
 
 export function ExamStatusPill({ status }: { status: ExamStatus | string }) {

@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import examsService, { type ExamSummary, type ScheduleExamBody } from "@/api/exams/exams.service"
@@ -18,36 +19,56 @@ import { useActor } from "@/lib/actor"
 import { can } from "@/lib/permissions"
 
 import { DailyTestsPanel } from "./daily-tests-panel"
-import { ExamTabs } from "./exam-tabs"
-import { DocumentsPanel } from "./documents-panel"
+import { ExamDetailPage } from "./exam-detail-page"
 import { ExamSetupPanel } from "./exam-setup-panel"
-import { MarksEntryPanel } from "./marks-entry-panel"
-import { ResultsPanel } from "./results-panel"
+import { ExamTabs } from "./exam-tabs"
+import { EXAM_DETAIL_TABS, type ExamDetailTab } from "./exam-utils"
 import { ScheduleExamPage } from "./schedule-exam-page"
 
-const TABS = [
-  { value: "setup", label: "Exam Setup" },
-  { value: "marks", label: "Marks Entry" },
-  { value: "results", label: "Results & Ranks" },
-  { value: "documents", label: "Documents" },
-  { value: "daily", label: "Daily Tests" },
+/**
+ * URL shape (all under /:role/exams):
+ *   ""                    exam list            (?view=daily for daily tests)
+ *   "new"                 schedule an exam
+ *   ":id/edit"            edit an exam
+ *   ":id/:tab"            exam detail tab      (?class=&paper= pick the sheet)
+ */
+type ExamRoute =
+  | { kind: "list" }
+  | { kind: "new" }
+  | { kind: "edit"; id: number }
+  | { kind: "detail"; id: number; tab: ExamDetailTab | null }
+
+function parseRoute(splat: string | undefined): ExamRoute {
+  const [first, second] = (splat ?? "").split("/").filter(Boolean)
+  if (!first) return { kind: "list" }
+  if (first === "new") return { kind: "new" }
+  const id = Number(first)
+  if (!Number.isInteger(id) || id <= 0) return { kind: "list" }
+  if (second === "edit") return { kind: "edit", id }
+  const tab = EXAM_DETAIL_TABS.find((item) => item === second) ?? null
+  return { kind: "detail", id, tab }
+}
+
+const LIST_TABS = [
+  { value: "exams", label: "Exams" },
+  { value: "daily", label: "Daily tests" },
 ]
 
 export function ExaminationsPage() {
   const actor = useActor()
   const queryClient = useQueryClient()
-  const [tab, setTab] = useState("setup")
-  const [composing, setComposing] = useState(false)
-  const [editing, setEditing] = useState<ExamSummary | null>(null)
+  const navigate = useNavigate()
+  const params = useParams()
+  const [searchParams] = useSearchParams()
+  const base = `/${params.role}/exams`
+  const route = parseRoute(params["*"])
   const [removing, setRemoving] = useState<ExamSummary | null>(null)
-  const [marksExamId, setMarksExamId] = useState<number | null>(null)
+  const [archiving, setArchiving] = useState<ExamSummary | null>(null)
 
   const sessionsQuery = useSessionsList()
   const current = sessionsQuery.data?.find((session) => session.current)
   const sessionId = current ? Number(current.id) : undefined
-  const classesQuery = useClassesList(
-    sessionId && Number.isFinite(sessionId) ? sessionId : undefined
-  )
+  const classesQuery = useClassesList(sessionId && Number.isFinite(sessionId) ? sessionId : undefined)
   const examsQuery = useQuery({
     queryKey: ["exams", "summary", sessionId],
     queryFn: () => examsService.summaries(sessionId),
@@ -58,18 +79,31 @@ export function ExaminationsPage() {
   const canEditFees = can(actor.role, "settings.fees")
   const canEnter = canManage || actor.role === "teacher"
 
+  const exams = examsQuery.data?.exams ?? []
+  const sessionName = examsQuery.data?.session?.name ?? current?.name ?? ""
+  const routeExam = "id" in route ? exams.find((exam) => exam.id === route.id) ?? null : null
+
+  // "/exams/:id" has no tab yet: land on the overview without adding a history entry.
+  useEffect(() => {
+    if (route.kind === "detail" && route.tab === null) {
+      navigate(`${base}/${route.id}/overview`, { replace: true })
+    }
+  }, [route, base, navigate])
+
+  async function refreshExams() {
+    await queryClient.invalidateQueries({ queryKey: ["exams"] })
+  }
+
   const saveExam = useMutation({
     mutationFn: (body: ScheduleExamBody) =>
-      editing ? examsService.update(editing.id, body) : examsService.create(body),
-    onSuccess: async () => {
-      toast.success(editing ? "Exam updated" : "Exam created")
-      setComposing(false)
-      setEditing(null)
-      await queryClient.invalidateQueries({ queryKey: ["exams"] })
+      route.kind === "edit" ? examsService.update(route.id, body) : examsService.create(body),
+    onSuccess: async (saved) => {
+      toast.success(route.kind === "edit" ? "Exam updated" : "Exam created")
+      await refreshExams()
+      const id = route.kind === "edit" ? route.id : (saved as { id?: number } | null)?.id
+      navigate(id ? `${base}/${id}/papers` : base)
     },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Could not save the exam.")
-    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not save the exam."),
   })
 
   const deleteExam = useMutation({
@@ -77,100 +111,51 @@ export function ExaminationsPage() {
     onSuccess: async () => {
       toast.success("Exam deleted")
       setRemoving(null)
-      await queryClient.invalidateQueries({ queryKey: ["exams"] })
+      await refreshExams()
+      navigate(base)
     },
-    onError: (err) => {
-      toast.error(err instanceof Error ? err.message : "Could not delete the exam.")
-    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not delete the exam."),
   })
 
-  const exams = examsQuery.data?.exams ?? []
-  const sessionName = examsQuery.data?.session?.name ?? current?.name ?? ""
+  const archiveExam = useMutation({
+    mutationFn: (exam: ExamSummary) => examsService.archive(exam.id),
+    onSuccess: async () => {
+      toast.success("Exam archived")
+      setArchiving(null)
+      await refreshExams()
+    },
+    onError: (err) => toast.error(err instanceof Error ? err.message : "Could not archive the exam."),
+  })
 
-  function openComposer(exam: ExamSummary | null) {
-    setEditing(exam)
-    setComposing(true)
-  }
+  const loadState = examsQuery.isError ? (
+    <div className="rounded-xl border border-red-200 bg-white px-6 py-8 text-sm text-red-700">
+      <p>{examsQuery.error instanceof Error ? examsQuery.error.message : "Could not load examinations."}</p>
+      <Button className="mt-3" variant="outline" onClick={() => void examsQuery.refetch()}>
+        Try again
+      </Button>
+    </div>
+  ) : examsQuery.isLoading ? (
+    <p className="text-sm text-[#64748B]">Loading examinations…</p>
+  ) : null
 
-  if (composing) {
-    return (
-      <ScheduleExamPage
-        sessionId={sessionId}
-        sessionName={sessionName}
-        classes={classesQuery.data ?? []}
-        exam={editing}
-        saving={saveExam.isPending}
-        onCancel={() => {
-          setComposing(false)
-          setEditing(null)
-        }}
-        onSubmit={(body) => saveExam.mutate(body)}
-      />
-    )
-  }
+  const notFound = (
+    <div className="rounded-2xl border border-[var(--cls-border)] bg-white px-6 py-14 text-center shadow-sm">
+      <p className="font-semibold text-[#0F172A]">This exam is not in the current session.</p>
+      <Button className="mt-4" variant="outline" onClick={() => navigate(base)}>
+        Back to exams
+      </Button>
+    </div>
+  )
 
-  return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-[var(--heading)]">
-            Examinations
-          </h1>
-          <p className="text-sm text-[var(--cls-muted)]">
-            {sessionName ? `Session ${sessionName}` : "Loading the current session…"}
-          </p>
-        </div>
-        {canManage && tab === "setup" ? (
-          <Button onClick={() => openComposer(null)}>Schedule exam</Button>
-        ) : null}
-      </header>
-      <ExamTabs items={TABS} value={tab} onValueChange={setTab} />
-      {examsQuery.isError ? (
-        <div className="rounded-xl border border-red-200 bg-white px-6 py-8 text-sm text-red-700">
-          <p>{examsQuery.error instanceof Error ? examsQuery.error.message : "Could not load examinations."}</p>
-          <Button className="mt-3" variant="outline" onClick={() => void examsQuery.refetch()}>
-            Try again
-          </Button>
-        </div>
-      ) : examsQuery.isLoading ? (
-        <p className="text-sm text-[var(--cls-muted)]">Loading examinations…</p>
-      ) : tab === "setup" ? (
-        <ExamSetupPanel
-          exams={exams}
-          canManage={canManage}
-          onSchedule={() => openComposer(null)}
-          onEdit={(exam) => openComposer(exam)}
-          onDelete={setRemoving}
-          onMarks={(exam) => {
-            setMarksExamId(exam.id)
-            setTab("marks")
-          }}
-        />
-      ) : tab === "marks" ? (
-        <MarksEntryPanel
-          exams={exams}
-          initialExamId={marksExamId}
-          canManage={canManage}
-          canEnter={canEnter}
-        />
-      ) : tab === "results" ? (
-        <ResultsPanel
-          exams={exams}
-          canManage={canManage}
-          canOverride={canOverride}
-          canEditFees={canEditFees}
-        />
-      ) : tab === "documents" ? (
-        <DocumentsPanel exams={exams} />
-      ) : (
-        <DailyTestsPanel />
-      )}
+  const dialogs = (
+    <>
       <Dialog open={removing != null} onOpenChange={(open) => !open && setRemoving(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete {removing?.name}?</DialogTitle>
             <DialogDescription>
-              This removes the exam and its mark sheets. A finalised or published exam stays on record.
+              This permanently removes the draft exam, its {removing?.sheets.length ?? 0} papers and any marks entered so
+              far. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
@@ -187,6 +172,101 @@ export function ExaminationsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <Dialog open={archiving != null} onOpenChange={(open) => !open && setArchiving(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Archive {archiving?.name}?</DialogTitle>
+            <DialogDescription>
+              Published results stay on record and on students’ DMCs. Archiving hides the exam from the active list; it
+              cannot be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setArchiving(null)}>
+              Cancel
+            </Button>
+            <Button disabled={archiveExam.isPending} onClick={() => archiving && archiveExam.mutate(archiving)}>
+              {archiveExam.isPending ? "Archiving…" : "Archive exam"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  )
+
+  if (route.kind === "new" || route.kind === "edit") {
+    if (route.kind === "edit" && !routeExam) return loadState ?? notFound
+    return (
+      <ScheduleExamPage
+        sessionId={sessionId}
+        sessionName={sessionName}
+        classes={classesQuery.data ?? []}
+        exam={routeExam}
+        saving={saveExam.isPending}
+        onCancel={() => navigate(-1)}
+        onSubmit={(body) => saveExam.mutate(body)}
+      />
+    )
+  }
+
+  if (route.kind === "detail") {
+    if (!routeExam) return loadState ?? notFound
+    return (
+      <>
+        <ExamDetailPage
+          exam={routeExam}
+          tab={route.tab ?? "overview"}
+          base={`${base}/${routeExam.id}`}
+          canManage={canManage}
+          canEnter={canEnter}
+          canOverride={canOverride}
+          canEditFees={canEditFees}
+          onBack={() => navigate(base)}
+          onEdit={() => navigate(`${base}/${routeExam.id}/edit`)}
+          onDelete={() => setRemoving(routeExam)}
+          onArchive={() => setArchiving(routeExam)}
+          onRefresh={refreshExams}
+        />
+        {dialogs}
+      </>
+    )
+  }
+
+  const view = searchParams.get("view") === "daily" ? "daily" : "exams"
+  return (
+    <div className="flex flex-col gap-5">
+      <header className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-[28px] font-semibold tracking-tight text-[#0F172A]">Examinations</h1>
+          <p className="text-sm text-[#64748B]">
+            {sessionName ? `Session ${sessionName}` : "Loading the current session…"}
+          </p>
+        </div>
+        {canManage && view === "exams" ? (
+          <Button onClick={() => navigate(`${base}/new`)}>Schedule exam</Button>
+        ) : null}
+      </header>
+      <ExamTabs
+        items={LIST_TABS.map((item) => (item.value === "exams" ? { ...item, count: exams.length } : item))}
+        value={view}
+        onValueChange={(value) => navigate(value === "daily" ? `${base}?view=daily` : base)}
+      />
+      {view === "daily" ? (
+        <DailyTestsPanel />
+      ) : (
+        loadState ?? (
+          <ExamSetupPanel
+            exams={exams}
+            canManage={canManage}
+            onSchedule={() => navigate(`${base}/new`)}
+            onEdit={(exam) => navigate(`${base}/${exam.id}/edit`)}
+            onDelete={setRemoving}
+            onArchive={setArchiving}
+            onOpen={(exam) => navigate(`${base}/${exam.id}/overview`)}
+          />
+        )
+      )}
+      {dialogs}
     </div>
   )
 }

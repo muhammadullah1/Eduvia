@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft } from "lucide-react"
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { type ReactNode,useEffect, useMemo, useState } from "react"
 
 import { classDisplayName } from "@/api/classes/map-class"
 import examsService, {
@@ -10,6 +10,7 @@ import examsService, {
   type ScheduleExamBody,
 } from "@/api/exams/exams.service"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -32,6 +33,9 @@ type PaperDraft = {
   subject: string
   totalMarks: string
   passingMarks: string
+  paperDate: string
+  startTime: string
+  endTime: string
 }
 
 const TYPE_COPY: Record<ExamType, string> = {
@@ -56,8 +60,9 @@ export function ScheduleExamPage({
   const [endDate, setEndDate] = useState("")
   const [classIds, setClassIds] = useState<number[]>([])
   const [papers, setPapers] = useState<PaperDraft[]>([])
+  const [rememberDefaults, setRememberDefaults] = useState(true)
   const [error, setError] = useState("")
-  const locked = exam?.status === "Published" || exam?.status === "Finalised"
+  const locked = exam ? ["Published", "Finalised", "Archived"].includes(exam.status) : false
 
   useEffect(() => {
     if (!exam) {
@@ -107,8 +112,12 @@ export function ScheduleExamPage({
             classId: klass.classId,
             subjectId: subject.id,
             subject: subject.name,
-            totalMarks: sheet ? String(sheet.totalMarks) : "100",
-            passingMarks: sheet ? String(sheet.passingMarks) : "40",
+            // New papers start from the class subject defaults (Classes → Subjects).
+            totalMarks: String(sheet ? sheet.totalMarks : subject.totalMarks),
+            passingMarks: String(sheet ? sheet.passingMarks : subject.passingMarks),
+            paperDate: sheet?.paperDate ?? "",
+            startTime: sheet?.startTime?.slice(0, 5) ?? "",
+            endTime: sheet?.endTime?.slice(0, 5) ?? "",
           })
         }
       }
@@ -196,11 +205,26 @@ export function ScheduleExamPage({
         setError(`${label} passing marks must be between 0 and ${total}.`)
         return
       }
+      if (paper.paperDate && (paper.paperDate < startDate || paper.paperDate > endDate)) {
+        setError(`${label} paper date must fall between the exam dates.`)
+        return
+      }
+      if ((paper.startTime || paper.endTime) && !paper.paperDate) {
+        setError(`Choose a date for ${label} before setting its time.`)
+        return
+      }
+      if (paper.startTime && paper.endTime && paper.endTime <= paper.startTime) {
+        setError(`${label} must end after it starts.`)
+        return
+      }
       payload.push({
         classId: paper.classId,
         subjectId: paper.subjectId,
         totalMarks: total,
         passingMarks: passing,
+        paperDate: paper.paperDate || null,
+        startTime: paper.startTime || null,
+        endTime: paper.endTime || null,
       })
     }
     if (payload.length === 0) {
@@ -215,6 +239,7 @@ export function ScheduleExamPage({
       startDate,
       endDate,
       papers: payload,
+      rememberDefaults,
     })
   }
 
@@ -364,8 +389,17 @@ export function ScheduleExamPage({
           <div>
             <h2 className="text-base font-semibold text-[var(--heading)]">Paper marks</h2>
             <p className="text-sm text-[var(--cls-muted)]">
-              English can be 100 with a pass mark of 40. Islamiyat can be 50 with a pass mark of 25. The class total is the sum of its papers.
+              Marks start from each class’s subject defaults. Set a date and time for each paper inside the exam window.
+              The class total is the sum of its papers.
             </p>
+            <label className="mt-2 flex items-center gap-2 text-sm text-[#0F172A]">
+              <Checkbox
+                checked={rememberDefaults}
+                disabled={locked}
+                onCheckedChange={(checked) => setRememberDefaults(checked === true)}
+              />
+              Save these marks as the class defaults for next time
+            </label>
           </div>
           {papersQuery.isLoading ? (
             <p className="text-sm text-[var(--cls-muted)]">Loading each class’s subjects…</p>
@@ -398,12 +432,15 @@ export function ScheduleExamPage({
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full min-w-[520px] text-left text-sm">
+                    <table className="w-full min-w-[760px] text-left text-sm">
                       <thead className="bg-[var(--secondary-color)] text-[11px] tracking-wide text-[var(--primary-color)] uppercase">
                         <tr>
                           <th className="px-4 py-2.5 font-medium">Subject</th>
                           <th className="px-4 py-2.5 font-medium">Paper marks</th>
                           <th className="px-4 py-2.5 font-medium">Passing marks</th>
+                          <th className="px-4 py-2.5 font-medium">Date</th>
+                          <th className="px-4 py-2.5 font-medium">Start</th>
+                          <th className="px-4 py-2.5 font-medium">End</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -433,6 +470,44 @@ export function ScheduleExamPage({
                                   updatePaper(paper.classId, paper.subjectId, {
                                     passingMarks: event.target.value,
                                   })
+                                }
+                              />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Input
+                                type="date"
+                                className="h-9 w-40"
+                                aria-label={`${paper.subject} paper date`}
+                                min={startDate || undefined}
+                                max={endDate || undefined}
+                                disabled={locked}
+                                value={paper.paperDate}
+                                onChange={(event) =>
+                                  updatePaper(paper.classId, paper.subjectId, { paperDate: event.target.value })
+                                }
+                              />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Input
+                                type="time"
+                                className="h-9 w-32"
+                                aria-label={`${paper.subject} start time`}
+                                disabled={locked}
+                                value={paper.startTime}
+                                onChange={(event) =>
+                                  updatePaper(paper.classId, paper.subjectId, { startTime: event.target.value })
+                                }
+                              />
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Input
+                                type="time"
+                                className="h-9 w-32"
+                                aria-label={`${paper.subject} end time`}
+                                disabled={locked}
+                                value={paper.endTime}
+                                onChange={(event) =>
+                                  updatePaper(paper.classId, paper.subjectId, { endTime: event.target.value })
                                 }
                               />
                             </td>

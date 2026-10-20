@@ -103,6 +103,17 @@ export type ApiStudent = {
     grade: string
     section: string
   } | null
+  parents?: ApiStudentParent[]
+}
+
+export type ApiStudentParent = {
+  id: number
+  guardianName?: string | null
+  fatherName?: string | null
+  motherName?: string | null
+  primaryContactNumber?: string | null
+  user?: { id: number; firstName: string; lastName: string; phone?: string | null; email?: string | null } | null
+  student_parents?: { isPrimary?: boolean; relationshipType?: string | null } | null
 }
 
 export type ApiApplication = {

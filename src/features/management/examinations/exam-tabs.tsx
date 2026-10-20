@@ -1,63 +1,55 @@
-import {
-  CalendarRange,
-  ClipboardList,
-  FileText,
-  PenLine,
-  Trophy,
-} from "lucide-react"
-import type { LucideIcon } from "lucide-react"
-
 import { cn } from "@/lib/utils"
 
-const ICONS: Record<string, LucideIcon> = {
-  setup: CalendarRange,
-  marks: PenLine,
-  results: Trophy,
-  documents: FileText,
-  daily: ClipboardList,
-}
+export type ExamTabItem = { value: string; label: string; count?: number }
 
-type Item = { value: string; label: string }
-
+/** Underline tabs from the exam mockups. The URL owns the active tab. */
 export function ExamTabs({
   items,
   value,
   onValueChange,
+  label = "Examination sections",
 }: {
-  items: Item[]
+  items: ExamTabItem[]
   value: string
   onValueChange: (value: string) => void
+  label?: string
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-white p-1.5 shadow-sm">
-      <div
-        className="flex gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        role="tablist"
-        aria-label="Examination sections"
-      >
-        {items.map((item) => {
-          const active = value === item.value
-          const Icon = ICONS[item.value] ?? ClipboardList
-          return (
-            <button
-              key={item.value}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onValueChange(item.value)}
-              className={cn(
-                "inline-flex min-w-fit flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-sm whitespace-nowrap transition-colors",
-                active
-                  ? "bg-[var(--primary-color)] font-semibold text-white shadow-sm"
-                  : "font-medium text-[var(--muted-foreground)] hover:bg-[var(--secondary-color)] hover:text-[var(--primary-color)]"
-              )}
-            >
-              <Icon className="size-4" />
-              {item.label}
-            </button>
-          )
-        })}
-      </div>
+    <div
+      className="flex gap-6 overflow-x-auto border-b border-[var(--cls-border)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      role="tablist"
+      aria-label={label}
+    >
+      {items.map((item) => {
+        const active = value === item.value
+        return (
+          <button
+            key={item.value}
+            type="button"
+            role="tab"
+            aria-selected={active}
+            onClick={() => onValueChange(item.value)}
+            className={cn(
+              "-mb-px inline-flex items-center gap-2 border-b-2 px-0.5 pt-1 pb-3 text-sm whitespace-nowrap transition-colors",
+              active
+                ? "border-[#0F766E] font-semibold text-[#0F766E]"
+                : "border-transparent font-medium text-[#64748B] hover:text-[#0F172A]"
+            )}
+          >
+            {item.label}
+            {item.count != null ? (
+              <span
+                className={cn(
+                  "rounded-full px-2 py-0.5 text-[11px] font-semibold",
+                  active ? "bg-[#F0FDFA] text-[#0F766E]" : "bg-[#F1F5F9] text-[#64748B]"
+                )}
+              >
+                {item.count}
+              </span>
+            ) : null}
+          </button>
+        )
+      })}
     </div>
   )
 }

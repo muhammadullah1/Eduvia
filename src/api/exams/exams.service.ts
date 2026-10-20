@@ -1,5 +1,5 @@
-import { loadAuth } from "@/lib/auth"
 import { api, ApiHttpError } from "@/lib/api"
+import { loadAuth } from "@/lib/auth"
 
 export const EXAM_TYPES = [
   "Mid-Term",
@@ -28,6 +28,9 @@ export type ExamSheetSummary = {
   status: "Draft" | "Submitted" | "Verified" | "Published"
   totalMarks: number
   passingMarks: number
+  paperDate: string | null
+  startTime: string | null
+  endTime: string | null
   entered: number
   students: number
 }
@@ -41,8 +44,6 @@ export type ExamSummary = {
   startDate: string | null
   endDate: string | null
   status: ExamStatus
-  totalMarks: number
-  passingMarks: number
   feeMonth: string | null
   classes: ExamClassRef[]
   sheets: ExamSheetSummary[]
@@ -58,6 +59,9 @@ export type ExamPaperInput = {
   subjectId: number
   totalMarks: number
   passingMarks: number
+  paperDate: string | null
+  startTime: string | null
+  endTime: string | null
 }
 
 export type ClassPaperSubject = {
@@ -80,6 +84,7 @@ export type ScheduleExamBody = {
   startDate: string
   endDate: string
   papers: ExamPaperInput[]
+  rememberDefaults?: boolean
 }
 
 export type SheetStudent = {
@@ -109,6 +114,14 @@ export type MarkSheetDetail = {
   rows: SheetRow[]
 }
 
+export type PaperStatus = "Pass" | "Fail" | "Absent" | "Exempt" | "Pending"
+
+export type ResultPaperCell = {
+  subjectId: number
+  obtained: number | null
+  status: PaperStatus
+}
+
 export type ResultRow = {
   studentId: number
   name: string
@@ -117,19 +130,30 @@ export type ResultRow = {
   total: number
   percentage: number | null
   grade: string | null
-  result: string
+  result: PaperStatus
+  failedPapers: number
+  papers: ResultPaperCell[]
   classRank: number | null
-  subjectRank: number | null
-  overallRank: number | null
   visibility: "visible" | "hidden" | "override"
   overrideId: number | null
 }
 
+export type ResultPaper = {
+  sheetId: number
+  subjectId: number
+  subject: string
+  totalMarks: number
+  passingMarks: number
+  status: ExamSheetSummary["status"]
+}
+
 export type ExamResults = {
   exam: { id: number; name: string; status: ExamStatus; examType: string }
+  classId: number
   classLabel: string | null
   subject: string | null
-  totalMarks: number | null
+  papers: ResultPaper[]
+  totalMarks: number
   sheetStatus: string | null
   rankTie: "shared" | "dense"
   feeRule: string
@@ -159,6 +183,8 @@ const examsService = {
   create: (body: ScheduleExamBody) => api.post<unknown>("/exams", body),
 
   remove: (id: number) => api.delete<{ id: number }>(`/exams/${id}`),
+
+  archive: (id: number) => api.post<unknown>(`/exams/${id}/archive`, {}),
 
   update: (id: number, body: Partial<ScheduleExamBody>) =>
     api.patch<unknown>(`/exams/${id}`, body),

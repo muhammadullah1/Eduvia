@@ -10,7 +10,7 @@ export function studentsForClass(state: SchoolState, classId: string) {
   )
 }
 
-export type StudentFeeUiStatus = "paid" | "overdue" | "partial" | "none"
+export type StudentFeeUiStatus = "paid" | "overdue" | "partial" | "due" | "none"
 
 export function studentFeeStatus(
   studentId: string,
@@ -23,7 +23,8 @@ export function studentFeeStatus(
   if (unpaid.length === 0) return "paid"
   const overdue = unpaid.some((row) => row.dueDate && row.dueDate < today)
   if (overdue) return "overdue"
-  return "partial"
+  // Not yet past the due date: "Partial" only once something has been paid.
+  return unpaid.some((row) => row.amountPaid > 0) ? "partial" : "due"
 }
 
 export function studentIsActive(student: Student) {
