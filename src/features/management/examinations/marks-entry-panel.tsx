@@ -224,7 +224,7 @@ export function MarksEntryPanel({
             </div>
           </div>
           <div className="h-1 bg-[var(--page-wash)]">
-            <div className="h-full bg-[var(--cls-brand)]" style={{ width: `${progress}%` }} />
+            <div className="h-full bg-[var(--primary-color)]" style={{ width: `${progress}%` }} />
           </div>
           {draft.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-[var(--cls-muted)]">

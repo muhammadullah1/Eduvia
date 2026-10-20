@@ -53,15 +53,33 @@ export type ExamSummaryResponse = {
   exams: ExamSummary[]
 }
 
+export type ExamPaperInput = {
+  classId: number
+  subjectId: number
+  totalMarks: number
+  passingMarks: number
+}
+
+export type ClassPaperSubject = {
+  id: number
+  name: string
+  totalMarks: number
+  passingMarks: number
+}
+
+export type ClassPapers = {
+  classId: number
+  label: string
+  subjects: ClassPaperSubject[]
+}
+
 export type ScheduleExamBody = {
   name: string
   examType: ExamType
   sessionId: number
   startDate: string
   endDate: string
-  totalMarks: number
-  passingMarks: number
-  classIds: number[]
+  papers: ExamPaperInput[]
 }
 
 export type SheetStudent = {
@@ -135,7 +153,12 @@ const examsService = {
       sessionId,
     }),
 
+  classPapers: (classIds: number[]) =>
+    api.get<ClassPapers[]>("/exams/papers", { classIds: classIds.join(",") }),
+
   create: (body: ScheduleExamBody) => api.post<unknown>("/exams", body),
+
+  remove: (id: number) => api.delete<{ id: number }>(`/exams/${id}`),
 
   update: (id: number, body: Partial<ScheduleExamBody>) =>
     api.patch<unknown>(`/exams/${id}`, body),

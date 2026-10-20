@@ -228,7 +228,7 @@ export function ResultsPanel({ exams, canManage, canOverride, canEditFees }: Pro
                           {canOverride ? (
                             <button
                               type="button"
-                              className="text-xs text-[var(--cls-brand)]"
+                              className="text-xs text-[var(--primary-color)]"
                               onClick={() => setOverrideStudent(row.studentId)}
                             >
                               Show anyway

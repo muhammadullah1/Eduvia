@@ -3,6 +3,13 @@ import { useMemo, useState } from "react"
 
 import { EXAM_TYPES, type ExamSummary } from "@/api/exams/exams.service"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +22,7 @@ type Props = {
   canManage: boolean
   onSchedule: () => void
   onEdit: (exam: ExamSummary) => void
+  onDelete: (exam: ExamSummary) => void
   onMarks: (exam: ExamSummary) => void
 }
 
@@ -39,8 +47,15 @@ function progress(exam: ExamSummary) {
   return { entered, students, ratio: students === 0 ? 0 : entered / students }
 }
 
-export function ExamSetupPanel({ exams, canManage, onSchedule, onEdit, onMarks }: Props) {
-  const [view, setView] = useState<View>("calendar")
+export function ExamSetupPanel({
+  exams,
+  canManage,
+  onSchedule,
+  onEdit,
+  onDelete,
+  onMarks,
+}: Props) {
+  const [view, setView] = useState<View>("list")
   const [query, setQuery] = useState("")
   const [type, setType] = useState<string>("All")
 
@@ -87,7 +102,7 @@ export function ExamSetupPanel({ exams, canManage, onSchedule, onEdit, onMarks }
               className={cn(
                 "shrink-0 rounded-full px-3 py-1.5 text-sm",
                 type === item
-                  ? "bg-white font-semibold text-[var(--cls-brand)] shadow-sm"
+                  ? "bg-[var(--secondary-color)] font-semibold text-[var(--primary-color)] shadow-sm"
                   : "text-[var(--cls-muted)] hover:text-[var(--cls-ink)]"
               )}
             >
@@ -154,7 +169,13 @@ export function ExamSetupPanel({ exams, canManage, onSchedule, onEdit, onMarks }
           No exams match this search.
         </div>
       ) : view === "calendar" ? (
-        <ExamCalendar exams={filtered} onOpen={onMarks} />
+        <ExamCalendar
+          exams={filtered}
+          canManage={canManage}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onMarks={onMarks}
+        />
       ) : (
         <div className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
           <div className="overflow-x-auto">
@@ -177,6 +198,24 @@ export function ExamSetupPanel({ exams, canManage, onSchedule, onEdit, onMarks }
                       <td className="px-4 py-3.5">
                         <div className="font-medium text-[var(--cls-ink)]">{exam.name}</div>
                         <div className="text-xs text-[var(--cls-muted)]">{exam.examType}</div>
+                        {canManage ? (
+                          <div className="mt-1.5 flex gap-3">
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-[var(--primary-color)]"
+                              onClick={() => onEdit(exam)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              className="text-sm font-medium text-[var(--destructive)]"
+                              onClick={() => onDelete(exam)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3.5 whitespace-nowrap text-[var(--cls-ink)]">
                         {formatRange(exam.startDate, exam.endDate)}
@@ -205,7 +244,7 @@ export function ExamSetupPanel({ exams, canManage, onSchedule, onEdit, onMarks }
                           </div>
                           <div className="h-1.5 overflow-hidden rounded-full bg-[var(--page-wash)]">
                             <div
-                              className="h-full rounded-full bg-[var(--cls-brand)]"
+                              className="h-full rounded-full bg-[var(--primary-color)]"
                               style={{ width: `${Math.round(marks.ratio * 100)}%` }}
                             />
                           </div>
@@ -214,23 +253,10 @@ export function ExamSetupPanel({ exams, canManage, onSchedule, onEdit, onMarks }
                       <td className="px-4 py-3.5">
                         <ExamStatusPill status={exam.status} />
                       </td>
-                      <td className="px-4 py-3.5 text-right whitespace-nowrap">
-                        {canManage ? (
-                          <button
-                            type="button"
-                            className="mr-3 text-sm font-medium text-[var(--cls-brand)]"
-                            onClick={() => onEdit(exam)}
-                          >
-                            Edit
-                          </button>
-                        ) : null}
-                        <button
-                          type="button"
-                          className="rounded-lg border border-[var(--cls-border)] px-3 py-1.5 text-sm font-medium text-[var(--cls-ink)]"
-                          onClick={() => onMarks(exam)}
-                        >
+                      <td className="px-4 py-3.5 text-right">
+                        <Button variant="outline" size="sm" onClick={() => onMarks(exam)}>
                           Marks
-                        </button>
+                        </Button>
                       </td>
                     </tr>
                   )
@@ -244,12 +270,50 @@ export function ExamSetupPanel({ exams, canManage, onSchedule, onEdit, onMarks }
   )
 }
 
+function ExamRowActions({
+  exam,
+  canManage,
+  onEdit,
+  onDelete,
+  onMarks,
+}: {
+  exam: ExamSummary
+  canManage: boolean
+  onEdit: (exam: ExamSummary) => void
+  onDelete: (exam: ExamSummary) => void
+  onMarks: (exam: ExamSummary) => void
+}) {
+  return (
+    <div className="flex flex-wrap justify-end gap-2">
+      <Button variant="outline" size="sm" onClick={() => onMarks(exam)}>
+        Marks
+      </Button>
+      {canManage ? (
+        <>
+          <Button variant="outline" size="sm" onClick={() => onEdit(exam)}>
+            Edit
+          </Button>
+          <Button variant="destructive" size="sm" onClick={() => onDelete(exam)}>
+            Delete
+          </Button>
+        </>
+      ) : null}
+    </div>
+  )
+}
+
 function ExamCalendar({
   exams,
-  onOpen,
+  canManage,
+  onEdit,
+  onDelete,
+  onMarks,
 }: {
   exams: ExamSummary[]
-  onOpen: (exam: ExamSummary) => void
+  canManage: boolean
+  onEdit: (exam: ExamSummary) => void
+  onDelete: (exam: ExamSummary) => void
+  onMarks: (exam: ExamSummary) => void
 }) {
   const initial = useMemo(() => {
     const dated = exams.find((exam) => exam.startDate)
@@ -267,6 +331,7 @@ function ExamCalendar({
     ...Array.from({ length: startPad }, () => null),
     ...Array.from({ length: days }, (_, index) => index + 1),
   ]
+  const [picked, setPicked] = useState<ExamSummary | null>(null)
   const today = new Date()
   const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
 
@@ -279,6 +344,34 @@ function ExamCalendar({
 
   return (
     <div className="rounded-2xl border border-[var(--cls-border)] bg-white p-4 shadow-sm md:p-5">
+      <Dialog open={picked != null} onOpenChange={(open) => !open && setPicked(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{picked?.name}</DialogTitle>
+            <DialogDescription>
+              {picked ? `${picked.examType} · ${formatRange(picked.startDate, picked.endDate)}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {picked ? (
+            <ExamRowActions
+              exam={picked}
+              canManage={canManage}
+              onEdit={(exam) => {
+                setPicked(null)
+                onEdit(exam)
+              }}
+              onDelete={(exam) => {
+                setPicked(null)
+                onDelete(exam)
+              }}
+              onMarks={(exam) => {
+                setPicked(null)
+                onMarks(exam)
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-base font-semibold text-[var(--cls-ink)]">
           {cursor.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
@@ -336,8 +429,8 @@ function ExamCalendar({
                       <button
                         key={exam.id}
                         type="button"
-                        onClick={() => onOpen(exam)}
-                        className="truncate rounded-md bg-[color-mix(in_srgb,var(--cls-brand)_10%,white)] px-1.5 py-0.5 text-left text-[11px] font-medium text-[var(--cls-brand)]"
+                        onClick={() => setPicked(exam)}
+                        className="truncate rounded-md bg-[var(--secondary-color)] px-1.5 py-0.5 text-left text-[11px] font-medium text-[var(--primary-color)]"
                       >
                         {exam.name}
                       </button>

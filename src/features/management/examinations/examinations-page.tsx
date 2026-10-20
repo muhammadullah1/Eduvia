@@ -3,14 +3,22 @@ import { useState } from "react"
 import { toast } from "sonner"
 
 import examsService, { type ExamSummary, type ScheduleExamBody } from "@/api/exams/exams.service"
-import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { Button } from "@/components/ui/button"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useActor } from "@/lib/actor"
 import { can } from "@/lib/permissions"
 
 import { DailyTestsPanel } from "./daily-tests-panel"
+import { ExamTabs } from "./exam-tabs"
 import { DocumentsPanel } from "./documents-panel"
 import { ExamSetupPanel } from "./exam-setup-panel"
 import { MarksEntryPanel } from "./marks-entry-panel"
@@ -31,6 +39,7 @@ export function ExaminationsPage() {
   const [tab, setTab] = useState("setup")
   const [composing, setComposing] = useState(false)
   const [editing, setEditing] = useState<ExamSummary | null>(null)
+  const [removing, setRemoving] = useState<ExamSummary | null>(null)
   const [marksExamId, setMarksExamId] = useState<number | null>(null)
 
   const sessionsQuery = useSessionsList()
@@ -63,6 +72,18 @@ export function ExaminationsPage() {
     },
   })
 
+  const deleteExam = useMutation({
+    mutationFn: (exam: ExamSummary) => examsService.remove(exam.id),
+    onSuccess: async () => {
+      toast.success("Exam deleted")
+      setRemoving(null)
+      await queryClient.invalidateQueries({ queryKey: ["exams"] })
+    },
+    onError: (err) => {
+      toast.error(err instanceof Error ? err.message : "Could not delete the exam.")
+    },
+  })
+
   const exams = examsQuery.data?.exams ?? []
   const sessionName = examsQuery.data?.session?.name ?? current?.name ?? ""
 
@@ -92,7 +113,7 @@ export function ExaminationsPage() {
     <div className="flex flex-col gap-5">
       <header className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-[var(--cls-ink)]">
+          <h1 className="text-[28px] font-semibold tracking-tight text-[var(--heading)]">
             Examinations
           </h1>
           <p className="text-sm text-[var(--cls-muted)]">
@@ -103,13 +124,7 @@ export function ExaminationsPage() {
           <Button onClick={() => openComposer(null)}>Schedule exam</Button>
         ) : null}
       </header>
-      <ClsSubTabs
-        variant="segmented"
-        items={TABS}
-        value={tab}
-        onValueChange={setTab}
-        aria-label="Examination sections"
-      />
+      <ExamTabs items={TABS} value={tab} onValueChange={setTab} />
       {examsQuery.isError ? (
         <div className="rounded-xl border border-red-200 bg-white px-6 py-8 text-sm text-red-700">
           <p>{examsQuery.error instanceof Error ? examsQuery.error.message : "Could not load examinations."}</p>
@@ -125,6 +140,7 @@ export function ExaminationsPage() {
           canManage={canManage}
           onSchedule={() => openComposer(null)}
           onEdit={(exam) => openComposer(exam)}
+          onDelete={setRemoving}
           onMarks={(exam) => {
             setMarksExamId(exam.id)
             setTab("marks")
@@ -149,6 +165,28 @@ export function ExaminationsPage() {
       ) : (
         <DailyTestsPanel />
       )}
+      <Dialog open={removing != null} onOpenChange={(open) => !open && setRemoving(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {removing?.name}?</DialogTitle>
+            <DialogDescription>
+              This removes the exam and its mark sheets. A finalised or published exam stays on record.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemoving(null)}>
+              Keep exam
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={deleteExam.isPending}
+              onClick={() => removing && deleteExam.mutate(removing)}
+            >
+              {deleteExam.isPending ? "Deleting…" : "Delete exam"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

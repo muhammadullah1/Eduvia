@@ -129,7 +129,7 @@ export function DocumentsPanel({ exams }: Props) {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {CARDS.map((card) => (
           <article key={card.kind} className="flex flex-col rounded-2xl border border-[var(--cls-border)] bg-white p-4 shadow-sm">
-            <span className="inline-flex size-10 items-center justify-center rounded-xl bg-[color-mix(in_srgb,var(--cls-brand)_10%,white)] text-[var(--cls-brand)]">
+            <span className="inline-flex size-10 items-center justify-center rounded-xl bg-[var(--secondary-color)] text-[var(--primary-color)]">
               <FileText className="size-5" />
             </span>
             <h3 className="mt-3 font-semibold text-[var(--cls-ink)]">{card.title}</h3>
