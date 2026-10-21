@@ -61,7 +61,7 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   absences: ["classes", "slots"],
   "lesson-plan": [],
   curriculum: ["plannedChapters"],
-  "lesson-review": ["dailyLessons"],
+  "lesson-review": ["dailyLessons", "plannedChapters", "staff"],
   "daily-test-schedule": ["classes", "subjects", "settings", "slots", "testSchedules"],
   "weekly-tests": ["testSchedules", "weeklyTests"],
   students: ["staff", "students"],

@@ -1,15 +1,33 @@
-import { ArrowLeft } from "lucide-react"
+import {
+  ChartColumn,
+  ClipboardList,
+  Files,
+  FileText,
+  LayoutDashboard,
+  PencilLine,
+  Send,
+} from "lucide-react"
 import { useCallback } from "react"
 import { useNavigate, useSearchParams } from "react-router-dom"
 
 import type { ExamSummary } from "@/api/exams/exams.service"
-import { Button } from "@/components/ui/button"
+import { BackLink } from "@/components/app/back-link"
+import {
+  ClsEmpty,
+  clsHeadRowClass,
+  ClsPanel,
+  ClsPanelHeader,
+  clsRowClass,
+  ClsStatCard,
+  ClsTh,
+} from "@/components/app/cls-panel"
+import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 
-import { DocumentsPanel } from "./documents-panel"
-import { ExamStatusPill } from "./exam-status-pill"
-import { ExamTabs } from "./exam-tabs"
-import { classPapers, type ExamDetailTab, examLocks, formatDate, formatTime } from "./exam-utils"
-import { reviewState } from "./exam-utils"
+import { DocumentsPanel } from "./documents/documents-panel"
+import { ExamLifecycleActions } from "./exam-actions"
+import { ExamPhaseTag, ExamStatusPill } from "./exam-status-pill"
+import { classPapers, type ExamDetailTab, formatDate, formatTime, reviewState } from "./exam-utils"
 import { MarksEntryPanel } from "./marks-entry-panel"
 import { PublishPanel } from "./publish-panel"
 import { ResultsPanel } from "./results-panel"
@@ -48,7 +66,6 @@ export function ExamDetailPage(props: Props) {
   const [searchParams, setSearchParams] = useSearchParams()
   const classId = searchParams.get("class") ?? ""
   const paperId = searchParams.get("paper") ?? ""
-  const locks = examLocks(exam)
   const review = reviewState(exam)
 
   const select = useCallback(
@@ -73,112 +90,120 @@ export function ExamDetailPage(props: Props) {
   }
 
   const drafts = exam.sheets.filter((sheet) => sheet.status === "Draft").length
+  const submitted = review.submitted + review.verified + review.published
   const tabs = [
-    { value: "overview", label: "Overview" },
-    { value: "papers", label: "Papers", count: exam.sheets.length },
-    { value: "marks", label: "Marks Entry", count: drafts || undefined },
-    { value: "results", label: "Results", count: exam.classes.length },
-    { value: "publish", label: "Publish" },
-    { value: "documents", label: "Documents" },
+    { value: "overview", label: "Overview", icon: LayoutDashboard },
+    { value: "papers", label: "Papers", icon: Files, count: exam.sheets.length },
+    { value: "marks", label: "Marks entry", icon: PencilLine, count: drafts || undefined },
+    { value: "results", label: "Results", icon: ChartColumn },
+    { value: "publish", label: "Publish", icon: Send },
+    { value: "documents", label: "Documents", icon: FileText },
   ]
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="flex items-start gap-3">
-          <button
-            type="button"
-            onClick={props.onBack}
-            className="mt-1 inline-flex size-10 items-center justify-center rounded-xl border border-[var(--cls-border)] bg-white text-[#0F172A] shadow-sm hover:bg-[#F0FDFA]"
-            aria-label="Back to exams"
-          >
-            <ArrowLeft className="size-4" />
-          </button>
-          <div>
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="text-[24px] font-semibold tracking-tight text-[#0F172A]">{exam.name}</h1>
-              <ExamStatusPill status={exam.status} />
-            </div>
-            <p className="text-sm text-[#64748B]">
-              {exam.examType} · {dateRange(exam)} · {exam.classes.length} class{exam.classes.length === 1 ? "" : "es"} ·{" "}
-              {exam.sheets.length} papers
-            </p>
-          </div>
-        </div>
-        {canManage ? (
-          <div className="flex gap-2">
-            {locks.canEdit ? (
-              <Button variant="outline" onClick={props.onEdit}>
-                Edit exam
-              </Button>
-            ) : null}
-            {locks.canDelete ? (
-              <Button variant="ghost" className="text-red-600 hover:text-red-700" onClick={props.onDelete}>
-                Delete
-              </Button>
-            ) : null}
-            {locks.canArchive ? (
-              <Button variant="outline" onClick={props.onArchive}>
-                Archive
-              </Button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+      <BackLink onClick={props.onBack}>Back to exams</BackLink>
 
-      <ExamTabs items={tabs} value={tab} onValueChange={(value) => openTab(value)} label="Exam sections" />
+      <ClsPanel className="p-5 sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex min-w-0 gap-4">
+            <div
+              className="grid size-14 shrink-0 place-items-center rounded-xl bg-[var(--cls-brand)] text-white"
+              aria-hidden
+            >
+              <ClipboardList className="size-6" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h1 className="text-xl font-semibold text-[var(--cls-ink)] sm:text-2xl">{exam.name}</h1>
+                <ExamStatusPill status={exam.status} />
+                <ExamPhaseTag phase={exam.phase} />
+              </div>
+              <p className="mt-1 text-sm text-[var(--cls-muted)]">
+                {exam.examType} · {dateRange(exam)} · {exam.classes.length} class
+                {exam.classes.length === 1 ? "" : "es"} · {exam.sheets.length} papers
+              </p>
+            </div>
+          </div>
+          {canManage ? (
+            <ExamLifecycleActions
+              exam={exam}
+              onEdit={props.onEdit}
+              onDelete={props.onDelete}
+              onArchive={props.onArchive}
+            />
+          ) : null}
+        </div>
+      </ClsPanel>
+
+      <ClsSubTabs
+        aria-label="Exam sections"
+        items={tabs}
+        value={tab}
+        onValueChange={(value) => openTab(value)}
+      />
 
       {tab === "overview" ? (
-        <div className="flex flex-col gap-4">
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              { label: "Classes", value: exam.classes.length },
-              { label: "Papers", value: exam.sheets.length },
-              { label: "Sheets submitted", value: `${review.submitted + review.verified + review.published}/${review.total}` },
-              { label: "Next step", value: review.label },
-            ].map((stat) => (
-              <article key={stat.label} className="rounded-2xl border border-[var(--cls-border)] bg-white px-4 py-3.5 shadow-sm">
-                <p className="text-xs font-medium text-[#64748B]">{stat.label}</p>
-                <p className="mt-1 text-[22px] leading-tight font-semibold text-[#0F172A]">{stat.value}</p>
-              </article>
-            ))}
+        <div className="flex flex-col gap-6">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <ClsStatCard label="Classes" value={exam.classes.length} hint={exam.classes.map((k) => k.label).join(", ")} />
+            <ClsStatCard label="Papers" value={exam.sheets.length} hint="One per class subject" />
+            <ClsStatCard
+              label="Sheets submitted"
+              value={`${submitted}/${review.total}`}
+              hint={drafts ? `${drafts} still in draft` : "All sheets in"}
+              accent={drafts ? "warning" : "success"}
+            />
+            <ClsStatCard label="Next step" value={review.label} hint={review.action === "blocked" ? "Waiting for sheets" : "Ready"} accent="brand" />
           </div>
           <SheetTable exam={exam} onOpenSheet={openSheet} />
         </div>
       ) : tab === "papers" ? (
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           {exam.classes.map((klass) => {
             const papers = classPapers(exam, String(klass.id))
             const total = papers.reduce((sum, paper) => sum + Number(paper.totalMarks), 0)
             return (
-              <article key={klass.id} className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
-                <div className="flex items-center justify-between border-b border-[var(--cls-border)] px-5 py-3">
-                  <h3 className="font-semibold text-[#0F172A]">{klass.label}</h3>
-                  <span className="text-sm font-medium text-[#0F766E]">Class total {total}</span>
-                </div>
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-[#F8FAFC] text-[11px] tracking-wide text-[#64748B] uppercase">
-                    <tr>
-                      {["Subject", "Date & time", "Total", "Pass at", "Status"].map((heading) => (
-                        <th key={heading} className="px-5 py-2.5 font-medium">{heading}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
+              <ClsPanel key={klass.id}>
+                <ClsPanelHeader
+                  title={klass.label}
+                  description={`${papers.length} paper${papers.length === 1 ? "" : "s"}`}
+                  actions={<span className="text-sm font-semibold text-[var(--cls-brand)]">Class total {total}</span>}
+                />
+                <Table>
+                  <TableHeader>
+                    <TableRow className={clsHeadRowClass}>
+                      <ClsTh>Subject</ClsTh>
+                      <ClsTh>Date & time</ClsTh>
+                      <ClsTh>Total</ClsTh>
+                      <ClsTh>Pass at</ClsTh>
+                      <ClsTh>Status</ClsTh>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {papers.map((paper) => (
-                      <tr key={paper.id} className="border-t border-[var(--cls-border)]">
-                        <td className="px-5 py-2.5 font-medium text-[#0F172A]">{paper.subject}</td>
-                        <td className="px-5 py-2.5 text-[#64748B]">{paperSlot(paper.paperDate, paper.startTime, paper.endTime)}</td>
-                        <td className="px-5 py-2.5">{Number(paper.totalMarks)}</td>
-                        <td className="px-5 py-2.5">{Number(paper.passingMarks)}</td>
-                        <td className="px-5 py-2.5"><ExamStatusPill status={paper.status} /></td>
-                      </tr>
+                      <TableRow key={paper.id} className={clsRowClass}>
+                        <TableCell className="text-sm font-medium text-[var(--cls-ink)]">{paper.subject}</TableCell>
+                        <TableCell className="text-sm text-[var(--cls-muted)]">
+                          {paperSlot(paper.paperDate, paper.startTime, paper.endTime)}
+                        </TableCell>
+                        <TableCell className="text-sm tabular-nums">{Number(paper.totalMarks)}</TableCell>
+                        <TableCell className="text-sm tabular-nums">{Number(paper.passingMarks)}</TableCell>
+                        <TableCell>
+                          <ExamStatusPill status={paper.status} />
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
-              </article>
+                  </TableBody>
+                </Table>
+              </ClsPanel>
             )
           })}
+          {exam.classes.length === 0 ? (
+            <ClsPanel>
+              <ClsEmpty title="No papers yet">Edit the exam to add classes and their papers.</ClsEmpty>
+            </ClsPanel>
+          ) : null}
         </div>
       ) : tab === "marks" ? (
         <MarksEntryPanel
@@ -202,7 +227,7 @@ export function ExamDetailPage(props: Props) {
       ) : tab === "publish" ? (
         <PublishPanel exam={exam} canManage={canManage} onDone={props.onRefresh} onOpenSheet={openSheet} />
       ) : (
-        <DocumentsPanel exam={exam} />
+        <DocumentsPanel exam={exam} initialClassId={classId} />
       )}
     </div>
   )
@@ -216,36 +241,42 @@ function SheetTable({
   onOpenSheet: (classId: number, sheetId: number) => void
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
-      <p className="border-b border-[var(--cls-border)] px-5 py-3 text-sm font-semibold text-[#0F172A]">Mark sheets</p>
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-left text-sm">
-          <thead className="bg-[#F8FAFC] text-[11px] tracking-wide text-[#64748B] uppercase">
-            <tr>
-              {["Class", "Paper", "Entered", "Status", ""].map((heading) => (
-                <th key={heading} className="px-5 py-2.5 font-medium">{heading}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {exam.classes.flatMap((klass) =>
-              classPapers(exam, String(klass.id)).map((sheet) => (
-                <tr key={sheet.id} className="border-t border-[var(--cls-border)]">
-                  <td className="px-5 py-2.5">{klass.label}</td>
-                  <td className="px-5 py-2.5 font-medium text-[#0F172A]">{sheet.subject}</td>
-                  <td className="px-5 py-2.5 text-[#64748B]">{sheet.entered}/{sheet.students}</td>
-                  <td className="px-5 py-2.5"><ExamStatusPill status={sheet.status} /></td>
-                  <td className="px-5 py-2.5 text-right">
-                    <Button variant="ghost" size="sm" className="text-[#0F766E]" onClick={() => onOpenSheet(klass.id, sheet.id)}>
-                      Open sheet
-                    </Button>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
+    <ClsPanel>
+      <ClsPanelHeader title="Mark sheets" description="Every class paper and how far marks entry has got." />
+      <Table>
+        <TableHeader>
+          <TableRow className={clsHeadRowClass}>
+            <ClsTh>Class</ClsTh>
+            <ClsTh>Paper</ClsTh>
+            <ClsTh>Entered</ClsTh>
+            <ClsTh>Status</ClsTh>
+            <ClsTh className="w-28" />
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {exam.classes.flatMap((klass) =>
+            classPapers(exam, String(klass.id)).map((sheet) => (
+              <TableRow
+                key={sheet.id}
+                className={`cursor-pointer ${clsRowClass}`}
+                onClick={() => onOpenSheet(klass.id, sheet.id)}
+              >
+                <TableCell className="text-sm text-[var(--cls-ink)]">{klass.label}</TableCell>
+                <TableCell className="text-sm font-medium text-[var(--cls-ink)]">{sheet.subject}</TableCell>
+                <TableCell className="text-sm text-[var(--cls-muted)] tabular-nums">
+                  {sheet.entered}/{sheet.students}
+                </TableCell>
+                <TableCell>
+                  <ExamStatusPill status={sheet.status} />
+                </TableCell>
+                <TableCell className="text-right">
+                  <span className="text-sm font-medium text-[var(--cls-brand)]">Open sheet</span>
+                </TableCell>
+              </TableRow>
+            ))
+          )}
+        </TableBody>
+      </Table>
+    </ClsPanel>
   )
 }

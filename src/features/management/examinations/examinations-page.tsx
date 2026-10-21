@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { CalendarCheck, ClipboardList, Plus } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import examsService, { type ExamSummary, type ScheduleExamBody } from "@/api/exams/exams.service"
+import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -21,7 +23,6 @@ import { can } from "@/lib/permissions"
 import { DailyTestsPanel } from "./daily-tests-panel"
 import { ExamDetailPage } from "./exam-detail-page"
 import { ExamSetupPanel } from "./exam-setup-panel"
-import { ExamTabs } from "./exam-tabs"
 import { EXAM_DETAIL_TABS, type ExamDetailTab } from "./exam-utils"
 import { ScheduleExamPage } from "./schedule-exam-page"
 
@@ -50,8 +51,8 @@ function parseRoute(splat: string | undefined): ExamRoute {
 }
 
 const LIST_TABS = [
-  { value: "exams", label: "Exams" },
-  { value: "daily", label: "Daily tests" },
+  { value: "exams", label: "Exams", icon: ClipboardList },
+  { value: "daily", label: "Daily tests", icon: CalendarCheck },
 ]
 
 export function ExaminationsPage() {
@@ -135,7 +136,7 @@ export function ExaminationsPage() {
       </Button>
     </div>
   ) : examsQuery.isLoading ? (
-    <p className="text-sm text-[#64748B]">Loading examinations…</p>
+    <p className="text-sm text-[var(--cls-muted)]">Loading examinations…</p>
   ) : null
 
   const notFound = (
@@ -234,19 +235,25 @@ export function ExaminationsPage() {
 
   const view = searchParams.get("view") === "daily" ? "daily" : "exams"
   return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-[28px] font-semibold tracking-tight text-[#0F172A]">Examinations</h1>
-          <p className="text-sm text-[#64748B]">
-            {sessionName ? `Session ${sessionName}` : "Loading the current session…"}
+          <h1 className="text-2xl font-semibold tracking-tight text-[var(--cls-ink)]">Examinations</h1>
+          <p className="mt-1 text-sm text-[var(--cls-muted)]">
+            {sessionName
+              ? `Schedule exams for session ${sessionName}, enter marks, and publish results.`
+              : "Loading the current session…"}
           </p>
         </div>
         {canManage && view === "exams" ? (
-          <Button onClick={() => navigate(`${base}/new`)}>Schedule exam</Button>
+          <Button className="shrink-0" onClick={() => navigate(`${base}/new`)}>
+            <Plus data-icon="inline-start" />
+            Schedule exam
+          </Button>
         ) : null}
-      </header>
-      <ExamTabs
+      </div>
+      <ClsSubTabs
+        aria-label="Examinations"
         items={LIST_TABS.map((item) => (item.value === "exams" ? { ...item, count: exams.length } : item))}
         value={view}
         onValueChange={(value) => navigate(value === "daily" ? `${base}?view=daily` : base)}

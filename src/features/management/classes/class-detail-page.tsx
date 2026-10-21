@@ -234,7 +234,6 @@ export function ClassDetailPage({
           items={tabItems}
           value={tab}
           onValueChange={(value) => onTabChange(value as ClassDetailTabId)}
-          variant="segmented"
           aria-label="Class detail"
         />
 

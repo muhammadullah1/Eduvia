@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useEffect, useState } from "react"
+import { Eye, EyeOff, Info, ListOrdered, ShieldCheck } from "lucide-react"
+import { type ReactNode, useEffect, useState } from "react"
 import { toast } from "sonner"
 
 import examsService, { type ExamSummary, type PaperStatus } from "@/api/exams/exams.service"
@@ -22,7 +23,6 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
 
-import { Chooser } from "./exam-shared"
 import { classPapers } from "./exam-utils"
 import { AdvanceButton } from "./publish-panel"
 
@@ -129,142 +129,180 @@ export function ResultsPanel({ exam, classId, paperId, onSelect, canManage, canO
   )
   const allPapers = !subjectId
 
+  const feeRuleLabel = FEE_RULES.find((rule) => rule.value === (data?.feeRule ?? feeRule))?.label ?? "—"
+  const tieLabel = (data?.rankTie ?? rankTie) === "dense" ? "next number (1, 2, 2, 3)" : "shared rank (1, 2, 2, 4)"
+  const counts = {
+    pass: data?.rows.filter((row) => row.result === "Pass").length ?? 0,
+    fail: data?.rows.filter((row) => row.result === "Fail" || row.result === "Absent").length ?? 0,
+    hidden: data?.rows.filter((row) => row.visibility === "hidden").length ?? 0,
+  }
+
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--cls-border)] bg-white p-4 shadow-sm lg:flex-row lg:items-end lg:justify-between">
-        <div className="grid flex-1 gap-3 md:grid-cols-2">
-          <Chooser
-            label="Class"
-            value={classId}
-            placeholder="Select class"
-            onChange={(value) => onSelect(value, "")}
-            options={exam.classes.map((item) => ({ value: String(item.id), label: item.label }))}
-          />
-          <Chooser
-            label="View"
-            value={paperId || ALL_PAPERS}
-            placeholder="All papers"
-            onChange={(value) => onSelect(classId, value === ALL_PAPERS ? "" : value)}
-            options={[
-              { value: ALL_PAPERS, label: "All papers (overall result)" },
-              ...papers.map((item) => ({ value: String(item.id), label: item.subject })),
-            ]}
-          />
+      <section
+        aria-label="Results toolbar"
+        className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
+      >
+        <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-wrap items-end gap-3">
+            <ToolbarField label="Class" className="w-44">
+              <Select value={classId || undefined} onValueChange={(value) => onSelect(value, "")}>
+                <SelectTrigger size="sm" className="w-full data-[size=sm]:h-9"><SelectValue placeholder="Select class" /></SelectTrigger>
+                <SelectContent>
+                  {exam.classes.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>{item.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ToolbarField>
+            <ToolbarField label="View" className="w-56">
+              <Select
+                value={paperId || ALL_PAPERS}
+                onValueChange={(value) => onSelect(classId, value === ALL_PAPERS ? "" : value)}
+              >
+                <SelectTrigger size="sm" className="w-full data-[size=sm]:h-9"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_PAPERS}>All papers (overall)</SelectItem>
+                  {papers.map((item) => (
+                    <SelectItem key={item.id} value={String(item.id)}>{item.subject}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </ToolbarField>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {canEditFees ? (
+              <>
+                <Button variant="outline" size="sm" className="h-9" onClick={() => setTieOpen(true)}>
+                  <ListOrdered />
+                  Tie rule
+                </Button>
+                <Button variant="outline" size="sm" className="h-9" onClick={() => setFeeOpen(true)}>
+                  <ShieldCheck />
+                  Fee visibility
+                </Button>
+              </>
+            ) : null}
+            {canManage ? (
+              <>
+                <span className="mx-1 hidden h-6 w-px bg-[var(--cls-border)] sm:block" aria-hidden />
+                <AdvanceButton exam={exam} onDone={refresh} />
+              </>
+            ) : null}
+          </div>
         </div>
-        <div className="flex flex-wrap items-start gap-2">
-          <Button variant="outline" onClick={() => setTieOpen(true)} disabled={!canEditFees}>
-            Tie rule
-          </Button>
-          <Button variant="outline" onClick={() => setFeeOpen(true)} disabled={!canEditFees}>
-            Fee visibility
-          </Button>
-          {canManage ? <AdvanceButton exam={exam} onDone={refresh} /> : null}
+        <div className="flex flex-col gap-1.5 border-t border-[var(--cls-border)] bg-[var(--page-wash)] px-4 py-2.5 text-xs text-[var(--cls-muted)] md:flex-row md:flex-wrap md:items-center md:gap-x-5">
+          <span className="inline-flex items-center gap-1.5">
+            <Info className="size-3.5 shrink-0 text-[var(--primary-color)]" aria-hidden />
+            Ranks are within this class; ties use a {tieLabel}.
+          </span>
+          {allPapers ? (
+            <span>Overall pass needs every paper passed · absent counts as fail · exempt is left out.</span>
+          ) : null}
+          <span className="inline-flex items-center gap-1.5">
+            <ShieldCheck className="size-3.5 shrink-0 text-[var(--primary-color)]" aria-hidden />
+            Parents see results when: <span className="font-medium text-[var(--cls-ink)]">{feeRuleLabel}</span>
+          </span>
         </div>
-      </div>
+      </section>
 
       {!data ? (
-        <div className="rounded-2xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-16 text-center text-sm text-[var(--cls-muted)] shadow-sm">
+        <div className="rounded-xl border border-dashed border-[var(--cls-border)] bg-white px-6 py-16 text-center text-sm text-[var(--cls-muted)] shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
           {resultsQuery.isLoading
             ? "Calculating results…"
             : "Choose a class to see its result sheet."}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
           <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold text-[#0F172A]">
-                {data.classLabel} · {data.subject}
-              </p>
-              <p className="text-xs text-[#64748B]">
-                Ranks are within this class only. Ties use {data.rankTie === "dense" ? "the next number" : "a shared rank"}.
-                {allPapers ? " A student passes overall only by passing every paper; absent is a fail, exempt is left out." : ""}
-              </p>
-            </div>
-            <div className="flex gap-4 text-sm">
-              <span className="text-[#64748B]">{data.rows.length} students</span>
-              <span className="font-medium text-[#0F766E]">
-                {data.rows.filter((row) => row.result === "Pass").length} pass
-              </span>
-              <span className="font-medium text-red-700">
-                {data.rows.filter((row) => row.result === "Fail" || row.result === "Absent").length} fail
-              </span>
-              <span className="text-[#64748B]">
-                {data.rows.filter((row) => row.visibility === "hidden").length} hidden
-              </span>
+            <p className="font-semibold text-[var(--cls-ink)]">
+              {data.classLabel} · {data.subject}
+            </p>
+            <div className="flex flex-wrap gap-2 text-xs font-medium">
+              <Stat label="Students" value={data.rows.length} />
+              <Stat label="Pass" value={counts.pass} tone="green" />
+              <Stat label="Fail" value={counts.fail} tone="red" />
+              <Stat label="Hidden from parents" value={counts.hidden} />
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
-              <thead className="bg-[#F8FAFC] text-[11px] tracking-wide text-[#64748B] uppercase">
-                <tr>
-                  <th className="px-3 py-3 font-medium">Rank</th>
-                  <th className="px-3 py-3 font-medium">Student</th>
+          <div className="max-h-[70vh] overflow-auto">
+            <table className="w-full min-w-[960px] border-separate border-spacing-0 text-left text-sm">
+              <thead className="sticky top-0 z-20">
+                <tr className="bg-[var(--page-wash)] text-[11px] font-semibold tracking-wide text-[var(--cls-muted)] uppercase">
+                  <th className={cn(HEAD, STICKY_RANK, "z-30 bg-[var(--page-wash)] text-center")}>Rank</th>
+                  <th className={cn(HEAD, STICKY_NAME, "z-30 bg-[var(--page-wash)]")}>Student</th>
                   {allPapers
                     ? resultPapers.map((item) => (
-                        <th key={item.subjectId} className="px-3 py-3 font-medium">
+                        <th key={item.subjectId} className={cn(HEAD, "text-center")}>
                           {item.subject}
-                          <span className="block font-normal normal-case">/{item.totalMarks}</span>
+                          <span className="block text-[10px] font-normal tracking-normal normal-case">out of {item.totalMarks}</span>
                         </th>
                       ))
                     : null}
-                  {["Obtained", "%", "Grade", "Result", "Parent"].map((heading) => (
-                    <th key={heading} className="px-3 py-3 font-medium">{heading}</th>
-                  ))}
+                  <th className={cn(HEAD, "text-right")}>Obtained</th>
+                  <th className={cn(HEAD, "text-right")}>%</th>
+                  <th className={cn(HEAD, "text-center")}>Grade</th>
+                  <th className={HEAD}>Result</th>
+                  <th className={HEAD}>Parent access</th>
                 </tr>
               </thead>
               <tbody>
                 {rankedRows.map((row) => (
-                  <tr key={row.studentId} className="border-b border-[var(--cls-border)] last:border-0">
-                    <td className="px-3 py-2 font-semibold text-[#0F172A]">{row.classRank ?? "—"}</td>
-                    <td className="px-3 py-2">
-                      <div className="font-medium text-[#0F172A]">{row.name}</div>
-                      <div className="text-xs text-[#64748B]">{row.admissionNo}</div>
+                  <tr
+                    key={row.studentId}
+                    className="group bg-white transition-colors even:bg-[#FAFBFC] hover:bg-[#F0FDF4]"
+                  >
+                    <td className={cn(CELL, STICKY_RANK, "bg-inherit text-center font-semibold text-[var(--cls-ink)] tabular-nums")}>
+                      {row.classRank ?? "—"}
+                    </td>
+                    <td className={cn(CELL, STICKY_NAME, "bg-inherit")}>
+                      <div className="font-medium text-[var(--cls-ink)]">{row.name}</div>
+                      <div className="text-xs text-[var(--cls-muted)]">{row.admissionNo}</div>
                     </td>
                     {allPapers
                       ? resultPapers.map((item) => {
                           const cell = row.papers.find((entry) => entry.subjectId === item.subjectId)
                           return (
-                            <td key={item.subjectId} className="px-3 py-2">
+                            <td key={item.subjectId} className={cn(CELL, "text-center")}>
                               <PaperCell status={cell?.status ?? "Pending"} obtained={cell?.obtained ?? null} />
                             </td>
                           )
                         })
                       : null}
-                    <td className="px-3 py-2">{row.obtained == null ? "—" : `${row.obtained}/${row.total}`}</td>
-                    <td className="px-3 py-2">{row.percentage ?? "—"}</td>
-                    <td className="px-3 py-2">{row.grade ?? "—"}</td>
-                    <td className="px-3 py-2">
+                    <td className={cn(CELL, "text-right tabular-nums")}>
+                      {row.obtained == null ? "—" : (
+                        <>
+                          <span className="font-semibold text-[var(--cls-ink)]">{row.obtained}</span>
+                          <span className="text-[var(--cls-muted)]"> / {row.total}</span>
+                        </>
+                      )}
+                    </td>
+                    <td className={cn(CELL, "text-right tabular-nums")}>
+                      {row.percentage == null ? "—" : `${row.percentage.toFixed(1)}%`}
+                    </td>
+                    <td className={cn(CELL, "text-center font-semibold text-[var(--cls-ink)]")}>{row.grade ?? "—"}</td>
+                    <td className={CELL}>
                       <ResultBadge status={row.result} failed={allPapers ? row.failedPapers : 0} />
                     </td>
-                    <td className="px-3 py-2">
-                      {row.visibility === "visible" ? (
-                        <span className="text-[#0F766E]">Visible</span>
-                      ) : row.visibility === "override" ? (
-                        <span className="text-amber-700">Manual override</span>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          <span className="text-red-700">Hidden — fee unpaid</span>
-                          {canOverride ? (
-                            <button
-                              type="button"
-                              className="text-xs text-[#0F766E]"
-                              onClick={() => setOverrideStudent(row.studentId)}
-                            >
-                              Show anyway
-                            </button>
-                          ) : null}
-                        </span>
-                      )}
+                    <td className={CELL}>
+                      <ParentAccess
+                        visibility={row.visibility}
+                        onRelease={canOverride ? () => setOverrideStudent(row.studentId) : undefined}
+                      />
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {canOverride ? (
-            <div className="flex justify-end border-t border-[var(--cls-border)] px-4 py-3">
-              <Button variant="outline" disabled={bulk.isPending || !classId} onClick={() => bulk.mutate()}>
-                Show all hidden results in this class
+          {canOverride && counts.hidden > 0 ? (
+            <div className="flex items-center justify-between gap-3 border-t border-[var(--cls-border)] px-5 py-3">
+              <p className="text-xs text-[var(--cls-muted)]">
+                {counts.hidden} result{counts.hidden === 1 ? " is" : "s are"} hidden because of unpaid fees.
+              </p>
+              <Button variant="outline" size="sm" disabled={bulk.isPending || !classId} onClick={() => bulk.mutate()}>
+                <Eye />
+                Show all hidden results
               </Button>
             </div>
           ) : null}
@@ -332,18 +370,54 @@ export function ResultsPanel({ exam, classId, paperId, onSelect, canManage, canO
   )
 }
 
+const HEAD = "h-11 border-b border-[var(--cls-border)] px-4 font-semibold whitespace-nowrap"
+const CELL = "border-b border-[var(--cls-border)] px-4 py-3.5 align-middle"
+// The first two columns stay put while wide result sheets scroll sideways.
+const STICKY_RANK = "sticky left-0 w-16 min-w-16"
+const STICKY_NAME = "sticky left-16 min-w-52 shadow-[inset_-1px_0_0_var(--cls-border)]"
+
 const STATUS_STYLE: Record<PaperStatus, string> = {
-  Pass: "bg-[#F0FDFA] text-[#0F766E]",
-  Fail: "bg-red-50 text-red-700",
-  Absent: "bg-red-50 text-red-700",
-  Exempt: "bg-[#F1F5F9] text-[#64748B]",
-  Pending: "bg-[#F8FAFC] text-[#94A3B8]",
+  Pass: "bg-[#ECFDF3] text-[#027A48] ring-[#ABEFC6]",
+  Fail: "bg-[#FEF3F2] text-[#B42318] ring-[#FECDCA]",
+  Absent: "bg-[#FEF3F2] text-[#B42318] ring-[#FECDCA]",
+  Exempt: "bg-[#F2F4F7] text-[#475467] ring-[#EAECF0]",
+  Pending: "bg-white text-[#98A2B3] ring-[#EAECF0]",
+}
+
+function ToolbarField({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  return (
+    <div className={cn("flex flex-col gap-1.5", className)}>
+      <span className="text-xs font-medium text-[var(--cls-muted)]">{label}</span>
+      {children}
+    </div>
+  )
+}
+
+function Stat({ label, value, tone }: { label: string; value: number; tone?: "green" | "red" }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1",
+        tone === "green"
+          ? "border-[#ABEFC6] bg-[#ECFDF3] text-[#027A48]"
+          : tone === "red"
+            ? "border-[#FECDCA] bg-[#FEF3F2] text-[#B42318]"
+            : "border-[var(--cls-border)] bg-white text-[var(--cls-muted)]"
+      )}
+    >
+      <span className="font-semibold tabular-nums">{value}</span>
+      {label}
+    </span>
+  )
 }
 
 function PaperCell({ status, obtained }: { status: PaperStatus; obtained: number | null }) {
   const label = status === "Absent" ? "Abs" : status === "Exempt" ? "Ex" : status === "Pending" ? "—" : obtained
   return (
-    <span className={cn("inline-flex min-w-10 justify-center rounded-md px-2 py-0.5 text-xs font-medium", STATUS_STYLE[status])} title={status}>
+    <span
+      className={cn("inline-flex min-w-12 justify-center rounded-md px-2 py-1 text-[13px] font-semibold tabular-nums ring-1 ring-inset", STATUS_STYLE[status])}
+      title={status}
+    >
       {label}
     </span>
   )
@@ -351,9 +425,38 @@ function PaperCell({ status, obtained }: { status: PaperStatus; obtained: number
 
 function ResultBadge({ status, failed }: { status: PaperStatus; failed: number }) {
   return (
-    <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", STATUS_STYLE[status])}>
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ring-1 ring-inset", STATUS_STYLE[status])}>
+      <span className="size-1.5 rounded-full bg-current" aria-hidden />
       {status}
-      {status === "Fail" && failed > 0 ? ` · ${failed} paper${failed === 1 ? "" : "s"}` : ""}
+      {status === "Fail" && failed > 0 ? <span className="font-medium opacity-80">· {failed} paper{failed === 1 ? "" : "s"}</span> : null}
+    </span>
+  )
+}
+
+function ParentAccess({
+  visibility,
+  onRelease,
+}: {
+  visibility: "visible" | "hidden" | "override"
+  onRelease?: () => void
+}) {
+  if (visibility === "visible") {
+    return <span className="text-xs font-medium text-[#027A48]">Visible</span>
+  }
+  if (visibility === "override") {
+    return <span className="text-xs font-medium text-[#B54708]">Released manually</span>
+  }
+  return (
+    <span className="flex items-center gap-2 whitespace-nowrap">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-[#B42318]">
+        <EyeOff className="size-3.5" aria-hidden />
+        Hidden · fee unpaid
+      </span>
+      {onRelease ? (
+        <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={onRelease}>
+          Show anyway
+        </Button>
+      ) : null}
     </span>
   )
 }

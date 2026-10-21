@@ -60,7 +60,6 @@ import { Sidebar } from "./sidebar"
 const LEGACY_SECTION_REDIRECT: Record<string, string> = {
   academic: "sessions",
   curriculum: "lesson-plan",
-  "lesson-review": "lesson-plan",
   people: "students",
   absences: "substitutes",
   "weekly-tests": "daily-test-schedule",
@@ -84,7 +83,10 @@ export function PortalShell() {
   )
   const rawSection =
     sectionValid && sectionParam ? sectionParam : defaultSection[role]
-  const section = LEGACY_SECTION_REDIRECT[rawSection] ?? rawSection
+  const legacyTarget = CLS_SHELL_ROLES.has(role)
+    ? LEGACY_SECTION_REDIRECT[rawSection]
+    : undefined
+  const section = legacyTarget ?? rawSection
 
   useEffect(() => {
     void syncPortalForRoute(role, section)
@@ -146,7 +148,7 @@ export function PortalShell() {
   if (
     !sectionValid ||
     roleParam !== portalPath(role).split("/")[1] ||
-    (sectionParam && LEGACY_SECTION_REDIRECT[sectionParam])
+    (sectionParam && legacyTarget)
   ) {
     return <Navigate to={portalPath(role, section)} replace />
   }

@@ -276,7 +276,9 @@ export type ApiDailyLesson = {
   fkClassId: number
   fkSubjectId: number
   fkTeacherId: number
-  fkPlannedChapterId: number
+  /** The API serialises the column name; `fkPlannedChapterId` is a model getter only. */
+  fkChapterId?: number
+  fkPlannedChapterId?: number
   date: string
   classwork?: string | null
   homework?: string | null

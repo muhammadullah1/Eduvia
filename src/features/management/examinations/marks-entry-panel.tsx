@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type ReactNode,useEffect, useMemo, useState } from "react"
+import { RotateCcw } from "lucide-react"
+import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { toast } from "sonner"
 
 import examsService, {
@@ -183,7 +184,7 @@ export function MarksEntryPanel({ exam, classId, paperId, onSelect, canManage, c
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-3 rounded-2xl border border-[var(--cls-border)] bg-white p-4 shadow-sm md:grid-cols-2">
+      <div className="grid gap-3 rounded-xl border border-[var(--cls-border)] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.06)] md:grid-cols-2">
         <Chooser
           label="Class"
           value={classId}
@@ -212,41 +213,41 @@ export function MarksEntryPanel({ exam, classId, paperId, onSelect, canManage, c
           {sheetQuery.error instanceof Error ? sheetQuery.error.message : "Could not load this mark sheet."}
         </EmptyCard>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
+        <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
           <div className="flex flex-col gap-3 border-b border-[var(--cls-border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="font-semibold text-[#0F172A]">
+              <p className="font-semibold text-[var(--cls-ink)]">
                 {classLabel} · {sheet.subject}
               </p>
-              <p className="text-xs text-[#64748B]">
+              <p className="text-xs text-[var(--cls-muted)]">
                 Out of {totalMarks} · pass at {passingMarks}. Absent counts as a fail; exempt is left out of the result.
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-[#64748B]">
+            <div className="flex flex-wrap items-center gap-3 text-xs text-[var(--cls-muted)]">
               <span>{entered}/{rows.length} entered</span>
-              <span className="text-[#0F766E]">{passed} pass</span>
+              <span className="text-[var(--primary-color)]">{passed} pass</span>
               <span className="text-red-700">{failed} fail</span>
               <ExamStatusPill status={status ?? "Draft"} />
             </div>
           </div>
-          <div className="h-1 bg-[#F8FAFC]">
-            <div className="h-full bg-[#0F766E]" style={{ width: `${progress}%` }} />
+          <div className="h-1 bg-[var(--page-wash)]">
+            <div className="h-full bg-[var(--primary-color)]" style={{ width: `${progress}%` }} />
           </div>
           {rows.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-[#64748B]">
+            <p className="px-4 py-10 text-center text-sm text-[var(--cls-muted)]">
               This class has no active students, so there is nobody to mark yet.
             </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[680px] text-left text-sm">
-                <thead className="bg-[#F8FAFC] text-[11px] tracking-wide text-[#64748B] uppercase">
+                <thead className="bg-[var(--page-wash)]/80 text-xs font-semibold tracking-wide text-[var(--cls-muted)] uppercase">
                   <tr>
-                    <th className="px-4 py-3 font-medium">#</th>
-                    <th className="px-4 py-3 font-medium">Student</th>
-                    <th className="px-4 py-3 font-medium">Marks / {totalMarks}</th>
-                    <th className="px-4 py-3 font-medium">Absent</th>
-                    <th className="px-4 py-3 font-medium">Exempt</th>
-                    <th className="px-4 py-3 font-medium">Result</th>
+                    <th className="h-11 px-4 font-semibold">#</th>
+                    <th className="h-11 px-4 font-semibold">Student</th>
+                    <th className="h-11 px-4 font-semibold">Marks / {totalMarks}</th>
+                    <th className="h-11 px-4 font-semibold">Absent</th>
+                    <th className="h-11 px-4 font-semibold">Exempt</th>
+                    <th className="h-11 px-4 font-semibold">Result</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -255,10 +256,10 @@ export function MarksEntryPanel({ exam, classId, paperId, onSelect, canManage, c
                     const errorId = `mark-error-${row.studentId}`
                     return (
                       <tr key={row.studentId} className="border-b border-[var(--cls-border)] last:border-0">
-                        <td className="px-4 py-2 text-[#64748B]">{index + 1}</td>
+                        <td className="px-4 py-2 text-[var(--cls-muted)]">{index + 1}</td>
                         <td className="px-4 py-2">
-                          <div className="font-medium text-[#0F172A]">{row.name}</div>
-                          <div className="text-xs text-[#64748B]">{row.admissionNo}</div>
+                          <div className="font-medium text-[var(--cls-ink)]">{row.name}</div>
+                          <div className="text-xs text-[var(--cls-muted)]">{row.admissionNo}</div>
                         </td>
                         <td className="px-4 py-2 align-top">
                           <Input
@@ -321,11 +322,12 @@ export function MarksEntryPanel({ exam, classId, paperId, onSelect, canManage, c
           <div className="flex flex-col gap-3 border-t border-[var(--cls-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
               {canManage && status && status !== "Draft" ? (
-                <Button variant="ghost" className="text-[#64748B]" onClick={() => setConfirmReopen(true)}>
+                <Button variant="outline" onClick={() => setConfirmReopen(true)}>
+                  <RotateCcw />
                   Reopen sheet…
                 </Button>
               ) : null}
-              <p className="text-xs text-[#64748B]">
+              <p className="text-xs text-[var(--cls-muted)]">
                 {editable
                   ? invalid > 0
                     ? `${invalid} ${invalid === 1 ? "mark needs" : "marks need"} fixing before you can save.`
@@ -379,11 +381,11 @@ export function MarksEntryPanel({ exam, classId, paperId, onSelect, canManage, c
 
 function ResultChip({ check }: { check: RowCheck }) {
   const styles: Record<RowCheck["kind"], [string, string]> = {
-    pass: ["Pass", "bg-[#F0FDFA] text-[#0F766E]"],
+    pass: ["Pass", "bg-[var(--secondary-color)] text-[var(--primary-color)]"],
     fail: ["Fail", "bg-red-50 text-red-700"],
     absent: ["Absent · Fail", "bg-red-50 text-red-700"],
-    exempt: ["Exempt", "bg-[#F1F5F9] text-[#64748B]"],
-    pending: ["Pending", "bg-[#F8FAFC] text-[#94A3B8]"],
+    exempt: ["Exempt", "bg-[#F1F5F9] text-[var(--cls-muted)]"],
+    pending: ["Pending", "bg-[var(--page-wash)] text-[#94A3B8]"],
     invalid: ["Check mark", "bg-red-50 text-red-700"],
   }
   const [label, style] = styles[check.kind]
@@ -394,8 +396,8 @@ function EmptyCard({ children, tone }: { children: ReactNode; tone?: "error" }) 
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-white px-6 py-16 text-center text-sm shadow-sm",
-        tone === "error" ? "border-red-200 text-red-700" : "border-dashed border-[var(--cls-border)] text-[#64748B]"
+        "rounded-xl border bg-white px-6 py-16 text-center text-sm shadow-sm",
+        tone === "error" ? "border-red-200 text-red-700" : "border-dashed border-[var(--cls-border)] text-[var(--cls-muted)]"
       )}
     >
       {children}

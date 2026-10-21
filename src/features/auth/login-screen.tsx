@@ -151,7 +151,7 @@ export function LoginScreen() {
               </AuthLabel>
               <Link
                 to="/forgot-password"
-                className="text-[10.5px] leading-[14px] text-[#0F766E] hover:underline md:text-xs md:leading-4"
+                className="text-[10.5px] leading-[14px] text-[var(--primary-color)] hover:underline md:text-xs md:leading-4"
               >
                 Forgot password?
               </Link>

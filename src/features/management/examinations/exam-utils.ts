@@ -26,13 +26,51 @@ export function formatDate(value: string | null) {
   })
 }
 
-/** Published and finalised exams are part of the record: they can be archived, never deleted or edited. */
-export function examLocks(exam: ExamSummary) {
-  const locked = ["Published", "Finalised", "Archived"].includes(exam.status)
+export type ExamAction = { allowed: boolean; reason: string }
+
+export type ExamLocks = {
+  edit: ExamAction & { limited: boolean }
+  delete: ExamAction
+  archive: ExamAction
+}
+
+/**
+ * What an exam still allows, mirroring the API's lifecycle rules:
+ * upcoming exams are fully editable, ongoing ones take limited edits,
+ * and past ones (ended or results finalised) can only be archived.
+ */
+export function examLocks(exam: ExamSummary): ExamLocks {
+  if (exam.status === "Archived") {
+    const reason = "This exam is archived."
+    return {
+      edit: { allowed: false, limited: false, reason },
+      delete: { allowed: false, reason },
+      archive: { allowed: false, reason },
+    }
+  }
+  if (exam.phase === "past") {
+    return {
+      edit: { allowed: false, limited: false, reason: "This exam has ended, so it can no longer be edited." },
+      delete: { allowed: false, reason: "This exam has ended, so it can't be deleted. Archive it instead." },
+      archive: { allowed: true, reason: "" },
+    }
+  }
+  const notEnded = "Only an exam that has ended can be archived."
+  if (exam.phase === "ongoing") {
+    return {
+      edit: {
+        allowed: true,
+        limited: true,
+        reason: "In progress: you can rename it, extend the end date or add papers dated today or later.",
+      },
+      delete: { allowed: false, reason: "This exam is in progress, so it can't be deleted." },
+      archive: { allowed: false, reason: notEnded },
+    }
+  }
   return {
-    canEdit: !locked,
-    canDelete: !locked,
-    canArchive: exam.status === "Published" || exam.status === "Finalised",
+    edit: { allowed: true, limited: false, reason: "" },
+    delete: { allowed: true, reason: "" },
+    archive: { allowed: false, reason: notEnded },
   }
 }
 

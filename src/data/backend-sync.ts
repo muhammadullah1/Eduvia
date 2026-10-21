@@ -1,3 +1,10 @@
+import { ADMISSIONS_LIST_MAX_PAGE_SIZE } from "@/api/admissions/constants"
+import {
+  type AbsenceRow,
+  mapTeacherAbsencesFromApi,
+} from "@/api/teacher-absences/map-absences"
+import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
+import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
 import {
   type AbsenceStatus,
   type AcademicSession,
@@ -34,7 +41,7 @@ import {
   type WeeklyTest,
   type WeeklyTestStatus,
 } from "@/data/types"
-import { api } from "@/lib/api"
+import { api, ApiHttpError } from "@/lib/api"
 import type {
   ApiAbsence,
   ApiApplication,
@@ -59,24 +66,30 @@ import type {
   ApiUpdate,
   ApiUser,
 } from "@/lib/api-types"
-import {
-  mapTeacherAbsencesFromApi,
-  type AbsenceRow,
-} from "@/api/teacher-absences/map-absences"
-import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
-import { ADMISSIONS_LIST_MAX_PAGE_SIZE } from "@/api/admissions/constants"
-import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
+import { loadAuth } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
+
+/** Paths the signed-in user was refused (403), so later syncs skip them. */
+const FORBIDDEN_KEY = "eduvia.sync.forbidden"
+const forbiddenPaths = new Set<string>(
+  JSON.parse(sessionStorage.getItem(FORBIDDEN_KEY) ?? "[]") as string[]
+)
 
 async function safeGet<T>(
   path: string,
   query: Record<string, string | number | undefined | null> | undefined,
   fallback: T
 ): Promise<T> {
+  const key = `${loadAuth()?.user?.id ?? "anon"}:${path}`
+  if (forbiddenPaths.has(key)) return fallback
   try {
     const res = await api.get<T>(path, query)
     return res ?? fallback
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiHttpError && error.status === 403) {
+      forbiddenPaths.add(key)
+      sessionStorage.setItem(FORBIDDEN_KEY, JSON.stringify([...forbiddenPaths]))
+    }
     return fallback
   }
 }
@@ -631,8 +644,17 @@ export async function fetchBackendState(
       }))
     : []
 
-  // 4. Staff
+  // 4. Staff. Teachers with no explicit class links teach the classes their
+  // timetable periods are in.
+  const timetableClassIds = new Map<number, Set<string>>()
+  for (const slot of timetableData) {
+    if (slot.fkTeacherId == null) continue
+    const ids = timetableClassIds.get(slot.fkTeacherId) ?? new Set<string>()
+    ids.add(String(slot.fkClassId))
+    timetableClassIds.set(slot.fkTeacherId, ids)
+  }
   const teacherStaff: Staff[] = teachersData.map((t) => {
+    const linked = (t.classes ?? []).map((c) => String(c.id))
     return {
       id: String(t.id),
       name:
@@ -653,7 +675,9 @@ export async function fetchBackendState(
             },
           ]
         : [],
-      classIds: (t.classes ?? []).map((c) => String(c.id)),
+      classIds: linked.length
+        ? linked
+        : [...(timetableClassIds.get(t.id) ?? [])],
     }
   })
 
@@ -851,7 +875,7 @@ export async function fetchBackendState(
           ? `${l.teacher.user.firstName} ${l.teacher.user.lastName}`.trim()
           : "Teacher",
         date: l.date ? l.date.slice(0, 10) : today,
-        chapterId: String(l.fkPlannedChapterId),
+        chapterId: String(l.fkChapterId ?? l.fkPlannedChapterId ?? ""),
         classwork: l.classwork ?? "",
         homework: l.homework ?? "",
         remarks: l.remarks ?? "",

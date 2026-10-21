@@ -1,12 +1,13 @@
 import { useMutation } from "@tanstack/react-query"
+import { CheckCheck, Send } from "lucide-react"
 import { toast } from "sonner"
 
 import examsService, { type ExamSummary } from "@/api/exams/exams.service"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
 import { ExamStatusPill } from "./exam-status-pill"
 import { reviewState } from "./exam-utils"
-
 
 export function AdvanceButton({ exam, onDone }: { exam: ExamSummary; onDone: () => Promise<void> | void }) {
   const state = reviewState(exam)
@@ -19,17 +20,28 @@ export function AdvanceButton({ exam, onDone }: { exam: ExamSummary; onDone: () 
     onError: (err) => toast.error(err instanceof Error ? err.message : "Could not advance this exam."),
   })
   if (state.action === "done") return null
+  const button = (
+    <Button
+      size="sm"
+      className="h-9"
+      disabled={advance.isPending || state.action === "blocked"}
+      onClick={() => advance.mutate()}
+    >
+      {state.action === "publish" ? <Send /> : <CheckCheck />}
+      {advance.isPending ? "Working…" : state.label}
+    </Button>
+  )
+  if (state.action !== "blocked") return button
+  // A disabled button gets no pointer events, so the wrapper carries the tooltip.
   return (
-    <div className="flex flex-col items-end gap-1">
-      <Button disabled={advance.isPending || state.action === "blocked"} onClick={() => advance.mutate()}>
-        {advance.isPending ? "Working…" : state.label}
-      </Button>
-      {state.action === "blocked" ? (
-        <span className="max-w-64 text-right text-xs text-[#64748B]" role="status">
-          {state.hint}
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span tabIndex={0} className="inline-flex cursor-not-allowed rounded-md" aria-label={state.hint}>
+          {button}
         </span>
-      ) : null}
-    </div>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64 text-center">{state.hint}</TooltipContent>
+    </Tooltip>
   )
 }
 
@@ -57,24 +69,24 @@ export function PublishPanel({
     <div className="flex flex-col gap-4">
       <div className="grid gap-3 sm:grid-cols-3">
         {steps.map((step) => (
-          <div key={step.label} className="rounded-2xl border border-[var(--cls-border)] bg-white p-4 shadow-sm">
-            <p className="text-xs text-[#64748B]">{step.label}</p>
-            <p className="mt-1 text-2xl font-semibold text-[#0F172A]">
+          <div key={step.label} className="rounded-xl border border-[var(--cls-border)] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
+            <p className="text-xs text-[var(--cls-muted)]">{step.label}</p>
+            <p className="mt-1 text-2xl font-semibold text-[var(--cls-ink)]">
               {step.value}
-              <span className="text-base font-normal text-[#64748B]"> / {state.total}</span>
+              <span className="text-base font-normal text-[var(--cls-muted)]"> / {state.total}</span>
             </p>
             <div className="mt-3 h-1.5 rounded-full bg-[#F1F5F9]">
               <div
-                className="h-full rounded-full bg-[#0F766E]"
+                className="h-full rounded-full bg-[var(--primary-color)]"
                 style={{ width: `${state.total ? (step.value / state.total) * 100 : 0}%` }}
               />
             </div>
           </div>
         ))}
       </div>
-      <div className="flex flex-col gap-3 rounded-2xl border border-[var(--cls-border)] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.06)] sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="font-semibold text-[#0F172A]">
+          <p className="font-semibold text-[var(--cls-ink)]">
             {state.action === "publish"
               ? "Ready to publish"
               : state.action === "review"
@@ -83,13 +95,13 @@ export function PublishPanel({
                   ? "Results are published"
                   : "Waiting for mark sheets"}
           </p>
-          <p className="text-sm text-[#64748B]">{state.hint}</p>
+          <p className="text-sm text-[var(--cls-muted)]">{state.hint}</p>
         </div>
         {canManage ? <AdvanceButton exam={exam} onDone={onDone} /> : null}
       </div>
       {waiting.length ? (
-        <div className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm">
-          <p className="border-b border-[var(--cls-border)] px-5 py-3 text-sm font-semibold text-[#0F172A]">
+        <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
+          <p className="border-b border-[var(--cls-border)] px-5 py-3 text-sm font-semibold text-[var(--cls-ink)]">
             Sheets still in draft
           </p>
           <ul>
@@ -97,11 +109,11 @@ export function PublishPanel({
               <li key={sheet.id} className="flex items-center justify-between border-b border-[var(--cls-border)] px-5 py-2.5 text-sm last:border-0">
                 <span>
                   {classLabel(sheet.classId)} · {sheet.subject}
-                  <span className="ml-2 text-xs text-[#64748B]">{sheet.entered}/{sheet.students} entered</span>
+                  <span className="ml-2 text-xs text-[var(--cls-muted)]">{sheet.entered}/{sheet.students} entered</span>
                 </span>
                 <span className="flex items-center gap-3">
                   <ExamStatusPill status={sheet.status} />
-                  <Button variant="ghost" size="sm" className="text-[#0F766E]" onClick={() => onOpenSheet(sheet.classId, sheet.id)}>
+                  <Button variant="ghost" size="sm" className="text-[var(--primary-color)]" onClick={() => onOpenSheet(sheet.classId, sheet.id)}>
                     Open sheet
                   </Button>
                 </span>

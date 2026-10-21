@@ -14,12 +14,12 @@ const buttonVariants = cva(
         outline:
           "border-2 border-[var(--primary-color)] bg-background text-[var(--primary-color)] hover:bg-[var(--secondary-color)] aria-expanded:bg-[var(--secondary-color)]",
         secondary:
-          "bg-[var(--secondary-color)] text-[var(--primary-color)] hover:bg-[#CCFBF1] aria-expanded:bg-[#CCFBF1]",
+          "bg-[var(--secondary-color)] text-[var(--primary-color)] hover:bg-[var(--brand-100)] aria-expanded:bg-[var(--brand-100)]",
         ghost:
           "hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground",
         destructive:
           "border-2 border-[var(--destructive)] bg-transparent text-[var(--destructive)] hover:bg-[var(--error-light)] focus-visible:border-[var(--destructive)] focus-visible:ring-[var(--destructive)]/20",
-        soft: "bg-[var(--secondary-color)] text-[var(--primary-color)] hover:bg-[#CCFBF1]",
+        soft: "bg-[var(--secondary-color)] text-[var(--primary-color)] hover:bg-[var(--brand-100)]",
         link: "text-[var(--primary-color)] underline-offset-4 hover:underline",
       },
       size: {

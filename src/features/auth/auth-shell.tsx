@@ -32,7 +32,7 @@ export function AuthBrand() {
         alt="Creative Leaders Schools"
         className="mb-3.5 size-[98px] rounded-lg object-contain md:mb-5 md:size-[108px]"
       />
-      <h1 className="text-[22px] leading-[27.5px] font-bold text-[#0F766E] md:text-[24px] md:leading-[30px]">
+      <h1 className="text-[22px] leading-[27.5px] font-bold text-[var(--primary-color)] md:text-[24px] md:leading-[30px]">
         Creative Leaders Schools
       </h1>
       <p className="mt-[3.5px] text-[12.25px] leading-[17.5px] text-[#667085] md:mt-2 md:text-[13px] md:leading-5">
@@ -75,7 +75,7 @@ export function AuthLabel({
       htmlFor={htmlFor}
       className={cn(
         "text-[10.5px] leading-[14px] font-medium md:text-xs md:leading-4",
-        tone === "green" ? "text-[#0F766E]" : "text-[#1b2430]"
+        tone === "green" ? "text-[var(--primary-color)]" : "text-[#1b2430]"
       )}
     >
       {children}
@@ -88,13 +88,13 @@ export function RequiredMark() {
 }
 
 export const authInputClassName =
-  "h-10 w-full rounded-lg border border-[#e3e8ee] bg-white px-3 py-2 text-sm text-[#1b2430] ring-offset-background outline-none placeholder:font-normal placeholder:text-[var(--placeholder)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0F766E] disabled:cursor-not-allowed disabled:opacity-60"
+  "h-10 w-full rounded-lg border border-[#e3e8ee] bg-white px-3 py-2 text-sm text-[#1b2430] ring-offset-background outline-none placeholder:font-normal placeholder:text-[var(--placeholder)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-color)] disabled:cursor-not-allowed disabled:opacity-60"
 
 export const authPrimaryButtonClassName =
-  "flex h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-[#0F766E] bg-[#0F766E] px-4 text-[12.25px] leading-[17.5px] font-medium text-white transition-colors hover:bg-[#115E59] disabled:cursor-not-allowed disabled:opacity-70 md:h-12 md:text-[13px] md:leading-5"
+  "flex h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-[var(--primary-color)] bg-[var(--primary-color)] px-4 text-[12.25px] leading-[17.5px] font-medium text-white transition-colors hover:bg-[var(--primary-hover)] disabled:cursor-not-allowed disabled:opacity-70 md:h-12 md:text-[13px] md:leading-5"
 
 export const authOutlineButtonClassName =
-  "flex h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-[#e3e8ee] bg-white px-4 text-[12.25px] leading-[17.5px] font-medium text-[#0F766E] transition-colors hover:border-[#0F766E]/30 hover:bg-[#f6f8fa] md:h-12 md:text-[13px] md:leading-5"
+  "flex h-[38px] w-full items-center justify-center gap-2 rounded-lg border border-[#e3e8ee] bg-white px-4 text-[12.25px] leading-[17.5px] font-medium text-[var(--primary-color)] transition-colors hover:border-[var(--primary-color)]/30 hover:bg-[#f6f8fa] md:h-12 md:text-[13px] md:leading-5"
 
 export function AuthHeading({
   title,
@@ -206,7 +206,7 @@ export function AuthFooterNote({ children }: { children: ReactNode }) {
 export function AuthPoweredBy() {
   return (
     <p className="pt-[17.5px] text-center text-[11px] leading-[16.5px] text-[#667085] md:pt-8 md:text-xs md:leading-4">
-      Powered by <span className="font-medium text-[#0F766E]">Abler</span>
+      Powered by <span className="font-medium text-[var(--primary-color)]">Abler</span>
     </p>
   )
 }

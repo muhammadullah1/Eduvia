@@ -15,6 +15,7 @@ import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ClassSection } from "@/data/types"
+import { getToday } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -62,7 +63,14 @@ export function ScheduleExamPage({
   const [papers, setPapers] = useState<PaperDraft[]>([])
   const [rememberDefaults, setRememberDefaults] = useState(true)
   const [error, setError] = useState("")
-  const locked = exam ? ["Published", "Finalised", "Archived"].includes(exam.status) : false
+  // Lifecycle (mirrors the API): past exams are read-only; ongoing ones allow a
+  // rename, a later end date and new papers dated today or later.
+  const locked = exam ? exam.phase === "past" || exam.status === "Archived" : false
+  const ongoing = exam?.phase === "ongoing"
+  const today = getToday()
+  const existingPaper = (classId: number, subjectId: number) =>
+    Boolean(exam?.sheets.some((sheet) => sheet.classId === classId && sheet.subjectId === subjectId))
+  const existingClass = (classId: number) => Boolean(exam?.classes.some((klass) => klass.id === classId))
 
   useEffect(() => {
     if (!exam) {
@@ -175,6 +183,10 @@ export function ScheduleExamPage({
       setError("Choose a start date and an end date.")
       return
     }
+    if (ongoing && exam?.endDate && endDate < exam.endDate) {
+      setError("While the exam is in progress the end date can only be extended.")
+      return
+    }
     if (endDate < startDate) {
       setError("The end date has to be on or after the start date.")
       return
@@ -207,6 +219,10 @@ export function ScheduleExamPage({
       }
       if (paper.paperDate && (paper.paperDate < startDate || paper.paperDate > endDate)) {
         setError(`${label} paper date must fall between the exam dates.`)
+        return
+      }
+      if (ongoing && !existingPaper(paper.classId, paper.subjectId) && (!paper.paperDate || paper.paperDate < today)) {
+        setError(`${label}: a paper added to an exam in progress needs a date of today or later.`)
         return
       }
       if ((paper.startTime || paper.endTime) && !paper.paperDate) {
@@ -250,7 +266,7 @@ export function ScheduleExamPage({
           <button
             type="button"
             onClick={onCancel}
-            className="inline-flex size-10 items-center justify-center rounded-xl border border-[var(--cls-border)] bg-white text-[var(--cls-ink)] shadow-sm"
+            className="inline-flex size-10 items-center justify-center rounded-xl border border-[var(--cls-border)] bg-white text-[var(--cls-ink)] shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
             aria-label="Back to examinations"
           >
             <ArrowLeft className="size-4" />
@@ -269,12 +285,17 @@ export function ScheduleExamPage({
         </Button>
       </div>
 
-      <section className="rounded-2xl border border-[var(--cls-border)] bg-white p-5 shadow-sm md:p-6">
+      <section className="rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.06)] md:p-6">
         <h2 className="text-base font-semibold text-[var(--heading)]">Basic information</h2>
         {locked ? (
-          <p className="mt-2 text-sm text-[var(--cls-muted)]">
-            This exam is {exam?.status.toLowerCase()}. Its papers stay as they are.
-          </p>
+          <LifecycleNote tone="muted">
+            This exam has ended, so it can no longer be edited. Archive it from the exam page instead.
+          </LifecycleNote>
+        ) : ongoing ? (
+          <LifecycleNote tone="amber">
+            This exam is in progress. You can rename it, extend the end date and add papers dated today or later.
+            The exam type, start date, classes and existing papers are locked.
+          </LifecycleNote>
         ) : null}
 
         <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -284,7 +305,7 @@ export function ScheduleExamPage({
               <button
                 key={type}
                 type="button"
-                disabled={locked}
+                disabled={locked || ongoing}
                 onClick={() => setExamType(type)}
                 className={cn(
                   "rounded-xl border px-4 py-3 text-left transition-colors",
@@ -331,14 +352,14 @@ export function ScheduleExamPage({
               onChange={setStartDate}
               defaultMonthKind="today"
               placeholder="Select date"
-              disabled={locked}
+              disabled={locked || ongoing}
             />
           </Field>
           <Field label="Date to" required>
             <DatePicker
               value={endDate}
               onChange={setEndDate}
-              fromDate={startDate || undefined}
+              fromDate={(ongoing ? exam?.endDate : startDate) || undefined}
               defaultMonthKind="today"
               placeholder="Select date"
               disabled={locked}
@@ -366,7 +387,7 @@ export function ScheduleExamPage({
                   <button
                     key={klass.id}
                     type="button"
-                    disabled={locked}
+                    disabled={locked || (ongoing && existingClass(id))}
                     onClick={() => toggleClass(id)}
                     className={cn(
                       "rounded-full border px-3 py-1.5 text-sm transition-colors",
@@ -392,7 +413,7 @@ export function ScheduleExamPage({
               Marks start from each class’s subject defaults. Set a date and time for each paper inside the exam window.
               The class total is the sum of its papers.
             </p>
-            <label className="mt-2 flex items-center gap-2 text-sm text-[#0F172A]">
+            <label className="mt-2 flex items-center gap-2 text-sm text-[var(--cls-ink)]">
               <Checkbox
                 checked={rememberDefaults}
                 disabled={locked}
@@ -413,7 +434,7 @@ export function ScheduleExamPage({
             grouped.map((group) => (
               <article
                 key={group.classId}
-                className="overflow-hidden rounded-2xl border border-[var(--cls-border)] bg-white shadow-sm"
+                className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
               >
                 <div className="flex flex-col gap-1 border-b border-[var(--cls-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -444,14 +465,16 @@ export function ScheduleExamPage({
                         </tr>
                       </thead>
                       <tbody>
-                        {group.rows.map((paper) => (
+                        {group.rows.map((paper) => {
+                          const paperLocked = locked || (ongoing && existingPaper(paper.classId, paper.subjectId))
+                          return (
                           <tr key={`${paper.classId}-${paper.subjectId}`} className="border-t border-[var(--cls-border)]">
                             <td className="px-4 py-2.5 font-medium text-[var(--heading)]">{paper.subject}</td>
                             <td className="px-4 py-2.5">
                               <Input
                                 className="h-9 w-28"
                                 inputMode="decimal"
-                                disabled={locked}
+                                disabled={paperLocked}
                                 value={paper.totalMarks}
                                 onChange={(event) =>
                                   updatePaper(paper.classId, paper.subjectId, {
@@ -464,7 +487,7 @@ export function ScheduleExamPage({
                               <Input
                                 className="h-9 w-28"
                                 inputMode="decimal"
-                                disabled={locked}
+                                disabled={paperLocked}
                                 value={paper.passingMarks}
                                 onChange={(event) =>
                                   updatePaper(paper.classId, paper.subjectId, {
@@ -478,9 +501,9 @@ export function ScheduleExamPage({
                                 type="date"
                                 className="h-9 w-40"
                                 aria-label={`${paper.subject} paper date`}
-                                min={startDate || undefined}
+                                min={(ongoing && startDate < today ? today : startDate) || undefined}
                                 max={endDate || undefined}
-                                disabled={locked}
+                                disabled={paperLocked}
                                 value={paper.paperDate}
                                 onChange={(event) =>
                                   updatePaper(paper.classId, paper.subjectId, { paperDate: event.target.value })
@@ -492,7 +515,7 @@ export function ScheduleExamPage({
                                 type="time"
                                 className="h-9 w-32"
                                 aria-label={`${paper.subject} start time`}
-                                disabled={locked}
+                                disabled={paperLocked}
                                 value={paper.startTime}
                                 onChange={(event) =>
                                   updatePaper(paper.classId, paper.subjectId, { startTime: event.target.value })
@@ -504,7 +527,7 @@ export function ScheduleExamPage({
                                 type="time"
                                 className="h-9 w-32"
                                 aria-label={`${paper.subject} end time`}
-                                disabled={locked}
+                                disabled={paperLocked}
                                 value={paper.endTime}
                                 onChange={(event) =>
                                   updatePaper(paper.classId, paper.subjectId, { endTime: event.target.value })
@@ -512,7 +535,8 @@ export function ScheduleExamPage({
                               />
                             </td>
                           </tr>
-                        ))}
+                          )
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -549,5 +573,21 @@ function Field({
       </Label>
       {children}
     </div>
+  )
+}
+
+function LifecycleNote({ tone, children }: { tone: "muted" | "amber"; children: ReactNode }) {
+  return (
+    <p
+      role="note"
+      className={cn(
+        "mt-3 rounded-lg border px-3.5 py-2.5 text-sm",
+        tone === "amber"
+          ? "border-amber-200 bg-amber-50 text-amber-800"
+          : "border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-muted)]"
+      )}
+    >
+      {children}
+    </p>
   )
 }

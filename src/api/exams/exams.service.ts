@@ -1,5 +1,4 @@
-import { api, ApiHttpError } from "@/lib/api"
-import { loadAuth } from "@/lib/auth"
+import { api } from "@/lib/api"
 
 export const EXAM_TYPES = [
   "Mid-Term",
@@ -35,6 +34,8 @@ export type ExamSheetSummary = {
   students: number
 }
 
+export type ExamPhase = "upcoming" | "ongoing" | "past"
+
 export type ExamSummary = {
   id: number
   name: string
@@ -44,6 +45,8 @@ export type ExamSummary = {
   startDate: string | null
   endDate: string | null
   status: ExamStatus
+  /** Lifecycle from the API: decides what can still be edited, deleted or archived. */
+  phase: ExamPhase
   feeMonth: string | null
   classes: ExamClassRef[]
   sheets: ExamSheetSummary[]
@@ -120,6 +123,7 @@ export type ResultPaperCell = {
   subjectId: number
   obtained: number | null
   status: PaperStatus
+  grade?: string | null
 }
 
 export type ResultRow = {
@@ -157,18 +161,163 @@ export type ExamResults = {
   sheetStatus: string | null
   rankTie: "shared" | "dense"
   feeRule: string
+  provisional?: boolean
+  paperStats?: PaperStats[]
   rows: ResultRow[]
+}
+
+export type PaperStats = {
+  subjectId: number
+  subject: string
+  sat: number
+  passed: number
+  failed: number
+  absent: number
+  exempt: number
+  highest: number | null
+  lowest: number | null
+  average: number | null
+}
+
+export type ExamDocumentKind =
+  | "dmc"
+  | "result-sheet"
+  | "mark-sheet"
+  | "class-report"
+  | "overall"
+
+export type ExamDocumentMeta = {
+  school: { name: string }
+  session: string | null
+  exam: {
+    id: number
+    name: string
+    examType: string
+    status: ExamStatus
+    startDate: string | null
+    endDate: string | null
+  }
+  generatedAt: string
+}
+
+type DocumentBase = { kind: ExamDocumentKind; title: string; meta: ExamDocumentMeta }
+
+export type DmcDocument = DocumentBase & {
+  kind: "dmc"
+  student: {
+    id: number
+    name: string
+    admissionNo: string
+    className: string | null
+    guardian: string | null
+    dateOfBirth: string | null
+    gender: string | null
+  }
+  subjects: {
+    subject: string
+    score: number | null
+    max: number
+    passing: number
+    absent: boolean
+    exempt: boolean
+    result: PaperStatus
+    grade: string | null
+  }[]
+  total: number
+  max: number
+  percentage: number | null
+  grade: string | null
+  result: PaperStatus
+  passed: boolean
+  classRank: number | null
+  classSize: number
+  provisional: boolean
+}
+
+export type ResultsDocument = DocumentBase &
+  ExamResults & { kind: "result-sheet" | "mark-sheet" | "class-report" }
+
+export type OverallDocument = DocumentBase & { kind: "overall"; classes: ExamResults[] }
+
+export type ExamDocument = DmcDocument | ResultsDocument | OverallDocument
+
+export type ExamDocumentQuery = {
+  classId?: number
+  subjectId?: number
+  studentId?: number
+}
+
+export type DailyTestResultDto = {
+  fkStudentId: number
+  obtainedMarks: number | string | null
+  isAbsent?: boolean
 }
 
 export type DailyTestDto = {
   id: number
   date: string
+  month: string
+  weekOfMonth?: number
+  title?: string
   status: string
-  maxScore: number | string
+  /** Stored as `totalMarks`; older payloads used `maxScore`. */
+  totalMarks?: number | string
+  maxScore?: number | string
+  fkClassId: number
+  fkSubjectId: number
   class?: { id: number; label: string } | null
   subject?: { id: number; name: string } | null
-  results?: { fkStudentId: number; obtainedMarks: number | null }[]
+  results?: DailyTestResultDto[]
 }
+
+export type DailyTestMark = {
+  studentId: number
+  score: number | null
+  absent?: boolean
+}
+
+export type DailyTestOutcome = {
+  status: string
+  testsTaken: number
+  failedCount: number
+  flaggedForFollowUp: boolean
+}
+
+export type DailyMonthlySummary = {
+  rules: { passPercent: number; maxFailsPerMonth: number }
+  tests: { id: number; date: string; weekOfMonth: number; status: string; maxScore: number }[]
+  students: {
+    student: { id: number; firstName: string; lastName: string; admissionNo: string }
+    scores: (number | null)[]
+    absent: boolean[]
+    summary: DailyTestOutcome | null
+  }[]
+}
+
+export type ParentSubjectMonth = {
+  subject: { id: number; name: string } | null
+  tests: {
+    id: number
+    date: string
+    weekOfMonth: number
+    maxScore: number
+    score: number | null
+    absent: boolean
+    passed: boolean | null
+  }[]
+  outcome: DailyTestOutcome & { passedCount: number; averagePercent: number | null }
+}
+
+export type DailyFlaggedRow = DailyTestOutcome & {
+  id: number
+  month: string
+  student?: { id: number; firstName: string; lastName: string; admissionNo: string } | null
+  subject?: { id: number; name: string } | null
+  class?: { id: number; label: string } | null
+}
+
+export const dailyTestOutOf = (test: Pick<DailyTestDto, "totalMarks" | "maxScore">) =>
+  Number(test.totalMarks ?? test.maxScore ?? 0)
 
 const examsService = {
   summaries: (sessionId?: number) =>
@@ -206,6 +355,12 @@ const examsService = {
   results: (examId: number, classId?: number, subjectId?: number) =>
     api.get<ExamResults>(`/exams/${examId}/results`, { classId, subjectId }),
 
+  document: <T extends ExamDocument = ExamDocument>(
+    examId: number,
+    kind: ExamDocumentKind,
+    query: ExamDocumentQuery = {}
+  ) => api.get<T>(`/exams/${examId}/documents/${kind}`, query),
+
   advance: (examId: number) =>
     api.post<{ action: string }>(`/exams/${examId}/advance`, {}),
 
@@ -227,32 +382,25 @@ const examsService = {
   dailyTests: (month: string) =>
     api.get<DailyTestDto[]>("/daily-tests", { month }),
 
-  async download(path: string, filename: string) {
-    const session = loadAuth()
-    const res = await fetch(`/api${path}`, {
-      headers: {
-        Authorization: session?.token ? `Bearer ${session.token}` : "",
-        platform: "webApp",
-      },
-    })
-    if (!res.ok) {
-      let message = "Could not download the document."
-      try {
-        const body = (await res.json()) as { message?: string }
-        if (body.message) message = body.message
-      } catch {
-        /* binary error */
-      }
-      throw new ApiHttpError(res.status, message)
-    }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement("a")
-    link.href = url
-    link.download = filename
-    link.click()
-    URL.revokeObjectURL(url)
-  },
+  dailyTest: (id: number) => api.get<DailyTestDto>(`/daily-tests/${id}`),
+
+  generateDailyTests: (month: string) =>
+    api.post<DailyTestDto[]>("/daily-tests/generate", { month }),
+
+  saveDailyMarks: (id: number, marks: DailyTestMark[]) =>
+    api.put<DailyTestDto>(`/daily-tests/${id}/marks`, { marks }),
+
+  publishDailyTest: (id: number) =>
+    api.post<DailyTestDto>(`/daily-tests/${id}/publish`, {}),
+
+  dailyMonthlySummary: (classId: number, subjectId: number, month: string) =>
+    api.get<DailyMonthlySummary>("/daily-tests/monthly-summary", { classId, subjectId, month }),
+
+  childMonthlySummary: (studentId: number, month: string) =>
+    api.get<ParentSubjectMonth[]>("/daily-tests/monthly-summary", { studentId, month }),
+
+  dailyFlagged: (month: string) =>
+    api.get<DailyFlaggedRow[]>("/daily-tests/flagged", { month }),
 }
 
 export default examsService

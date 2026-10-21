@@ -161,7 +161,6 @@ export function TimetablePage() {
               View by
             </span>
             <ClsSubTabs
-              variant="segmented"
               aria-label="Timetable view"
               className="!flex-row !items-center !justify-start !gap-0"
               value={viewMode}

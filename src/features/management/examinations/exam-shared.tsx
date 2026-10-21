@@ -21,7 +21,7 @@ export function Chooser({
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm">
-      <span className="text-[#64748B]">{label}</span>
+      <span className="text-[var(--cls-muted)]">{label}</span>
       <Select value={value || undefined} onValueChange={onChange}>
         <SelectTrigger>
           <SelectValue placeholder={placeholder} />

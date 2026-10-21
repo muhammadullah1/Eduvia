@@ -159,13 +159,13 @@ export function StudentsPage({ query }: { query: string }) {
                       <td className="px-4 py-3">{student.class?.label ?? "—"}</td>
                       <td className="px-4 py-3">{guardian.name || "—"}</td>
                       <td className="px-4 py-3 whitespace-nowrap">
-                        {guardian.phone ? <a className="text-[#0F766E]" href={`tel:${guardian.phone}`}>{guardian.phone}</a> : "—"}
+                        {guardian.phone ? <a className="text-[var(--primary-color)]" href={`tel:${guardian.phone}`}>{guardian.phone}</a> : "—"}
                       </td>
                       <td className="px-4 py-3">
                         <span
                           className={cn(
                             "rounded-full px-2.5 py-1 text-xs font-medium",
-                            student.status === "Active" ? "bg-[#F0FDFA] text-[#0F766E]" : "bg-[#F1F5F9] text-[#64748B]"
+                            student.status === "Active" ? "bg-[var(--secondary-color)] text-[var(--primary-color)]" : "bg-[#F1F5F9] text-[#64748B]"
                           )}
                         >
                           {student.status}
