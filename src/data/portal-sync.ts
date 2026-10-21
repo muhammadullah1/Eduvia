@@ -47,19 +47,22 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   fees: ["students", "feeMonths", "payments"],
   finance: ["expenses", "payments"],
   academic: ["staff", "slots"],
-  sessions: ["staff", "slots"],
+  /** Session list is React Query. Header session label uses the same query. */
+  sessions: [],
   /** List/detail load via React Query (`useClassesList`, etc.). */
   classes: [],
-  subjects: ["staff", "slots"],
-  "teachers-assignments": ["staff"],
-  timetable: ["staff", "slots"],
-  /** Absences/substitutions load via React Query on the substitutes page. */
-  substitutes: ["slots"],
-  absences: ["slots"],
+  /** Subjects, class tags, and timetable columns load via React Query. */
+  subjects: [],
+  "teachers-assignments": [],
+  /** Class grid, school conflicts, and teachers load via React Query. */
+  timetable: [],
+  /** Dated absences and teachers load via React Query. Classes and slots stay in the store. */
+  substitutes: ["classes", "slots"],
+  absences: ["classes", "slots"],
   "lesson-plan": [],
   curriculum: ["plannedChapters"],
-  "lesson-review": ["dailyLessons"],
-  "daily-test-schedule": ["testSchedules", "weeklyTests", "slots"],
+  "lesson-review": ["dailyLessons", "plannedChapters", "staff"],
+  "daily-test-schedule": ["classes", "subjects", "settings", "slots", "testSchedules"],
   "weekly-tests": ["testSchedules", "weeklyTests"],
   students: ["staff", "students"],
   "enrollment-promotion": ["applications", "students"],
@@ -67,7 +70,8 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   "student-attendance": ["attendance", "students"],
   "collect-fee": ["students", "feeMonths", "payments"],
   "offline-sync": ["students", "feeMonths", "payments"],
-  exams: ["sheets", "resultOverrides", "students"],
+  /** Examination UI is not integrated. Do not preload portal datasets. */
+  exams: [],
   "results-gate": ["resultOverrides", "students", "feeMonths"],
   messages: ["updates"],
   settings: [],
@@ -86,12 +90,19 @@ export const ADMISSION_WIZARD_SLICES: SchoolDataSlice[] = [
 
 const MINIMAL_CORE_SECTIONS = new Set(["substitutes", "absences"])
 
-/** Primary data comes from React Query — do not pull portal core or legacy store slices. */
-const REACT_QUERY_SECTIONS = new Set([
+/** These routes own their data through React Query or an explicit slice list. */
+const NO_DEFAULT_CORE = new Set([
   "classes",
   "admissions",
   "teachers-assignments",
   "lesson-plan",
+  "sessions",
+  "subjects",
+  "timetable",
+  "exams",
+  "daily-test-schedule",
+  "substitutes",
+  "absences",
 ])
 
 export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPlan {
@@ -103,12 +114,9 @@ export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPl
   }
   const sectionSlices = ADMIN_SECTION_SLICES[section]
   if (!sectionSlices) {
-    return { mode: "full" }
+    return { mode: "partial", slices: [] }
   }
-  if (REACT_QUERY_SECTIONS.has(section)) {
-    return { mode: "partial", slices: [...new Set(sectionSlices)] }
-  }
-  if (section === "admissions") {
+  if (NO_DEFAULT_CORE.has(section)) {
     return { mode: "partial", slices: [...new Set(sectionSlices)] }
   }
   const core = MINIMAL_CORE_SECTIONS.has(section)

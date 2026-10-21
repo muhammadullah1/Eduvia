@@ -12,59 +12,8 @@ export const WIZARD_STEPS = [
   "Enrollment",
 ] as const
 
-export function AdmissionsPanel({
-  className,
-  children,
-  noPadding,
-}: {
-  className?: string
-  children: ReactNode
-  noPadding?: boolean
-}) {
-  return (
-    <div
-      className={cn(
-        "overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]",
-        className
-      )}
-    >
-      {noPadding ? children : children}
-    </div>
-  )
-}
-
-export function AdmissionsStatCard({
-  label,
-  value,
-  hint,
-  accent = "default",
-}: {
-  label: string
-  value: string | number
-  hint?: string
-  accent?: "default" | "brand" | "warning" | "success"
-}) {
-  const valueClass =
-    accent === "brand"
-      ? "text-[var(--cls-brand)]"
-      : accent === "warning"
-        ? "text-amber-700"
-        : accent === "success"
-          ? "text-emerald-700"
-          : "text-[var(--cls-ink)]"
-
-  return (
-    <div className="rounded-xl border border-[var(--cls-border)] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-      <p className="text-xs font-medium text-[var(--cls-muted)]">{label}</p>
-      <p className={cn("mt-1 text-2xl font-semibold tracking-tight", valueClass)}>
-        {value}
-      </p>
-      {hint ? (
-        <p className="mt-0.5 text-xs text-[var(--cls-muted)]">{hint}</p>
-      ) : null}
-    </div>
-  )
-}
+// Shared list-page primitives now live in components/app/cls-panel.
+export { ClsPanel as AdmissionsPanel, ClsStatCard as AdmissionsStatCard } from "@/components/app/cls-panel"
 
 export function AdmissionStepper({ step }: { step: number }) {
   const progress = ((step + 1) / WIZARD_STEPS.length) * 100

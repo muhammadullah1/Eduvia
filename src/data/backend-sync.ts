@@ -1,3 +1,10 @@
+import { ADMISSIONS_LIST_MAX_PAGE_SIZE } from "@/api/admissions/constants"
+import {
+  type AbsenceRow,
+  mapTeacherAbsencesFromApi,
+} from "@/api/teacher-absences/map-absences"
+import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
+import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
 import {
   type AbsenceStatus,
   type AcademicSession,
@@ -34,7 +41,7 @@ import {
   type WeeklyTest,
   type WeeklyTestStatus,
 } from "@/data/types"
-import { api } from "@/lib/api"
+import { api, ApiHttpError } from "@/lib/api"
 import type {
   ApiAbsence,
   ApiApplication,
@@ -59,24 +66,30 @@ import type {
   ApiUpdate,
   ApiUser,
 } from "@/lib/api-types"
-import {
-  mapTeacherAbsencesFromApi,
-  type AbsenceRow,
-} from "@/api/teacher-absences/map-absences"
-import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
-import { ADMISSIONS_LIST_MAX_PAGE_SIZE } from "@/api/admissions/constants"
-import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
+import { loadAuth } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
+
+/** Paths the signed-in user was refused (403), so later syncs skip them. */
+const FORBIDDEN_KEY = "eduvia.sync.forbidden"
+const forbiddenPaths = new Set<string>(
+  JSON.parse(sessionStorage.getItem(FORBIDDEN_KEY) ?? "[]") as string[]
+)
 
 async function safeGet<T>(
   path: string,
   query: Record<string, string | number | undefined | null> | undefined,
   fallback: T
 ): Promise<T> {
+  const key = `${loadAuth()?.user?.id ?? "anon"}:${path}`
+  if (forbiddenPaths.has(key)) return fallback
   try {
     const res = await api.get<T>(path, query)
     return res ?? fallback
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiHttpError && error.status === 403) {
+      forbiddenPaths.add(key)
+      sessionStorage.setItem(FORBIDDEN_KEY, JSON.stringify([...forbiddenPaths]))
+    }
     return fallback
   }
 }
@@ -185,95 +198,66 @@ export async function fetchPortalCore(): Promise<
   return { classes, sessions, subjects, settings }
 }
 
-async function fetchSettingsFromApi(): Promise<
-  Pick<SchoolState, "settings">
-> {
-  const settingsData = await safeGet<ApiSettings>("/settings", undefined, {})
-  return {
-    settings: {
+async function fetchRequestedCore(
+  want: Set<SchoolDataSlice>
+): Promise<Partial<SchoolState>> {
+  const [classesData, sessionsData, subjectsData, settingsData] =
+    await Promise.all([
+      want.has("classes")
+        ? safeGet<ApiClass[]>("/classes", undefined, [])
+        : Promise.resolve([] as ApiClass[]),
+      want.has("sessions")
+        ? safeGet<ApiSession[]>("/sessions", undefined, [])
+        : Promise.resolve([] as ApiSession[]),
+      want.has("subjects")
+        ? safeGet<ApiSubject[]>("/subjects", undefined, [])
+        : Promise.resolve([] as ApiSubject[]),
+      want.has("settings")
+        ? safeGet<ApiSettings>("/settings", undefined, {})
+        : Promise.resolve({} as ApiSettings),
+    ])
+
+  const partial: Partial<SchoolState> = {}
+  if (want.has("classes")) {
+    partial.classes = classesData.map((c) => ({
+      id: String(c.id),
+      label: `${c.grade} · ${c.section}`,
+      grade: c.grade,
+      section: c.section,
+      room: c.room || "Room",
+      periodCount: Number(c.periodCount) || 8,
+      monthlyFee:
+        Number(
+          (c as { monthlyTuitionFee?: string | number }).monthlyTuitionFee ??
+            c.monthlyFee
+        ) || 0,
+    }))
+  }
+  if (want.has("sessions")) {
+    partial.sessions = sessionsData.map((s) => ({
+      id: String(s.id),
+      name: s.name,
+      start: s.startDate,
+      end: s.endDate,
+      current: Boolean(s.isCurrent),
+    }))
+  }
+  if (want.has("subjects")) {
+    partial.subjects = subjectsData.map((s) => ({
+      id: String(s.id),
+      name: s.name,
+      code: s.code,
+    }))
+  }
+  if (want.has("settings")) {
+    partial.settings = {
       dailyTestRules:
         settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
       resultVisibility:
         settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
-    },
+    }
   }
-}
-
-async function fetchClassesAndSessions(): Promise<
-  Pick<SchoolState, "classes" | "sessions">
-> {
-  const [classesData, sessionsData] = await Promise.all([
-    safeGet<ApiClass[]>("/classes", undefined, []),
-    safeGet<ApiSession[]>("/sessions", undefined, []),
-  ])
-
-  const classes: ClassSection[] = classesData.length
-    ? classesData.map((c) => ({
-        id: String(c.id),
-        label: `${c.grade} · ${c.section}`,
-        grade: c.grade,
-        section: c.section,
-        room: c.room || "Room",
-        periodCount: Number(c.periodCount) || 8,
-        monthlyFee:
-          Number(
-            (c as { monthlyTuitionFee?: string | number }).monthlyTuitionFee ??
-              c.monthlyFee
-          ) || 0,
-      }))
-    : []
-
-  const sessions: AcademicSession[] = sessionsData.length
-    ? sessionsData.map((s) => ({
-        id: String(s.id),
-        name: s.name,
-        start: s.startDate,
-        end: s.endDate,
-        current: Boolean(s.isCurrent),
-      }))
-    : []
-
-  return { classes, sessions }
-}
-
-function wantsOnlyClasses(want: Set<SchoolDataSlice>) {
-  return (
-    want.has("classes") &&
-    !want.has("sessions") &&
-    !want.has("subjects") &&
-    !want.has("settings")
-  )
-}
-
-function wantsOnlyClassesAndSessions(want: Set<SchoolDataSlice>) {
-  return (
-    want.has("classes") &&
-    want.has("sessions") &&
-    !want.has("subjects") &&
-    !want.has("settings")
-  )
-}
-
-async function fetchClassesFromApi(): Promise<
-  Pick<SchoolState, "classes">
-> {
-  const classesData = await safeGet<ApiClass[]>("/classes", undefined, [])
-  const classes: ClassSection[] = classesData.length
-    ? classesData.map((c) => ({
-        id: String(c.id),
-        label: `${c.grade} · ${c.section}`,
-        grade: c.grade,
-        section: c.section,
-        room: c.room || "Room",
-        periodCount: Number(c.periodCount) || 8,
-        monthlyFee:
-          Number(
-            (c as { monthlyTuitionFee?: string | number }).monthlyTuitionFee ??
-              c.monthlyFee
-          ) || 0,
-      }))
-    : []
-  return { classes }
+  return partial
 }
 
 async function fetchTimetableSlotsFromApi(): Promise<Pick<SchoolState, "slots">> {
@@ -448,33 +432,12 @@ export async function fetchSchoolDataSlices(
   const partial: Partial<SchoolState> = {}
   const tasks: Promise<void>[] = []
 
-  if (want.has("settings") && !PORTAL_CORE_SLICES.filter((s) => s !== "settings").some((s) => want.has(s))) {
+  if (PORTAL_CORE_SLICES.some((slice) => want.has(slice))) {
     tasks.push(
-      fetchSettingsFromApi().then((slice) => {
-        Object.assign(partial, slice)
+      fetchRequestedCore(want).then((core) => {
+        Object.assign(partial, core)
       })
     )
-  }
-  if (wantsOnlyClasses(want)) {
-    tasks.push(
-      fetchClassesFromApi().then((slice) => {
-        Object.assign(partial, slice)
-      })
-    )
-  } else if (PORTAL_CORE_SLICES.some((slice) => want.has(slice))) {
-    if (wantsOnlyClassesAndSessions(want)) {
-      tasks.push(
-        fetchClassesAndSessions().then((slice) => {
-          Object.assign(partial, slice)
-        })
-      )
-    } else {
-      tasks.push(
-        fetchPortalCore().then((core) => {
-          Object.assign(partial, core)
-        })
-      )
-    }
   }
   if (want.has("slots")) {
     tasks.push(
@@ -524,7 +487,7 @@ export async function fetchSchoolDataSlices(
   const heavy = [...want].filter((slice) => !LIGHT_FETCH_SLICES.has(slice))
   if (heavy.length > 0) {
     tasks.push(
-      fetchBackendState().then((full) => {
+      fetchBackendState(new Set(heavy)).then((full) => {
         for (const key of heavy) {
           if (key in full) {
             (partial as Record<string, unknown>)[key] = full[key as keyof SchoolState]
@@ -538,7 +501,10 @@ export async function fetchSchoolDataSlices(
   return partial
 }
 
-export async function fetchBackendState(): Promise<SchoolState> {
+export async function fetchBackendState(
+  only?: ReadonlySet<SchoolDataSlice>
+): Promise<SchoolState> {
+  const need = (slice: SchoolDataSlice) => !only || only.has(slice)
   const [
     classesData,
     sessionsData,
@@ -563,36 +529,80 @@ export async function fetchBackendState(): Promise<SchoolState> {
     updatesData,
     auditLogsData,
   ] = await Promise.all([
-    safeGet<ApiClass[]>("/classes", undefined, []),
-    safeGet<ApiSession[]>("/sessions", undefined, []),
-    safeGet<ApiSubject[]>("/subjects", undefined, []),
-    safeGet<ApiTeacher[]>("/teachers", undefined, []),
-    safeGet<{ users: ApiUser[] }>("/users", { pageSize: 1000 }, { users: [] }),
-    safeGet<{ students: ApiStudent[] }>(
-      "/students",
-      { pageSize: 1000 },
-      { students: [] }
-    ),
-    safeGet<{ applications: ApiApplication[] }>(
-      "/applications",
-      { pageSize: ADMISSIONS_LIST_MAX_PAGE_SIZE },
-      { applications: [] }
-    ),
-    safeGet<ApiFeeMonth[]>("/fees/months", undefined, []),
-    safeGet<ApiPayment[]>("/fees/payments", undefined, []),
-    safeGet<ApiExpense[]>("/expenses", undefined, []),
-    safeGet<ApiExam[]>("/exams", undefined, []),
-    safeGet<ApiOverride[]>("/exams/overrides", undefined, []),
-    safeGet<ApiAttendance[]>("/attendances", undefined, []),
-    safeGet<ApiPlannedChapter[]>("/planned-chapters", undefined, []),
-    safeGet<ApiDailyLesson[]>("/daily-lessons", undefined, []),
-    safeGet<ApiTimetableSlot[]>("/timetable", undefined, []),
-    safeGet<ApiAbsence[]>("/teacher-absences", undefined, []),
-    safeGet<ApiSchedule[]>("/daily-tests/schedules", undefined, []),
-    safeGet<ApiDailyTest[]>("/daily-tests", undefined, []),
-    safeGet<ApiSettings>("/settings", undefined, {}),
-    safeGet<ApiUpdate[]>("/updates", undefined, []),
-    safeGet<ApiAuditLog[]>("/audit-logs", { limit: 50 }, []),
+    need("classes")
+      ? safeGet<ApiClass[]>("/classes", undefined, [])
+      : Promise.resolve([] as ApiClass[]),
+    need("sessions")
+      ? safeGet<ApiSession[]>("/sessions", undefined, [])
+      : Promise.resolve([] as ApiSession[]),
+    need("subjects")
+      ? safeGet<ApiSubject[]>("/subjects", undefined, [])
+      : Promise.resolve([] as ApiSubject[]),
+    need("staff")
+      ? safeGet<ApiTeacher[]>("/teachers", undefined, [])
+      : Promise.resolve([] as ApiTeacher[]),
+    need("staff")
+      ? safeGet<{ users: ApiUser[] }>("/users", { pageSize: 1000 }, { users: [] })
+      : Promise.resolve({ users: [] as ApiUser[] }),
+    need("students")
+      ? safeGet<{ students: ApiStudent[] }>(
+          "/students",
+          { pageSize: 1000 },
+          { students: [] }
+        )
+      : Promise.resolve({ students: [] as ApiStudent[] }),
+    need("applications")
+      ? safeGet<{ applications: ApiApplication[] }>(
+          "/applications",
+          { pageSize: ADMISSIONS_LIST_MAX_PAGE_SIZE },
+          { applications: [] }
+        )
+      : Promise.resolve({ applications: [] as ApiApplication[] }),
+    need("feeMonths")
+      ? safeGet<ApiFeeMonth[]>("/fees/months", undefined, [])
+      : Promise.resolve([] as ApiFeeMonth[]),
+    need("payments")
+      ? safeGet<ApiPayment[]>("/fees/payments", undefined, [])
+      : Promise.resolve([] as ApiPayment[]),
+    need("expenses")
+      ? safeGet<ApiExpense[]>("/expenses", undefined, [])
+      : Promise.resolve([] as ApiExpense[]),
+    need("sheets")
+      ? safeGet<ApiExam[]>("/exams", undefined, [])
+      : Promise.resolve([] as ApiExam[]),
+    need("resultOverrides")
+      ? safeGet<ApiOverride[]>("/exams/overrides", undefined, [])
+      : Promise.resolve([] as ApiOverride[]),
+    need("attendance")
+      ? safeGet<ApiAttendance[]>("/attendances", undefined, [])
+      : Promise.resolve([] as ApiAttendance[]),
+    need("plannedChapters")
+      ? safeGet<ApiPlannedChapter[]>("/planned-chapters", undefined, [])
+      : Promise.resolve([] as ApiPlannedChapter[]),
+    need("dailyLessons")
+      ? safeGet<ApiDailyLesson[]>("/daily-lessons", undefined, [])
+      : Promise.resolve([] as ApiDailyLesson[]),
+    need("slots")
+      ? safeGet<ApiTimetableSlot[]>("/timetable", undefined, [])
+      : Promise.resolve([] as ApiTimetableSlot[]),
+    need("teacherAbsences") || need("substitutions")
+      ? safeGet<ApiAbsence[]>("/teacher-absences", undefined, [])
+      : Promise.resolve([] as ApiAbsence[]),
+    need("testSchedules")
+      ? safeGet<ApiSchedule[]>("/daily-tests/schedules", undefined, [])
+      : Promise.resolve([] as ApiSchedule[]),
+    need("weeklyTests")
+      ? safeGet<ApiDailyTest[]>("/daily-tests", undefined, [])
+      : Promise.resolve([] as ApiDailyTest[]),
+    need("settings")
+      ? safeGet<ApiSettings>("/settings", undefined, {})
+      : Promise.resolve({} as ApiSettings),
+    need("updates")
+      ? safeGet<ApiUpdate[]>("/updates", undefined, [])
+      : Promise.resolve([] as ApiUpdate[]),
+    need("audits")
+      ? safeGet<ApiAuditLog[]>("/audit-logs", { limit: 50 }, [])
+      : Promise.resolve([] as ApiAuditLog[]),
   ])
 
   const today = getToday()
@@ -634,8 +644,17 @@ export async function fetchBackendState(): Promise<SchoolState> {
       }))
     : []
 
-  // 4. Staff
+  // 4. Staff. Teachers with no explicit class links teach the classes their
+  // timetable periods are in.
+  const timetableClassIds = new Map<number, Set<string>>()
+  for (const slot of timetableData) {
+    if (slot.fkTeacherId == null) continue
+    const ids = timetableClassIds.get(slot.fkTeacherId) ?? new Set<string>()
+    ids.add(String(slot.fkClassId))
+    timetableClassIds.set(slot.fkTeacherId, ids)
+  }
   const teacherStaff: Staff[] = teachersData.map((t) => {
+    const linked = (t.classes ?? []).map((c) => String(c.id))
     return {
       id: String(t.id),
       name:
@@ -656,7 +675,9 @@ export async function fetchBackendState(): Promise<SchoolState> {
             },
           ]
         : [],
-      classIds: (t.classes ?? []).map((c) => String(c.id)),
+      classIds: linked.length
+        ? linked
+        : [...(timetableClassIds.get(t.id) ?? [])],
     }
   })
 
@@ -854,7 +875,7 @@ export async function fetchBackendState(): Promise<SchoolState> {
           ? `${l.teacher.user.firstName} ${l.teacher.user.lastName}`.trim()
           : "Teacher",
         date: l.date ? l.date.slice(0, 10) : today,
-        chapterId: String(l.fkPlannedChapterId),
+        chapterId: String(l.fkChapterId ?? l.fkPlannedChapterId ?? ""),
         classwork: l.classwork ?? "",
         homework: l.homework ?? "",
         remarks: l.remarks ?? "",

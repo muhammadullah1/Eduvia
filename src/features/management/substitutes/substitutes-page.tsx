@@ -65,7 +65,7 @@ export function SubstitutesPage() {
     refetch: refetchAbsences,
   } = useTeacherAbsencesForDate(viewDate)
 
-  const { data: logData } = useSubstitutionLog()
+  const { data: logData } = useSubstitutionLog(logModalOpen)
 
   const { markAbsent, assign, removeCover, cancelAbsence } =
     useSubstituteMutations(actor.role)

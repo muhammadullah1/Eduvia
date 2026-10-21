@@ -1,12 +1,11 @@
 import { Lightbulb, Plus, Users } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
 import usersService from "@/api/users/users.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
-import { useSchool } from "@/data/store"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
@@ -59,7 +58,6 @@ export function TeachersAssignmentsPage({
   globalQuery,
   onOpenUser,
 }: Props) {
-  const { syncPortalForRoute } = useSchool()
   const actor = useActor()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
@@ -70,10 +68,6 @@ export function TeachersAssignmentsPage({
     null
   )
   const [deleting, setDeleting] = useState(false)
-
-  useEffect(() => {
-    void syncPortalForRoute(actor.role, "teachers-assignments")
-  }, [actor.role, syncPortalForRoute])
 
   const { data: rows = [], isLoading, isError, refetch } = useStaffDirectory()
   const { data: subjects = [] } = useSubjectsList()
@@ -102,7 +96,6 @@ export function TeachersAssignmentsPage({
 
   async function afterMutation(message: string) {
     await invalidateStaffDirectory(queryClient)
-    await syncPortalForRoute(actor.role, "teachers-assignments")
     toast.success(message)
   }
 
@@ -128,7 +121,6 @@ export function TeachersAssignmentsPage({
         lastName: payload.lastName,
         email: payload.email,
         phone: payload.phone || null,
-        password: payload.password,
         role: payload.role,
         subjectId: payload.subjectId,
         employeeCode: payload.employeeCode ?? null,
@@ -137,9 +129,13 @@ export function TeachersAssignmentsPage({
       await afterMutation("Staff member created")
       setModalOpen(false)
     } catch (err) {
-      toast.error(
+      const message =
         err instanceof Error ? err.message : "Could not create staff member."
-      )
+      if (message.includes("invitation email")) {
+        await invalidateStaffDirectory(queryClient)
+        setModalOpen(false)
+      }
+      toast.error(message)
     } finally {
       setSaving(false)
     }

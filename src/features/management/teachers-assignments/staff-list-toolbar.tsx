@@ -38,7 +38,6 @@ export function StaffListToolbar({
   return (
     <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
       <ClsSubTabs
-        variant="segmented"
         aria-label="Staff filters"
         value={tab}
         onValueChange={(value) => onTabChange(value as StaffListTab)}

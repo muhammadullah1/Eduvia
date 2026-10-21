@@ -58,12 +58,18 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     body = await res.text()
   }
 
-  if (!res.ok) {
+  const envelope =
+    typeof body === "object" && body !== null
+      ? (body as { success?: unknown; message?: unknown })
+      : null
+  const failed =
+    envelope?.success === false || !res.ok
+  if (failed) {
     const msg =
-      typeof body === "object" && body !== null && "message" in body
-        ? String((body as { message?: unknown }).message)
+      envelope && "message" in envelope && envelope.message
+        ? String(envelope.message)
         : res.statusText || "Request failed"
-    throw new ApiHttpError(res.status, msg, body)
+    throw new ApiHttpError(res.ok ? 400 : res.status, msg, body)
   }
 
   if (typeof body === "object" && body !== null && "data" in body) {
@@ -131,11 +137,16 @@ export const api = {
 
   login: async (
     email: string,
-    password: string
+    password: string,
+    schoolId?: number
   ): Promise<{ user: AuthUser; token: string }> => {
     return request<{ user: AuthUser; token: string }>("/auth/login", {
       method: "POST",
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({
+        email,
+        password,
+        ...(schoolId ? { schoolId } : {}),
+      }),
     })
   },
 

@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/select"
 import type { Role } from "@/lib/auth"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
+import { StaffPhotoField } from "@/features/management/teachers-assignments/staff-photo-field"
 import {
   formatPhonePk,
   phonePkError,
@@ -36,7 +37,6 @@ export type CreateStaffPayload = {
   lastName: string
   email: string
   phone: string
-  password: string
   role: Role
   subjectId?: number
   employeeCode?: string
@@ -76,7 +76,6 @@ export function CreateStaffUserModal({
   const [lastName, setLastName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
-  const [password, setPassword] = useState("")
   const [role, setRole] = useState<Role>(roleOptions[0] ?? "teacher")
   const [subjectId, setSubjectId] = useState("")
   const [employeeCode, setEmployeeCode] = useState("")
@@ -90,7 +89,6 @@ export function CreateStaffUserModal({
     setLastName("")
     setEmail("")
     setPhone("")
-    setPassword("")
     setRole(pickDefaultRole(roleOptions, defaultRole))
     setSubjectId("")
     setEmployeeCode("")
@@ -117,10 +115,6 @@ export function CreateStaffUserModal({
       setError("Email is required.")
       return
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.")
-      return
-    }
     const phoneTrimmed = phone.trim()
     if (phoneTrimmed) {
       const pErr = phonePkError(phoneTrimmed, "Phone")
@@ -143,7 +137,6 @@ export function CreateStaffUserModal({
       lastName: ln,
       email: mail,
       phone: phoneTrimmed ? formatPhonePk(phoneTrimmed) : "",
-      password,
       role,
       employeeCode: employeeCode.trim() || undefined,
       photo: photo.trim() || undefined,
@@ -191,8 +184,8 @@ export function CreateStaffUserModal({
             Add staff member
           </DialogTitle>
           <DialogDescription className="text-sm text-[var(--cls-muted)]">
-            Creates a portal login and assigns a role. Teachers must have a
-            subject.
+            Creates a portal account and emails a secure link to set a password.
+            Teachers must have a subject. Employee code is optional.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 px-6 py-5 sm:grid-cols-2">
@@ -261,36 +254,19 @@ export function CreateStaffUserModal({
             </Select>
           </div>
           <div className="sm:col-span-2">{subjectField}</div>
-          <div className="sm:col-span-2">
-            <Label className="mb-1.5 block text-sm font-medium">
-              Profile photo URL
-            </Label>
-            <Input
-              value={photo}
-              onChange={(e) => setPhoto(e.target.value)}
-              placeholder="https://… (optional)"
-              disabled={saving}
-            />
-          </div>
+          <StaffPhotoField
+            value={photo}
+            onChange={setPhoto}
+            disabled={saving}
+            onError={setError}
+          />
           <div>
             <Label className="mb-1.5 block text-sm font-medium">
-              Employee code
+              Employee code <span className="text-[var(--cls-muted)]">(optional)</span>
             </Label>
             <Input
               value={employeeCode}
               onChange={(e) => setEmployeeCode(e.target.value)}
-              disabled={saving}
-            />
-          </div>
-          <div>
-            <Label className="mb-1.5 block text-sm font-medium">
-              Temporary password *
-            </Label>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              autoComplete="new-password"
               disabled={saving}
             />
           </div>

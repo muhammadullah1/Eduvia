@@ -129,7 +129,7 @@ export function ResetPasswordScreen() {
 
         {validation.status === "verifying" && (
           <div className="flex flex-col items-center py-8 text-center">
-            <Spinner className="size-5 text-[#1a5c3a]" />
+            <Spinner className="size-5 text-[var(--primary-color)]" />
             <p className="mt-4 text-[12.25px] font-medium text-[#1b2430]">
               Verifying security link...
             </p>
@@ -138,7 +138,7 @@ export function ResetPasswordScreen() {
 
         {validation.status === "invalid" && (
           <div className="pt-[21px]">
-            <h1 className="text-[17.5px] leading-[24.5px] font-semibold text-[#1a5c3a]">
+            <h1 className="text-[17.5px] leading-[24.5px] font-semibold text-[var(--primary-color)]">
               Link unavailable
             </h1>
             <p className="pt-[3.5px] text-[12.25px] leading-[17.5px] text-[#667085]">
@@ -146,7 +146,7 @@ export function ResetPasswordScreen() {
             </p>
             <Link
               to="/forgot-password"
-              className="mt-[21px] flex h-[38px] w-full items-center justify-center rounded-lg border border-[#1a5c3a] bg-[#1a5c3a] text-[12.25px] font-medium text-white hover:bg-[#144a2f]"
+              className="mt-[21px] flex h-[38px] w-full items-center justify-center rounded-lg border border-[var(--primary-color)] bg-[var(--primary-color)] text-[12.25px] font-medium text-white hover:bg-[var(--primary-hover)]"
             >
               Request a new link
             </Link>
@@ -155,7 +155,7 @@ export function ResetPasswordScreen() {
 
         {validation.status === "success" && (
           <div className="pt-[21px]">
-            <h1 className="text-[17.5px] leading-[24.5px] font-semibold text-[#1a5c3a]">
+            <h1 className="text-[17.5px] leading-[24.5px] font-semibold text-[var(--primary-color)]">
               Password updated
             </h1>
             <p className="pt-[3.5px] text-[12.25px] leading-[17.5px] text-[#667085]">
@@ -163,7 +163,7 @@ export function ResetPasswordScreen() {
             </p>
             <button
               type="button"
-              className="mt-[21px] flex h-[38px] w-full items-center justify-center rounded-lg border border-[#1a5c3a] bg-[#1a5c3a] text-[12.25px] font-medium text-white hover:bg-[#144a2f]"
+              className="mt-[21px] flex h-[38px] w-full items-center justify-center rounded-lg border border-[var(--primary-color)] bg-[var(--primary-color)] text-[12.25px] font-medium text-white hover:bg-[var(--primary-hover)]"
               onClick={() => navigate("/login", { replace: true })}
             >
               Back to login
@@ -173,7 +173,7 @@ export function ResetPasswordScreen() {
 
         {validation.status === "valid" && (
           <>
-            <h1 className="pt-[21px] text-[17.5px] leading-[24.5px] font-semibold text-[#1a5c3a]">
+            <h1 className="pt-[21px] text-[17.5px] leading-[24.5px] font-semibold text-[var(--primary-color)]">
               {title}
             </h1>
             <p className="pt-[3.5px] text-[12.25px] leading-[17.5px] text-[#667085]">

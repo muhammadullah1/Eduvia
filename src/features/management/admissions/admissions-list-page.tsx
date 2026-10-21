@@ -1,29 +1,31 @@
-import { Plus } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { useEffect, useMemo, useState } from "react"
+
 import { PaginationComponent } from "@/components/common/pagination-component"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { DEFAULT_PAGE_SIZE } from "@/constants/pagination"
 import type { Application } from "@/data/types"
 import type { ClassSection } from "@/data/types"
 
+import {
+  type AdmissionStatusFilter,
+  resolveAdmissionUiStatus,
+} from "./admission-display"
 import { AdmissionStatusFilters } from "./admission-status-filters"
 import {
   AdmissionsPanel,
   AdmissionsStatCard,
 } from "./admission-ui"
-import {
-  resolveAdmissionUiStatus,
-  type AdmissionStatusFilter,
-} from "./admission-display"
 import { AdmissionsDataTable } from "./admissions-data-table"
 import { AdmissionsPipeline } from "./admissions-pipeline"
 import {
-  AdmissionsViewToggle,
   type AdmissionsViewMode,
+  AdmissionsViewToggle,
 } from "./admissions-view-toggle"
 import {
-  useAdmissionStatusCounts,
   useAdmissionsListPage,
+  useAdmissionStatusCounts,
 } from "./hooks/use-admissions"
 
 type Props = {
@@ -146,12 +148,24 @@ export function AdmissionsListPage({
         />
       </div>
 
-      <AdmissionsPanel noPadding>
+      <AdmissionsPanel>
         <div className="border-b border-[var(--cls-border)] px-4 pt-4 pb-3">
           <AdmissionStatusFilters
             value={statusFilter}
             onChange={setStatusFilter}
             counts={counts}
+            leading={
+              <div className="relative w-full sm:max-w-xs">
+                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" />
+                <Input
+                  value={tableSearch}
+                  onChange={(event) => setTableSearch(event.target.value)}
+                  placeholder="Search by name, reg. no., class…"
+                  aria-label="Search applications"
+                  className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
+                />
+              </div>
+            }
             trailing={
               <AdmissionsViewToggle value={viewMode} onChange={setViewMode} />
             }
@@ -182,6 +196,7 @@ export function AdmissionsListPage({
               ) : (
                 <AdmissionsPipeline
                   applications={applications}
+                  totals={counts}
                   classes={classes}
                   onOpen={onOpenApplication}
                 />
@@ -205,8 +220,6 @@ export function AdmissionsListPage({
           <AdmissionsDataTable
             rows={applications}
             classes={classes}
-            search={tableSearch}
-            onSearchChange={setTableSearch}
             onOpen={onOpenApplication}
             embedded
             loading={isLoading || isFetching}

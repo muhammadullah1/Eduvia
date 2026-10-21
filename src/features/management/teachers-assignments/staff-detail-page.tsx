@@ -4,7 +4,6 @@ import { useQueryClient } from "@tanstack/react-query"
 import teachersService from "@/api/teachers/teachers.service"
 import usersService from "@/api/users/users.service"
 import { ConfirmDialog } from "@/components/app/kit"
-import { useSchool } from "@/data/store"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
 import { can } from "@/lib/permissions"
@@ -30,7 +29,6 @@ type Props = {
 }
 
 export function StaffDetailPage({ userId, onBack }: Props) {
-  const { syncPortalForRoute } = useSchool()
   const actor = useActor()
   const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
@@ -52,10 +50,6 @@ export function StaffDetailPage({ userId, onBack }: Props) {
   const teacherQuery = useTeacherDetail(staff?.teacherId, Boolean(isTeacher))
 
   useEffect(() => {
-    void syncPortalForRoute(actor.role, "teachers-assignments")
-  }, [actor.role, syncPortalForRoute])
-
-  useEffect(() => {
     if (!staff) return
     if (staff.role === "super_admin") onBack()
   }, [staff, onBack])
@@ -70,7 +64,6 @@ export function StaffDetailPage({ userId, onBack }: Props) {
   async function afterMutation(message: string) {
     await invalidateStaffDirectory(queryClient)
     await queryClient.invalidateQueries({ queryKey: [TEACHER_DETAIL_QUERY_KEY] })
-    await syncPortalForRoute(actor.role, "teachers-assignments")
     toast.success(message)
   }
 

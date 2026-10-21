@@ -22,7 +22,6 @@ import { useClientPagination } from "@/hooks/use-client-pagination"
 import { toast } from "@/lib/toast"
 
 const CLASS_API_DEFAULTS = {
-  periodCount: 8,
   monthlyFee: 0,
 }
 
@@ -106,6 +105,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     section: string
     label: string
     room?: string | null
+    periodCount: number
   }) {
     if (!sessionNumericId || !Number.isFinite(sessionNumericId)) {
       toast.error("Activate an academic session before adding classes.")
@@ -129,6 +129,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         section: payload.section,
         label: payload.label,
         room: payload.room || undefined,
+        periodCount: payload.periodCount,
         ...CLASS_API_DEFAULTS,
       })
       await afterMutation("Class created")

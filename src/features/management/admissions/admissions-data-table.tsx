@@ -1,5 +1,9 @@
 import { ChevronDown, ChevronUp, MoreVertical, Search } from "lucide-react"
 
+import {
+  PaginationComponent,
+  type PaginationWithHandlers,
+} from "@/components/common/pagination-component"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -17,25 +21,22 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  PaginationComponent,
-  type PaginationWithHandlers,
-} from "@/components/common/pagination-component"
 import type { Application, ClassSection } from "@/data/types"
 import { classLabel, formatDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
 
-import { AdmissionStatusBadge } from "./admission-status-badge"
 import {
   formatRegistrationNo,
   resolveAdmissionUiStatus,
 } from "./admission-display"
+import { AdmissionStatusBadge } from "./admission-status-badge"
 
 type Props = {
   rows: Application[]
   classes: ClassSection[]
-  search: string
-  onSearchChange: (value: string) => void
+  /** Omit both when the page renders its own search box. */
+  search?: string
+  onSearchChange?: (value: string) => void
   onOpen: (app: Application) => void
   /** When true, omits outer card chrome (used inside AdmissionsPanel). */
   embedded?: boolean
@@ -72,17 +73,19 @@ export function AdmissionsDataTable({
           : "overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
       }
     >
+      {onSearchChange ? (
       <div className="border-b border-[var(--cls-border)] px-4 py-3">
         <div className="relative w-full max-w-sm">
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" />
           <Input
-            value={search}
+            value={search ?? ""}
             onChange={(event) => onSearchChange(event.target.value)}
             placeholder="Search by name, reg. no., class…"
             className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
           />
         </div>
       </div>
+      ) : null}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>

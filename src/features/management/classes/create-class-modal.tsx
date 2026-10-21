@@ -16,6 +16,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ClassSectionField } from "@/features/management/classes/class-section-field"
+import {
+  DEFAULT_PERIOD_COUNT,
+  PeriodCountField,
+} from "@/features/management/classes/period-count-field"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 
 type Props = {
@@ -29,6 +33,7 @@ type Props = {
     section: string
     label: string
     room?: string | null
+    periodCount: number
   }) => Promise<void>
 }
 
@@ -43,6 +48,7 @@ export function CreateClassModal({
   const [grade, setGrade] = useState("")
   const [section, setSection] = useState("Main")
   const [room, setRoom] = useState("")
+  const [periodCount, setPeriodCount] = useState(String(DEFAULT_PERIOD_COUNT))
   const [gradeError, setGradeError] = useState<string | null>(null)
   const [sectionError, setSectionError] = useState<string | null>(null)
   const [classError, setClassError] = useState<string | null>(null)
@@ -52,6 +58,7 @@ export function CreateClassModal({
     setGrade("")
     setSection("Main")
     setRoom("")
+    setPeriodCount(String(DEFAULT_PERIOD_COUNT))
     setGradeError(null)
     setSectionError(null)
     setClassError(null)
@@ -92,6 +99,7 @@ export function CreateClassModal({
         section: sectionTrimmed,
         label,
         room: roomTrimmed || null,
+        periodCount: Number(periodCount) || DEFAULT_PERIOD_COUNT,
       })
     } catch (err) {
       const message =
@@ -152,6 +160,11 @@ export function CreateClassModal({
               <p className="mt-2 text-sm text-destructive">{classError}</p>
             ) : null}
           </div>
+          <PeriodCountField
+            value={periodCount}
+            onChange={setPeriodCount}
+            disabled={saving}
+          />
           <div>
             <Label className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
               Home room <span className="text-[var(--cls-muted)]">(optional)</span>

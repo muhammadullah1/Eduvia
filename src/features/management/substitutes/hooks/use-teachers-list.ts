@@ -9,6 +9,7 @@ export type SubstituteTeacherOption = {
   id: string
   name: string
   subject: string
+  subjectId: string
   classIds: string[]
 }
 
@@ -20,6 +21,7 @@ export function mapTeacherToOption(t: ApiTeacher): SubstituteTeacherOption {
       t.employeeCode ||
       `Teacher #${t.id}`,
     subject: t.subject?.name ?? "",
+    subjectId: t.subject?.id != null ? String(t.subject.id) : "",
     classIds: (t.classes ?? []).map((c) => String(c.id)),
   }
 }

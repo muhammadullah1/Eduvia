@@ -1,6 +1,7 @@
-import { BookOpenText, Plus } from "lucide-react"
-import { useMemo, useState } from "react"
+import { BookOpenText, ClipboardCheck, Plus } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { useNavigate } from "react-router-dom"
 
 import plannedChaptersService, {
   type ChapterStatus,
@@ -30,6 +31,7 @@ import { useClassesList } from "@/features/management/classes/hooks/use-classes"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
+import { portalPath } from "@/lib/auth"
 import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
@@ -66,6 +68,7 @@ function statusBadge(status: ChapterStatus) {
 export function LessonPlanPage() {
   const actor = useActor()
   const canManage = can(actor.role, "chapters.manage")
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { data: sessions = [] } = useSessionsList()
   const currentSession = sessions.find((session) => session.current)
@@ -73,15 +76,26 @@ export function LessonPlanPage() {
   const { data: classes = [] } = useClassesList(
     Number.isFinite(sessionId) ? sessionId : undefined
   )
-  const { data: subjects = [] } = useSubjectsList()
   const [classId, setClassId] = useState("")
   const [subjectId, setSubjectId] = useState("")
+  const classNumeric = Number(classId)
+  const { data: subjects = [], isFetching: subjectsLoading } = useSubjectsList(
+    Number.isFinite(classNumeric) && classNumeric > 0 ? classNumeric : undefined
+  )
   const [addOpen, setAddOpen] = useState(false)
   const [title, setTitle] = useState("")
   const [endDate, setEndDate] = useState("")
   const [editRow, setEditRow] = useState<PlannedChapterDto | null>(null)
   const [deleteId, setDeleteId] = useState<number | null>(null)
   const [dragId, setDragId] = useState<number | null>(null)
+
+  useEffect(() => {
+    // Wait for the new class's subjects; a subject both classes take stays picked.
+    if (!subjectId || subjectsLoading) return
+    if (!subjects.some((row) => String(row.id) === subjectId)) {
+      setSubjectId("")
+    }
+  }, [subjects, subjectId, subjectsLoading])
 
   const selectedClass = classId
   const selectedSubject = subjectId
@@ -198,6 +212,15 @@ export function LessonPlanPage() {
           </p>
         </div>
         {canManage ? (
+          <div className="flex flex-wrap gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate(portalPath(actor.role, "lesson-review"))}
+          >
+            <ClipboardCheck data-icon="inline-start" />
+            Review daily updates
+          </Button>
           <Button
             type="button"
             className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
@@ -207,6 +230,7 @@ export function LessonPlanPage() {
             <Plus data-icon="inline-start" />
             Add Chapter
           </Button>
+          </div>
         ) : null}
       </div>
 
@@ -240,6 +264,11 @@ export function LessonPlanPage() {
               ))}
             </SelectContent>
           </Select>
+          {selectedClass && subjects.length === 0 ? (
+            <p className="mt-1.5 text-xs text-[var(--cls-muted)]">
+              No subjects are assigned to this class yet. Add them on the timetable first.
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -247,7 +276,7 @@ export function LessonPlanPage() {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold text-[var(--cls-ink)]">
-              {klass ? classDisplayName(klass) : "Class"}
+              {klass ? classDisplayName(klass) : "Choose a class and subject"}
               {subject ? ` · ${subject.name}` : ""}
             </p>
             <p className="mt-0.5 text-xs text-[var(--cls-muted)]">

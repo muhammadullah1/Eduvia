@@ -4,6 +4,7 @@ import type { ApiStudent } from "@/lib/api-types"
 export type StudentsListParams = {
   classId?: number
   status?: string
+  search?: string
   page?: number
   pageSize?: number
 }

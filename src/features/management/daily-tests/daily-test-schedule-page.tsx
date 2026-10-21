@@ -58,6 +58,7 @@ export function DailyTestSchedulePage() {
   const actor = useActor()
   const canManage = can(actor.role, "tests.schedule")
   const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
 
   const classes = state.classes.filter((row) => row.status !== "Archived")
@@ -170,7 +171,8 @@ export function DailyTestSchedulePage() {
     }))
   }
 
-  function save() {
+  async function save() {
+    if (saving) return
     const max = Number(draft.max)
     if (!draft.subject) {
       toast.error("Choose a subject.")
@@ -195,6 +197,8 @@ export function DailyTestSchedulePage() {
     }
 
     const kept = new Set<string>()
+    setSaving(true)
+    try {
     for (const classId of draft.classIds) {
       const days = taughtDays(draft.subject, classId).filter((day) =>
         draft.weekdays.includes(day)
@@ -207,7 +211,7 @@ export function DailyTestSchedulePage() {
             row.weekday === weekday
         )
         if (existing) kept.add(existing.id)
-        const message = saveTestSchedule(
+        const message = await saveTestSchedule(
           {
             classId,
             subject: draft.subject,
@@ -226,7 +230,7 @@ export function DailyTestSchedulePage() {
 
     for (const id of draft.lockedIds) {
       if (kept.has(id)) continue
-      const message = removeTestSchedule(id, actor)
+      const message = await removeTestSchedule(id, actor)
       if (message) {
         toast.error(message)
         return
@@ -244,6 +248,9 @@ export function DailyTestSchedulePage() {
       .join(", ")
     toast.success(`${draft.subject} is set for ${dayLabel}.`)
     setOpen(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const marks = Number(draft.max) || 0
@@ -528,9 +535,14 @@ export function DailyTestSchedulePage() {
             <Button
               type="button"
               className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-              onClick={save}
+              onClick={() => void save()}
+              disabled={saving}
             >
-              {draft.lockedIds.length ? "Save schedule" : "Create schedule"}
+              {saving
+                ? "Saving…"
+                : draft.lockedIds.length
+                  ? "Save schedule"
+                  : "Create schedule"}
             </Button>
           </DialogFooter>
         </DialogContent>

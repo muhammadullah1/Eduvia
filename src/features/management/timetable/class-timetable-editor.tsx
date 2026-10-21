@@ -13,6 +13,7 @@ type Props = {
   klass: ClassSection | undefined
   subjects: SubjectRow[]
   teachers: Staff[]
+  teachersLoading?: boolean
   syncPortal: () => Promise<void>
   editablePeriodTimes?: boolean
   focusSlot?: TimetableSlot | null
@@ -24,6 +25,7 @@ export function ClassTimetableEditor({
   klass,
   subjects,
   teachers,
+  teachersLoading = false,
   syncPortal,
   editablePeriodTimes = true,
   focusSlot,
@@ -96,6 +98,7 @@ export function ClassTimetableEditor({
         periodTimes={editor.periodTimes}
         subjects={activeSubjects}
         teachers={teachers.filter((person) => person.role === "Teacher")}
+        teachersLoading={teachersLoading}
         schoolSlots={editor.schoolSlots}
         editingSlot={editor.editingSlot}
         prefill={editor.schedulePrefill}

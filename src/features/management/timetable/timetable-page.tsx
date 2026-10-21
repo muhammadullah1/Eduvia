@@ -17,7 +17,9 @@ import {
 } from "@/components/ui/select"
 import { useSchool } from "@/data/store"
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
+import { useTeachersList } from "@/features/management/substitutes/hooks/use-teachers-list"
 import { useActor } from "@/lib/actor"
 
 import { ClassTimetableEditor } from "./class-timetable-editor"
@@ -26,7 +28,7 @@ import { TimetableTeacherPanel } from "./timetable-teacher-panel"
 type ViewMode = "class" | "teacher"
 
 export function TimetablePage() {
-  const { state, syncPortalForRoute } = useSchool()
+  const { syncPortalForRoute } = useSchool()
   const actor = useActor()
   const [searchParams, setSearchParams] = useSearchParams()
   const viewParam = searchParams.get("view")
@@ -45,11 +47,8 @@ export function TimetablePage() {
     }
   }, [viewParam])
 
-  useEffect(() => {
-    void syncPortalForRoute(actor.role, "timetable")
-  }, [actor.role, syncPortalForRoute])
-
-  const currentSession = state.sessions.find((s) => s.current)
+  const { data: sessions = [] } = useSessionsList()
+  const currentSession = sessions.find((s) => s.current)
   const sessionNumericId = currentSession
     ? Number(currentSession.id)
     : undefined
@@ -82,9 +81,21 @@ export function TimetablePage() {
   }, [selectedClassId, classIdParam, setSearchParams])
 
   const { data: catalogSubjects = [] } = useSubjectsList()
+  const { data: teacherOptions = [], isLoading: teachersLoading } = useTeachersList()
   const teachers = useMemo(
-    () => state.staff.filter((person) => person.role === "Teacher"),
-    [state.staff]
+    () =>
+      teacherOptions.map((person) => ({
+        id: person.id,
+        name: person.name,
+        role: "Teacher",
+        email: "",
+        phone: "",
+        subject: person.subject,
+        subjectId: person.subjectId,
+        subjectHistory: [],
+        classIds: person.classIds,
+      })),
+    [teacherOptions]
   )
 
   function selectClass(id: string) {
@@ -150,7 +161,6 @@ export function TimetablePage() {
               View by
             </span>
             <ClsSubTabs
-              variant="segmented"
               aria-label="Timetable view"
               className="!flex-row !items-center !justify-start !gap-0"
               value={viewMode}
@@ -247,6 +257,7 @@ export function TimetablePage() {
           klass={klass}
           subjects={catalogSubjects}
           teachers={teachers}
+          teachersLoading={teachersLoading}
           syncPortal={syncPortal}
           focusSlot={focusSlot}
           onFocusSlotHandled={() => setFocusSlot(null)}

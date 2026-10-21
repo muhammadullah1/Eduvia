@@ -34,7 +34,9 @@ export function TeacherDailyUpdate() {
   const today = getToday()
   const teacher = signedInTeacher(state.staff)
   const teacherId = teacher?.id ?? ""
-  const [classId, setClassId] = useState(teacher?.classIds[0] ?? "")
+  // Staff load after first render, so fall back to the teacher's first class.
+  const [pickedClassId, setClassId] = useState("")
+  const classId = pickedClassId || (teacher?.classIds[0] ?? "")
   const [chapterId, setChapterId] = useState("")
   const [form, setForm] = useState({ classwork: "", homework: "", remarks: "" })
   const chapters = state.plannedChapters

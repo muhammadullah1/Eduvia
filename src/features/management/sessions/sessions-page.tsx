@@ -1,14 +1,12 @@
 import { CalendarDays, Plus } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
 
 import sessionsService from "@/api/sessions/sessions.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
-import { useSchool } from "@/data/store"
 import type { AcademicSession } from "@/data/types"
 import { useClientPagination } from "@/hooks/use-client-pagination"
-import { useActor } from "@/lib/actor"
 import { toast } from "@/lib/toast"
 
 import { CreateSessionModal } from "./create-session-modal"
@@ -21,8 +19,6 @@ import { SessionsDataTable } from "./sessions-data-table"
 import { toSessionRows } from "./session-status"
 
 export function SessionsPage() {
-  const { syncPortalForRoute } = useSchool()
-  const actor = useActor()
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
@@ -30,10 +26,6 @@ export function SessionsPage() {
   const [saving, setSaving] = useState(false)
   const [activateId, setActivateId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-
-  useEffect(() => {
-    void syncPortalForRoute(actor.role, "sessions")
-  }, [actor.role, syncPortalForRoute])
 
   const {
     data: sessions = [],
@@ -67,7 +59,6 @@ export function SessionsPage() {
 
   async function afterMutation(message: string) {
     await invalidateSessionsList(queryClient)
-    await syncPortalForRoute(actor.role, "sessions")
     toast.success(message)
   }
 
