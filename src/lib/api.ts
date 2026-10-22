@@ -1,10 +1,6 @@
 import { type AuthUser, clearAuth, loadAuth, saveAuth } from "@/lib/auth"
-import {
-  expiredSession,
-  markSessionExpired,
-  SESSION_EXPIRED_MESSAGE,
-} from "@/lib/session-expiry"
-import { coordinatedRefresh, onTokenFromOtherTab } from "@/lib/token-refresh"
+import { markSessionExpired, SESSION_EXPIRED_MESSAGE } from "@/lib/session-expiry"
+import { announceLogout, coordinatedRefresh, onLogoutFromOtherTab, onTokenFromOtherTab } from "@/lib/token-refresh"
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api"
 
@@ -67,8 +63,14 @@ export function refreshAccessToken(staleToken = loadAuth()?.token): Promise<stri
   return refreshInFlight
 }
 
-// Keep idle tabs on the latest token another tab obtained.
+// Keep idle tabs on the latest token another tab obtained, and sign them out
+// when another tab's session ends.
 if (typeof window !== "undefined") {
+  onLogoutFromOtherTab(() => {
+    if (!loadAuth()) return
+    clearAuth()
+    markSessionExpired()
+  })
   onTokenFromOtherTab((token) => {
     const session = loadAuth()
     if (session && session.token !== token) saveAuth({ ...session, token })
@@ -78,8 +80,8 @@ if (typeof window !== "undefined") {
 async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const session = loadAuth()
   const isPublic = PUBLIC_PATH.test(path)
-  // Never send a portal request without a token: hold it until the user signs in again.
-  if (!isPublic && (!session?.token || expiredSession())) {
+  // Never send a portal request without a token.
+  if (!isPublic && !session?.token) {
     throw new ApiHttpError(401, SESSION_EXPIRED_MESSAGE)
   }
   const headers: Record<string, string> = {
@@ -112,10 +114,10 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
     if (!retried && session?.token && (await refreshAccessToken(session.token))) {
       return request<T>(path, options, true)
     }
-    if (session) {
-      markSessionExpired({ email: session.user?.email ?? "", role: session.role })
-    }
+    // Refresh failed: sign out here and in every other tab.
     clearAuth()
+    announceLogout()
+    markSessionExpired()
     throw new ApiHttpError(401, SESSION_EXPIRED_MESSAGE)
   }
 

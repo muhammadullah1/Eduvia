@@ -1,6 +1,5 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 
-import { SessionExpiredDialog } from "@/components/app/session-expired-dialog"
 import {
   ForgotPasswordScreen,
   LoginScreen,
@@ -9,6 +8,7 @@ import {
 
 import { PortalShell } from "./portal-shell"
 import { GuestOnly, HomeRedirect, RequireAuth } from "./route-guards"
+import { SessionExpiryRedirect } from "./session-expiry-redirect"
 
 function AppRoutes() {
   return (
@@ -63,7 +63,7 @@ export function Portal() {
   return (
     <BrowserRouter>
       <AppRoutes />
-      <SessionExpiredDialog />
+      <SessionExpiryRedirect />
     </BrowserRouter>
   )
 }

@@ -17,6 +17,7 @@ function cleanListParams(params?: ListApplicationsRequest) {
   if (params.status) next.status = params.status
   if (params.submitted) next.submitted = params.submitted
   if (params.hasInterview) next.hasInterview = params.hasInterview
+  if (params.decision) next.decision = params.decision
   if (params.page) next.page = params.page
   next.pageSize = params.pageSize ?? DEFAULT_PAGE_SIZE
   const q = params.q?.trim()

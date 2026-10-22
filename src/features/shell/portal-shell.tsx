@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sidebar"
 import { useSchool } from "@/data/store"
 import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
+import { EnrollmentPromotionPage } from "@/features/management/enrollment-promotion"
 import {
   AcademicSetup,
   Admissions,
@@ -50,6 +51,7 @@ import {
 } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
+import { announceLogout } from "@/lib/token-refresh"
 
 import { academicFocusForSection } from "./academic-section"
 import { HeaderUserMenu } from "./header-user-menu"
@@ -162,6 +164,7 @@ export function PortalShell() {
   function logout() {
     void api.logout()
     clearAuth()
+    announceLogout()
     navigate("/login", { replace: true })
   }
 
@@ -191,9 +194,7 @@ export function PortalShell() {
     if (section === "students" || section === "people") {
       return <Students query={query} />
     }
-    if (section === "enrollment-promotion") {
-      return <Admissions query={query} />
-    }
+    if (section === "enrollment-promotion") return <EnrollmentPromotionPage />
     if (section === "lifecycle") return <ResultsGatePanel />
     if (section === "student-attendance") {
       return <SectionPlaceholder section={section} />
@@ -335,7 +336,8 @@ export function PortalShell() {
         style={{ "--sidebar-width": "240px" } as CSSProperties}
       >
         <Sidebar role={role} active={section} onNavigate={openSection} />
-        <SidebarInset className="min-h-svh bg-[var(--page-wash)]">
+        {/* min-w-0: wide children (e.g. the admissions pipeline) scroll inside themselves instead of widening the page. */}
+        <SidebarInset className="min-h-svh min-w-0 bg-[var(--page-wash)]">
           {shell}
         </SidebarInset>
       </SidebarProvider>

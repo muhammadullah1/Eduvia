@@ -69,6 +69,28 @@ export function announceToken(token: string) {
   getChannel()?.postMessage({ type: "token", token })
 }
 
+/** Tells other tabs this browser's session ended (refresh failed or signed out). */
+export function announceLogout() {
+  getChannel()?.postMessage({ type: "logout" })
+}
+
+/** Calls `onLogout` when another tab's session ends (BroadcastChannel, or the token vanishing from storage). */
+export function onLogoutFromOtherTab(onLogout: () => void) {
+  const ch = getChannel()
+  const onMessage = (event: MessageEvent) => {
+    if (event.data?.type === "logout") onLogout()
+  }
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === AUTH_KEY && event.oldValue && !storedAccessToken()) onLogout()
+  }
+  ch?.addEventListener("message", onMessage)
+  window.addEventListener("storage", onStorage)
+  return () => {
+    ch?.removeEventListener("message", onMessage)
+    window.removeEventListener("storage", onStorage)
+  }
+}
+
 /** Calls `onToken` when another tab refreshes. Returns an unsubscribe function. */
 export function onTokenFromOtherTab(onToken: (token: string) => void) {
   const ch = getChannel()
