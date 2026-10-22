@@ -83,6 +83,8 @@ export type ApiUser = {
   email: string
   phone?: string | null
   photo?: string | null
+  /** Signed display link for `photo` (avatars live in the private bucket). */
+  photoUrl?: string | null
   role: string
   status: string
 }
@@ -104,6 +106,31 @@ export type ApiStudent = {
     section: string
   } | null
   parents?: ApiStudentParent[]
+}
+
+/** GET /students/:id adds personal details and history to the list shape. */
+export type ApiStudentDetail = ApiStudent & {
+  dateOfBirth?: string | null
+  admissionDate?: string | null
+  bloodGroup?: string | null
+  address?: string | null
+  emergencyContact?: string | null
+  photo?: string | null
+  discountPercent?: string | null
+  fixedMonthlyFee?: string | null
+  statusEvents?: {
+    id: number
+    fromStatus: string
+    toStatus: string
+    reason: string
+    effectiveOn: string
+  }[]
+  promotions?: {
+    id: number
+    promotedOn: string
+    fromClass?: { id: number; label: string } | null
+    toClass?: { id: number; label: string } | null
+  }[]
 }
 
 export type ApiStudentParent = {

@@ -22,6 +22,8 @@ export type CreateStaffUserBody = {
   gender?: "Male" | "Female" | "Other" | null
   employeeCode?: string | null
   photo?: string | null
+  /** Optional; without it the user gets an email link to set one. */
+  password?: string
 }
 
 const usersService = {
@@ -38,11 +40,6 @@ const usersService = {
       archived: params?.archived ? "1" : undefined,
     }),
 
-  presignPhoto: (body: { contentType: string; fileName?: string }) =>
-    api.post<{ uploadUrl: string; fileUrl: string; maxBytes: number }>(
-      "/users/photo/presign",
-      body
-    ),
 
   create: (body: CreateStaffUserBody) =>
     api.post<ApiUser>("/users", body),

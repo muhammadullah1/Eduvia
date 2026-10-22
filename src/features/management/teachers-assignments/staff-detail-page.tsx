@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
+import { useEffect, useMemo, useState } from "react"
 
+import { STORAGE_DIRS, uploadFileToStorage } from "@/api/storage/storage.service"
 import teachersService from "@/api/teachers/teachers.service"
 import usersService from "@/api/users/users.service"
 import { ConfirmDialog } from "@/components/app/kit"
@@ -9,6 +10,7 @@ import { useActor } from "@/lib/actor"
 import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 
+import { EditStaffUserModal } from "./edit-staff-user-modal"
 import {
   invalidateStaffDirectory,
   useStaffDirectory,
@@ -21,7 +23,6 @@ import { UserDetailOfficePanel } from "./user-detail-office-panel"
 import { UserDetailProfileCard } from "./user-detail-profile-card"
 import { UserDetailStatTile } from "./user-detail-stat-tile"
 import { UserDetailTeacherPanel } from "./user-detail-teacher-panel"
-import { EditStaffUserModal } from "./edit-staff-user-modal"
 
 type Props = {
   userId: string
@@ -100,7 +101,8 @@ export function StaffDetailPage({ userId, onBack }: Props) {
     firstName: string
     lastName: string
     phone: string
-    photo: string
+    photoFile: File | null
+    removePhoto: boolean
   }) {
     if (!staff) return
     setSaving(true)
@@ -109,7 +111,11 @@ export function StaffDetailPage({ userId, onBack }: Props) {
         firstName: payload.firstName,
         lastName: payload.lastName,
         phone: payload.phone || null,
-        photo: payload.photo || null,
+        ...(payload.photoFile
+          ? { photo: (await uploadFileToStorage(payload.photoFile, STORAGE_DIRS.avatars)).objectKey }
+          : payload.removePhoto
+            ? { photo: null }
+            : {}),
       })
       await afterMutation("Staff profile updated")
       setEditOpen(false)

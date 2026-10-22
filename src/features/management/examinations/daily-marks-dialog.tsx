@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { marksInput } from "@/lib/marks"
 import { toast } from "@/lib/toast"
 
 type Entry = { score: string; absent: boolean }
@@ -111,7 +112,7 @@ export function DailyMarksDialog({ test, onClose, onSaved }: Props) {
                       disabled={locked || entry.absent}
                       value={entry.absent ? "" : entry.score}
                       placeholder={entry.absent ? "—" : `/${maxScore}`}
-                      onChange={(event) => update(student.id, { score: event.target.value })}
+                      onChange={(event) => update(student.id, { score: marksInput(event.target.value) })}
                     />
                     <label className="flex items-center gap-1.5 text-xs text-[var(--cls-muted)]">
                       <Checkbox

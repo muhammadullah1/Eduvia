@@ -24,6 +24,7 @@ import {
 import { studentName, useSchool } from "@/data/store"
 import { useActor } from "@/lib/actor"
 import { classLabel } from "@/lib/format"
+import { marksInput } from "@/lib/marks"
 
 import { signedInTeacher } from "./session"
 
@@ -107,12 +108,10 @@ export function TeacherMarks() {
               <Input
                 disabled={locked}
                 aria-invalid={Boolean(error)}
-                type="number"
-                min={0}
-                max={sheet.max}
+                inputMode="decimal"
                 value={scores[row.studentId] ?? row.score ?? ""}
                 onChange={(event) =>
-                  setScores({ ...scores, [row.studentId]: event.target.value })
+                  setScores({ ...scores, [row.studentId]: marksInput(event.target.value) })
                 }
               />
             </div>

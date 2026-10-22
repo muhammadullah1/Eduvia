@@ -2,9 +2,16 @@ import { type FormEvent, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Spinner } from "@/components/ui/spinner"
-import { ApiHttpError, api } from "@/lib/api"
-import { ALL_ROLES, portalPath, saveAuth, type Role } from "@/lib/auth"
+import { api,ApiHttpError } from "@/lib/api"
+import { ALL_ROLES, portalPath, type Role,saveAuth } from "@/lib/auth"
 
 import {
   AuthBrand,
@@ -127,19 +134,18 @@ export function LoginScreen() {
                 School
                 <RequiredMark />
               </AuthLabel>
-              <select
-                id="login-school"
-                value={schoolId}
-                onChange={(event) => setSchoolId(event.target.value)}
-                className={authInputClassName}
-                disabled={submitting}
-              >
-                {schools.map((school) => (
-                  <option key={school.id} value={school.id}>
-                    {school.name}
-                  </option>
-                ))}
-              </select>
+              <Select value={schoolId || undefined} onValueChange={setSchoolId} disabled={submitting}>
+                <SelectTrigger id="login-school" className={authInputClassName}>
+                  <SelectValue placeholder="Choose your school" />
+                </SelectTrigger>
+                <SelectContent className="max-h-64">
+                  {schools.map((school) => (
+                    <SelectItem key={school.id} value={String(school.id)}>
+                      {school.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           ) : null}
 

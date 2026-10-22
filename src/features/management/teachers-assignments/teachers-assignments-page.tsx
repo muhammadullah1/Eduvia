@@ -1,8 +1,9 @@
+import { useQueryClient } from "@tanstack/react-query"
 import { Lightbulb, Plus, Users } from "lucide-react"
 import { useMemo, useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
+import { STORAGE_DIRS, uploadFileToStorage } from "@/api/storage/storage.service"
 import usersService from "@/api/users/users.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
@@ -13,8 +14,8 @@ import type { Role } from "@/lib/auth"
 import { toast } from "@/lib/toast"
 
 import {
-  CreateStaffUserModal,
   type CreateStaffPayload,
+  CreateStaffUserModal,
 } from "./create-staff-user-modal"
 import {
   invalidateStaffDirectory,
@@ -79,7 +80,7 @@ export function TeachersAssignmentsPage({
 
   const needle = (search || globalQuery).trim().toLowerCase()
   const filtered = useMemo(() => {
-    let base = rows.filter((row) => rowMatchesRole(row, roleFilter))
+    const base = rows.filter((row) => rowMatchesRole(row, roleFilter))
     if (!needle) return base
     return base.filter((row) =>
       [row.name, row.email, row.phone, row.roleLabel]
@@ -124,7 +125,10 @@ export function TeachersAssignmentsPage({
         role: payload.role,
         subjectId: payload.subjectId,
         employeeCode: payload.employeeCode ?? null,
-        photo: payload.photo ?? null,
+        photo: payload.photoFile
+          ? (await uploadFileToStorage(payload.photoFile, STORAGE_DIRS.avatars)).objectKey
+          : null,
+        password: payload.password,
       })
       await afterMutation("Staff member created")
       setModalOpen(false)

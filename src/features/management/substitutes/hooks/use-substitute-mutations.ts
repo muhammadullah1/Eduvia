@@ -1,6 +1,8 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 
-import teacherAbsencesService from "@/api/teacher-absences/teacher-absences.service"
+import teacherAbsencesService, {
+  type MarkAbsentWithCoverBody,
+} from "@/api/teacher-absences/teacher-absences.service"
 import { useSchool } from "@/data/store"
 import type { Role } from "@/lib/auth"
 
@@ -27,6 +29,14 @@ export function useSubstituteMutations(actorRole: Role) {
       periods: number[]
       notes?: string
     }) => teacherAbsencesService.markAbsent(body),
+    onSuccess: async () => {
+      await syncStoreAndQueries()
+    },
+  })
+
+  const markAbsentWithCover = useMutation({
+    mutationFn: (body: MarkAbsentWithCoverBody) =>
+      teacherAbsencesService.markAbsentWithCover(body),
     onSuccess: async () => {
       await syncStoreAndQueries()
     },
@@ -61,5 +71,5 @@ export function useSubstituteMutations(actorRole: Role) {
     },
   })
 
-  return { markAbsent, assign, removeCover, cancelAbsence }
+  return { markAbsent, markAbsentWithCover, assign, removeCover, cancelAbsence }
 }

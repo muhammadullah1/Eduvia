@@ -1,7 +1,7 @@
-import { format, parseISO, subYears } from "date-fns"
-import type { Matcher } from "react-day-picker"
+import { addYears, format, parseISO, startOfMonth, subYears } from "date-fns"
 import { CalendarIcon } from "lucide-react"
 import { useMemo } from "react"
+import type { Matcher } from "react-day-picker"
 
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
@@ -22,6 +22,7 @@ type DatePickerProps = {
   disabled?: boolean
   id?: string
   "aria-invalid"?: boolean
+  "aria-label"?: string
   className?: string
   /** Years subtracted from today when no date is selected (default 8). */
   defaultAgeYears?: number
@@ -51,6 +52,7 @@ export function DatePicker({
   disabled,
   id,
   "aria-invalid": ariaInvalid,
+  "aria-label": ariaLabel,
   className,
   defaultAgeYears = DEFAULT_ADMISSION_AGE_YEARS,
   defaultMonthKind = "admission",
@@ -79,6 +81,16 @@ export function DatePicker({
     return subYears(new Date(), defaultAgeYears)
   }, [selected, defaultAgeYears, defaultMonthKind])
 
+  // Month and year dropdowns: bounded by min/max, otherwise 100 years back and 10 ahead.
+  const startMonth = useMemo(
+    () => startOfMonth(toDate(fromDate ?? "") ?? subYears(new Date(), 100)),
+    [fromDate]
+  )
+  const endMonth = useMemo(
+    () => startOfMonth(toDate(maxDate ?? "") ?? addYears(new Date(), 10)),
+    [maxDate]
+  )
+
   return (
     <Popover>
       <PopoverTrigger asChild>
@@ -88,6 +100,7 @@ export function DatePicker({
           variant="outline"
           disabled={disabled}
           aria-invalid={ariaInvalid}
+          aria-label={ariaLabel}
           data-slot="date-picker"
           data-empty={selected ? "false" : "true"}
           className={cn(
@@ -106,11 +119,16 @@ export function DatePicker({
       >
         <Calendar
           mode="single"
+          // Clicking the selected day again must not clear the value.
+          required
           selected={selected}
           defaultMonth={defaultMonth}
+          captionLayout="dropdown"
+          startMonth={startMonth}
+          endMonth={endMonth}
           disabled={disabledMatchers}
-          onSelect={(date) => {
-            onChange(date ? format(date, "yyyy-MM-dd") : "")
+          onSelect={(date: Date | undefined) => {
+            if (date) onChange(format(date, "yyyy-MM-dd"))
           }}
         />
       </PopoverContent>

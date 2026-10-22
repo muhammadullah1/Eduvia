@@ -11,7 +11,7 @@ export function mapClassDto(dto: ClassDto): ClassSection {
     room: dto.room || "Unassigned",
     periodCount: Number(dto.periodCount) || 8,
     monthlyFee,
-    status: dto.status === "Archived" ? "Archived" : "Active",
+    status: dto.status ?? "Active",
     periodStartTimes: dto.periodStartTimes ?? undefined,
     studentCount: dto.studentCount,
     subjectCount: dto.subjectCount,

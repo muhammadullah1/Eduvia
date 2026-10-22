@@ -20,9 +20,10 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { TimetableSlot } from "@/data/types"
-import type { SubstituteTeacherOption } from "./hooks/use-teachers-list"
 import { weekdayOf } from "@/lib/academics"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
+
+import type { SubstituteTeacherOption } from "./hooks/use-teachers-list"
 
 type Props = {
   open: boolean
@@ -148,7 +149,11 @@ export function MarkAbsentModal({
             {teacher ? (
               <Field
                 label={`Periods · ${weekday}`}
-                hint="Highlighted periods have a class on the timetable."
+                hint={
+                  teachingSlots.length
+                    ? "Only periods with a class on the timetable can be marked."
+                    : "This teacher has no classes on this day."
+                }
               >
                 <div className="grid grid-cols-4 gap-2">
                   {Array.from({ length: periodCount }, (_, index) => index + 1).map(
@@ -156,17 +161,17 @@ export function MarkAbsentModal({
                       const slot = teachingSlots.find(
                         (item) => item.periodIndex === period
                       )
-                      let borderClass = "border-[var(--cls-border)]"
-                      if (slot) {
-                        borderClass =
-                          "border-[var(--cls-brand)]/35 bg-[var(--cls-brand)]/5"
-                      }
+                      const borderClass = slot
+                        ? "border-[var(--cls-brand)]/35 bg-[var(--cls-brand)]/5"
+                        : "border-[var(--cls-border)] text-[var(--cls-muted)] opacity-60"
                       return (
                         <label
                           key={period}
                           className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-xs ${borderClass}`}
                         >
                           <Checkbox
+                            disabled={!slot}
+                            aria-label={`Period ${period}`}
                             checked={periods.includes(period)}
                             onCheckedChange={() => onTogglePeriod(period)}
                           />
@@ -181,6 +186,7 @@ export function MarkAbsentModal({
                   variant="outline"
                   size="sm"
                   className="mt-2 border-[var(--cls-border)]"
+                  disabled={teachingSlots.length === 0}
                   onClick={onSelectAllPeriods}
                 >
                   Whole day
@@ -206,7 +212,7 @@ export function MarkAbsentModal({
             className="border-[var(--cls-border)]"
             onClick={() => onOpenChange(false)}
           >
-            Cancel
+            Close
           </Button>
           <Button
             type="button"
@@ -214,7 +220,7 @@ export function MarkAbsentModal({
             disabled={!teacherId || periods.length === 0}
             onClick={onSubmit}
           >
-            Load affected periods
+            Next: assign substitutes
           </Button>
         </DialogFooter>
       </DialogContent>

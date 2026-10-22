@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
+import { getToday } from "@/lib/dates"
 import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 
@@ -81,7 +82,7 @@ export function DailyTestsPanel() {
   })
 
   const rows = tests.data ?? []
-  const today = new Date().toLocaleDateString("en-CA")
+  const today = getToday()
   const monthPicker = (
     <Select value={month} onValueChange={setMonth}>
       <SelectTrigger className="h-9 w-[170px] bg-white" aria-label="Month">

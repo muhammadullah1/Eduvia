@@ -1,4 +1,4 @@
-import { Bell, ChevronRight, CircleHelp } from "lucide-react"
+import { Bell, ChevronRight } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 
 import { ClsMenuTrigger } from "./cls-menu-trigger"
 import { HeaderUserMenu } from "./header-user-menu"
+import { HelpPopover } from "./help-popover"
 import { breadcrumbsForSection } from "./section-breadcrumbs"
 
 type Props = {
@@ -16,6 +17,7 @@ type Props = {
   initials: string
   sessionLabel: string
   onLogout: () => void
+  onOpenSection: (section: string) => void
 }
 
 export function PortalTopbar({
@@ -25,6 +27,7 @@ export function PortalTopbar({
   initials,
   sessionLabel,
   onLogout,
+  onOpenSection,
 }: Props) {
   const crumbs = useMemo(
     () => breadcrumbsForSection(section, role),
@@ -81,15 +84,7 @@ export function PortalTopbar({
           </span>
         </div>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="hidden size-8 text-[var(--cls-muted)] lg:inline-flex"
-          aria-label="Help"
-        >
-          <CircleHelp className="size-[18px]" />
-        </Button>
+        <HelpPopover onOpenSection={onOpenSection} />
 
         <Button
           type="button"
@@ -99,12 +94,8 @@ export function PortalTopbar({
           aria-label="Notifications"
           onClick={() => setNotifOpen((open) => !open)}
         >
+          {/* No notification feed exists yet, so no unread badge. */}
           <Bell className="size-[18px]" />
-          <span
-            className="absolute top-1 right-1 flex size-2.5 items-center justify-center rounded-full bg-[#d64545] text-[6.5px] font-bold leading-none text-white"
-          >
-            2
-          </span>
         </Button>
 
         <HeaderUserMenu

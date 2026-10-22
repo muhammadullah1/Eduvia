@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from "react"
 
-import type { SubjectRow } from "@/api/subjects/map-subject"
 import {
   creatableStaffRoles,
   staffRoleLabel,
 } from "@/api/staff/map-staff-directory"
+import type { SubjectRow } from "@/api/subjects/map-subject"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -24,9 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { StaffPhotoField } from "@/features/management/teachers-assignments/staff-photo-field"
 import type { Role } from "@/lib/auth"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
-import { StaffPhotoField } from "@/features/management/teachers-assignments/staff-photo-field"
 import {
   formatPhonePk,
   phonePkError,
@@ -40,7 +40,8 @@ export type CreateStaffPayload = {
   role: Role
   subjectId?: number
   employeeCode?: string
-  photo?: string
+  photoFile?: File | null
+  password?: string
 }
 
 type Props = {
@@ -79,7 +80,8 @@ export function CreateStaffUserModal({
   const [role, setRole] = useState<Role>(roleOptions[0] ?? "teacher")
   const [subjectId, setSubjectId] = useState("")
   const [employeeCode, setEmployeeCode] = useState("")
-  const [photo, setPhoto] = useState("")
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [password, setPassword] = useState("")
   const [phoneError, setPhoneError] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -92,7 +94,8 @@ export function CreateStaffUserModal({
     setRole(pickDefaultRole(roleOptions, defaultRole))
     setSubjectId("")
     setEmployeeCode("")
-    setPhoto("")
+    setPhotoFile(null)
+    setPassword("")
     setPhoneError(null)
     setError(null)
   }, [open, roleOptions, defaultRole])
@@ -131,6 +134,10 @@ export function CreateStaffUserModal({
         return
       }
     }
+    if (password && password.length < 8) {
+      setError("Password must be at least 8 characters, or leave it blank.")
+      return
+    }
     setError(null)
     const payload: CreateStaffPayload = {
       firstName: fn,
@@ -139,7 +146,8 @@ export function CreateStaffUserModal({
       phone: phoneTrimmed ? formatPhonePk(phoneTrimmed) : "",
       role,
       employeeCode: employeeCode.trim() || undefined,
-      photo: photo.trim() || undefined,
+      photoFile,
+      password: password || undefined,
     }
     if (role === "teacher") {
       payload.subjectId = Number(subjectId)
@@ -184,8 +192,8 @@ export function CreateStaffUserModal({
             Add staff member
           </DialogTitle>
           <DialogDescription className="text-sm text-[var(--cls-muted)]">
-            Creates a portal account and emails a secure link to set a password.
-            Teachers must have a subject. Employee code is optional.
+            Creates a portal account. Set a password now, or leave it blank and
+            we email a secure link to set one. Teachers must have a subject.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 px-6 py-5 sm:grid-cols-2">
@@ -254,12 +262,22 @@ export function CreateStaffUserModal({
             </Select>
           </div>
           <div className="sm:col-span-2">{subjectField}</div>
-          <StaffPhotoField
-            value={photo}
-            onChange={setPhoto}
-            disabled={saving}
-            onError={setError}
-          />
+          <StaffPhotoField file={photoFile} onFileChange={setPhotoFile} disabled={saving} />
+          <div>
+            <Label htmlFor="staff-password" className="mb-1.5 block text-sm font-medium">
+              Password <span className="text-[var(--cls-muted)]">(optional)</span>
+            </Label>
+            <Input
+              id="staff-password"
+              type="password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Leave blank to email a link"
+              maxLength={128}
+              disabled={saving}
+            />
+          </div>
           <div>
             <Label className="mb-1.5 block text-sm font-medium">
               Employee code <span className="text-[var(--cls-muted)]">(optional)</span>

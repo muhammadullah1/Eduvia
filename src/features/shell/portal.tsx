@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom"
 
+import { SessionExpiredDialog } from "@/components/app/session-expired-dialog"
 import {
   ForgotPasswordScreen,
   LoginScreen,
@@ -62,6 +63,7 @@ export function Portal() {
   return (
     <BrowserRouter>
       <AppRoutes />
+      <SessionExpiredDialog />
     </BrowserRouter>
   )
 }

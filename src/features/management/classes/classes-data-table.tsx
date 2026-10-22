@@ -5,6 +5,11 @@ import {
   Search,
 } from "lucide-react"
 
+import { classDisplayName } from "@/api/classes/map-class"
+import {
+  PaginationComponent,
+  type PaginationWithHandlers,
+} from "@/components/common/pagination-component"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -22,11 +27,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import {
-  PaginationComponent,
-  type PaginationWithHandlers,
-} from "@/components/common/pagination-component"
-import { classDisplayName } from "@/api/classes/map-class"
 import type { ClassRow } from "@/features/management/classes/hooks/use-classes"
 import { cn } from "@/lib/utils"
 
@@ -210,6 +210,7 @@ export function ClassesDataTable({
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
+                              disabled={item.studentCount > 0}
                               onClick={(e) => {
                                 e.stopPropagation()
                                 onDelete?.(item.id)
@@ -217,6 +218,12 @@ export function ClassesDataTable({
                             >
                               Archive class
                             </DropdownMenuItem>
+                            {item.studentCount > 0 ? (
+                              <p className="max-w-56 px-2 pb-1.5 text-xs text-[var(--cls-muted)]">
+                                Has {item.studentCount} enrolled{" "}
+                                {item.studentCount === 1 ? "student" : "students"}. Move or withdraw them first.
+                              </p>
+                            ) : null}
                           </>
                         )}
                       </DropdownMenuGroup>

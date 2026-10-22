@@ -1,5 +1,5 @@
 import { Bell, Search } from "lucide-react"
-import { useEffect, useMemo, useState, type CSSProperties } from "react"
+import { type CSSProperties,useEffect, useMemo, useState } from "react"
 import { Navigate, useNavigate, useParams } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
@@ -9,24 +9,24 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { useSchool } from "@/data/store"
-import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
+import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
 import {
   AcademicSetup,
   Admissions,
   Classes,
-  Sessions,
-  Subjects,
-  Timetable,
   Examinations,
   Fees,
   Finance,
   ManagementDashboard,
   MessagesDesk,
   Reports,
+  Sessions,
+  Subjects,
   TeachersAssignments,
+  Timetable,
 } from "@/features/management/screens"
-import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
-import { StudentsPage } from "@/features/management/students/students-page"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
+import { Students } from "@/features/management/students/students"
 import { SubstitutesPage } from "@/features/management/substitutes/substitutes-page"
 import {
   AccountantPortal,
@@ -39,6 +39,7 @@ import {
 } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
 import { TeacherPortal } from "@/features/teacher/screens"
+import { api } from "@/lib/api"
 import {
   clearAuth,
   defaultSection,
@@ -159,6 +160,7 @@ export function PortalShell() {
   }
 
   function logout() {
+    void api.logout()
     clearAuth()
     navigate("/login", { replace: true })
   }
@@ -187,7 +189,7 @@ export function PortalShell() {
     if (section === "lesson-review") return <LessonReviewPanel />
     if (section === "admissions") return <Admissions query={query} />
     if (section === "students" || section === "people") {
-      return <StudentsPage query={query} />
+      return <Students query={query} />
     }
     if (section === "enrollment-promotion") {
       return <Admissions query={query} />
@@ -227,6 +229,7 @@ export function PortalShell() {
             initials={initials}
             sessionLabel={sessionLabel}
             onLogout={logout}
+            onOpenSection={openSection}
           />
         ) : (
           <header className="sticky top-0 z-20 flex flex-col gap-4 border-b bg-background/90 px-4 py-4 backdrop-blur-xl sm:px-6 lg:px-8">

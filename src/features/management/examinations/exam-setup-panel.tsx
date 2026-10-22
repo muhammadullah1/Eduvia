@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { getToday } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 
 import { ExamLifecycleActions } from "./exam-actions"
@@ -360,8 +361,7 @@ function ExamCalendar({
     ...Array.from({ length: days }, (_, index) => index + 1),
   ]
   const [picked, setPicked] = useState<ExamSummary | null>(null)
-  const today = new Date()
-  const todayIso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`
+  const todayIso = getToday()
 
   function examsOn(day: number) {
     const iso = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`

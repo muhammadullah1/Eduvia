@@ -1,3 +1,4 @@
+import type { ClassStatus } from "@/data/types"
 import { api } from "@/lib/api"
 
 export type ClassDto = {
@@ -10,7 +11,7 @@ export type ClassDto = {
   periodCount: number
   monthlyTuitionFee?: number | string
   monthlyFee?: number
-  status?: "Active" | "Archived"
+  status?: ClassStatus
   capacity?: number
   periodStartTimes?: Record<string, string> | null
   studentCount?: number

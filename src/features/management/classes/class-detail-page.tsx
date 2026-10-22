@@ -1,40 +1,40 @@
-import { useEffect, useMemo, useState } from "react"
 import { useQueryClient } from "@tanstack/react-query"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 
 import classesService from "@/api/classes/classes.service"
-import { subjectsFromTimetableSlots } from "@/api/timetable/map-timetable"
 import {
   classDisplayName,
   isDuplicateClassGradeSection,
 } from "@/api/classes/map-class"
+import { subjectsFromTimetableSlots } from "@/api/timetable/map-timetable"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
-import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { ClassDetailHeader } from "@/features/management/classes/class-detail-header"
 import { ClassDetailStudentsTab } from "@/features/management/classes/class-detail-students-tab"
 import { ClassDetailSubjectsTab } from "@/features/management/classes/class-detail-subjects-tab"
 import { ClassDetailSummaryCard } from "@/features/management/classes/class-detail-summary-card"
-import { ClassDetailTimetableTab } from "@/features/management/classes/class-detail-timetable-tab"
 import {
   CLASS_DETAIL_TABS,
   type ClassDetailTabId,
 } from "@/features/management/classes/class-detail-tabs"
+import { ClassDetailTimetableTab } from "@/features/management/classes/class-detail-timetable-tab"
 import { EditClassModal } from "@/features/management/classes/edit-class-modal"
-import {
-  invalidateClassesList,
-  useClassesList,
-} from "@/features/management/classes/hooks/use-classes"
 import {
   useClassStudentsQuery,
   useClassTimetableQuery,
   useFeeMonthsQuery,
 } from "@/features/management/classes/hooks/use-class-detail-queries"
+import {
+  invalidateClassesList,
+  useClassesList,
+} from "@/features/management/classes/hooks/use-classes"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 import {
-  periodTimesFromApi,
   type PeriodTimeMap,
+  periodTimesFromApi,
 } from "@/lib/timetable-period-times"
 import { toast } from "@/lib/toast"
 
@@ -203,7 +203,7 @@ export function ClassDetailPage({
     )
   }
 
-  const status = klass.status === "Archived" ? "Archived" : "Active"
+  const status = klass.status ?? "Active"
 
   return (
     <div className="flex flex-col gap-5">

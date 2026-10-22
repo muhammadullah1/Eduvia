@@ -1,18 +1,20 @@
 import { StatusChip } from "@/components/app/status-chip"
+import type { ClassStatus } from "@/data/types"
 
-export function ClassStatusBadge({
-  status,
-}: {
-  status: "Active" | "Archived"
-}) {
-  const active = status === "Active"
+const LABEL: Record<ClassStatus, string> = {
+  Active: "Active",
+  Inactive: "Inactive",
+  Archived: "Archived",
+}
+
+export function ClassStatusBadge({ status }: { status: ClassStatus }) {
   return (
     <StatusChip
-      tone={active ? "success" : "neutral"}
+      tone={status === "Active" ? "success" : status === "Inactive" ? "warning" : "neutral"}
       showDot
       className="py-1"
     >
-      {active ? "Active" : "Archived"}
+      {LABEL[status]}
     </StatusChip>
   )
 }

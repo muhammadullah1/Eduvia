@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import classesService from "@/api/classes/classes.service"
 import { CLASSES_QUERY_KEY } from "@/api/classes/constants"
 import { mapClassDto } from "@/api/classes/map-class"
-import type { ClassSection } from "@/data/types"
+import type { ClassSection, ClassStatus } from "@/data/types"
 import { loadAuth } from "@/lib/auth"
 
 export function useClassesList(
@@ -40,5 +40,5 @@ export function invalidateClassesList(
 export type ClassRow = ClassSection & {
   studentCount: number
   subjectCount: number
-  status: "Active" | "Archived"
+  status: ClassStatus
 }

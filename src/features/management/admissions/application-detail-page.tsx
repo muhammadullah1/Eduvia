@@ -12,8 +12,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import type { Application, ClassSection } from "@/data/types"
+import { applicationNumericId } from "@/lib/applications-api"
 import { classLabel, formatDate } from "@/lib/format"
 
+import {
+  formatRegistrationNo,
+  resolveAdmissionUiStatus,
+} from "./admission-display"
 import { AdmissionDocumentViewButton } from "./admission-document-preview"
 import { AdmissionStatusBadge } from "./admission-status-badge"
 import {
@@ -21,10 +26,6 @@ import {
   DetailItem,
   DetailSection,
 } from "./admission-ui"
-import {
-  formatRegistrationNo,
-  resolveAdmissionUiStatus,
-} from "./admission-display"
 
 type Props = {
   application: Application
@@ -271,10 +272,13 @@ export function ApplicationDetailPage({
                 >
                   <span className="text-sm font-medium">{doc.label}</span>
                   <div className="flex items-center gap-2">
-                    {doc.fileUrl && doc.fileUrl.startsWith("http") ? (
+                    {doc.fileUrl && doc.status !== "Pending" && applicationNumericId(application.id) ? (
                       <AdmissionDocumentViewButton
                         title={doc.label}
-                        fileUrl={doc.fileUrl}
+                        stored={{
+                          applicationId: applicationNumericId(application.id) ?? 0,
+                          documentId: Number(doc.id),
+                        }}
                         variant="link"
                         className="h-auto px-0 text-xs text-[var(--cls-brand)]"
                       />
