@@ -4,6 +4,7 @@ import {
   markSessionExpired,
   SESSION_EXPIRED_MESSAGE,
 } from "@/lib/session-expiry"
+import { coordinatedRefresh, onTokenFromOtherTab } from "@/lib/token-refresh"
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api"
 
@@ -30,34 +31,48 @@ const PUBLIC_PATH = /^\/auth\/(login|refresh|logout|forgot-password|verify-token
 
 let refreshInFlight: Promise<string | null> | null = null
 
+async function requestNewAccessToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", platform: "webApp" },
+    })
+    if (!res.ok) return null
+    const body = (await res.json()) as ApiResponse<{ token?: string }>
+    return body?.data?.token ?? null
+  } catch {
+    return null
+  }
+}
+
 /**
  * Exchanges the httpOnly refresh cookie for a new access token. Concurrent
- * 401s share one call, so the rotating refresh token is only spent once.
+ * 401s in this tab share one call, and other tabs are coordinated through
+ * token-refresh.ts so the rotating cookie is spent by one tab at a time.
  */
-export function refreshAccessToken(): Promise<string | null> {
+export function refreshAccessToken(staleToken = loadAuth()?.token): Promise<string | null> {
   if (!refreshInFlight) {
-    refreshInFlight = (async () => {
-      try {
-        const res = await fetch(`${BASE_URL}/auth/refresh`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json", platform: "webApp" },
-        })
-        if (!res.ok) return null
-        const body = (await res.json()) as ApiResponse<{ token?: string }>
-        const token = body?.data?.token
+    refreshInFlight = coordinatedRefresh(staleToken, requestNewAccessToken)
+      .then((token) => {
         const session = loadAuth()
         if (!token || !session) return null
-        saveAuth({ ...session, token })
+        if (session.token !== token) saveAuth({ ...session, token })
         return token
-      } catch {
-        return null
-      } finally {
+      })
+      .finally(() => {
         refreshInFlight = null
-      }
-    })()
+      })
   }
   return refreshInFlight
+}
+
+// Keep idle tabs on the latest token another tab obtained.
+if (typeof window !== "undefined") {
+  onTokenFromOtherTab((token) => {
+    const session = loadAuth()
+    if (session && session.token !== token) saveAuth({ ...session, token })
+  })
 }
 
 async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
@@ -94,7 +109,7 @@ async function request<T>(path: string, options: RequestInit = {}, retried = fal
 
   if (res.status === 401 && !isPublic) {
     // Access tokens are short-lived: refresh once, then retry the original request once.
-    if (!retried && session?.token && (await refreshAccessToken())) {
+    if (!retried && session?.token && (await refreshAccessToken(session.token))) {
       return request<T>(path, options, true)
     }
     if (session) {
