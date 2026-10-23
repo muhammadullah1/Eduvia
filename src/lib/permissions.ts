@@ -29,6 +29,7 @@ const PERMISSIONS = {
   "exams.manage": ["super_admin", "operations_manager"],
   "results.override": ["super_admin", "operations_manager"],
   "admissions.manage": ["super_admin", "operations_manager"],
+  "students.manage": ["super_admin", "operations_manager"],
   "audit.view": ["super_admin", "operations_manager"],
 } as const satisfies Record<string, readonly Role[]>
 

@@ -2144,11 +2144,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       simple((current) => {
         const blocked = denied(actor, "results.override")
         if (blocked) return { error: blocked }
-        if (
-          current.settings.resultVisibility.requireOverrideReason &&
-          !reason.trim()
-        )
-          return { error: "An override reason is required." }
+        // D9: a reason is always required, whatever the legacy setting says.
+        if (reason.trim().length < 3)
+          return { error: "Give a reason of at least 3 characters." }
         if (
           !current.sheets.some(
             (sheet) =>

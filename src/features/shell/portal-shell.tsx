@@ -11,6 +11,7 @@ import {
 import { useSchool } from "@/data/store"
 import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
 import { EnrollmentPromotionPage } from "@/features/management/enrollment-promotion"
+import { LifecyclePage } from "@/features/management/lifecycle"
 import {
   AcademicSetup,
   Admissions,
@@ -34,7 +35,6 @@ import {
   CurriculumPanel,
   LessonReviewPanel,
   OperationsOverview,
-  ResultsGatePanel,
   SettingsPanel,
   WeeklyTestsPanel,
 } from "@/features/ops/screens"
@@ -66,7 +66,12 @@ const LEGACY_SECTION_REDIRECT: Record<string, string> = {
   people: "students",
   absences: "substitutes",
   "weekly-tests": "daily-test-schedule",
-  "results-gate": "lifecycle",
+  "results-gate": "exams",
+}
+
+/** Sub-path appended when a legacy section moved under another section. */
+const LEGACY_SECTION_REST: Record<string, string> = {
+  "results-gate": "result-visibility",
 }
 
 const CLS_SHELL_ROLES = new Set<Role>(["super_admin", "operations_manager"])
@@ -153,7 +158,12 @@ export function PortalShell() {
     roleParam !== portalPath(role).split("/")[1] ||
     (sectionParam && legacyTarget)
   ) {
-    return <Navigate to={portalPath(role, section)} replace />
+    return (
+      <Navigate
+        to={portalPath(role, section, legacyTarget ? LEGACY_SECTION_REST[rawSection] : undefined)}
+        replace
+      />
+    )
   }
 
   function openSection(id: string) {
@@ -195,7 +205,7 @@ export function PortalShell() {
       return <Students query={query} />
     }
     if (section === "enrollment-promotion") return <EnrollmentPromotionPage />
-    if (section === "lifecycle") return <ResultsGatePanel />
+    if (section === "lifecycle") return <LifecyclePage />
     if (section === "student-attendance") {
       return <SectionPlaceholder section={section} />
     }
@@ -205,7 +215,6 @@ export function PortalShell() {
     if (section === "daily-test-schedule") return <DailyTestSchedulePage />
     if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
-    if (section === "results-gate") return <ResultsGatePanel />
     if (
       section === "fees" ||
       section === "collect-fee" ||

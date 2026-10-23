@@ -212,9 +212,15 @@ export function PromotePanel() {
             </Select>
           </Field>
 
-          <div className="hidden h-full items-center justify-center gap-1.5 pt-6 text-xs text-[var(--cls-muted)] md:flex">
-            <img src={arrowRight} alt="" width={20} height={20} />
-            <span>promotes to</span>
+          {/* Mirrors Field: an invisible label row keeps the connector centred on the select triggers. */}
+          <div className="hidden flex-col gap-1.5 md:flex" aria-hidden>
+            <span className="invisible text-xs leading-4">&nbsp;</span>
+            <div className="flex h-10 items-center justify-center">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-[var(--cls-border)] bg-slate-50 px-3 py-1 text-xs font-medium text-[var(--cls-muted)]">
+                promotes to
+                <img src={arrowRight} alt="" width={16} height={16} />
+              </span>
+            </div>
           </div>
 
           <Field label="Target session" htmlFor="promote-session">

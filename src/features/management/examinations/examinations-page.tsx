@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CalendarCheck, ClipboardList, Plus } from "lucide-react"
+import { CalendarCheck, ClipboardList, EyeOff, Plus } from "lucide-react"
 import { useEffect, useState } from "react"
 import { useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
@@ -24,18 +24,21 @@ import { DailyTestsPanel } from "./daily-tests-panel"
 import { ExamDetailPage } from "./exam-detail-page"
 import { ExamSetupPanel } from "./exam-setup-panel"
 import { EXAM_DETAIL_TABS, type ExamDetailTab } from "./exam-utils"
+import { ResultVisibilityPanel } from "./result-visibility-panel"
 import { ScheduleExamPage } from "./schedule-exam-page"
 
 /**
  * URL shape (all under /:role/exams):
  *   ""                    exam list            (?view=daily for daily tests)
  *   "new"                 schedule an exam
+ *   "result-visibility"   fee-rule visibility and audited overrides (SRS §8)
  *   ":id/edit"            edit an exam
  *   ":id/:tab"            exam detail tab      (?class=&paper= pick the sheet)
  */
 type ExamRoute =
   | { kind: "list" }
   | { kind: "new" }
+  | { kind: "visibility" }
   | { kind: "edit"; id: number }
   | { kind: "detail"; id: number; tab: ExamDetailTab | null }
 
@@ -43,6 +46,7 @@ function parseRoute(splat: string | undefined): ExamRoute {
   const [first, second] = (splat ?? "").split("/").filter(Boolean)
   if (!first) return { kind: "list" }
   if (first === "new") return { kind: "new" }
+  if (first === "result-visibility") return { kind: "visibility" }
   const id = Number(first)
   if (!Number.isInteger(id) || id <= 0) return { kind: "list" }
   if (second === "edit") return { kind: "edit", id }
@@ -53,6 +57,7 @@ function parseRoute(splat: string | undefined): ExamRoute {
 const LIST_TABS = [
   { value: "exams", label: "Exams", icon: ClipboardList },
   { value: "daily", label: "Daily tests", icon: CalendarCheck },
+  { value: "visibility", label: "Result visibility", icon: EyeOff },
 ]
 
 export function ExaminationsPage() {
@@ -233,7 +238,8 @@ export function ExaminationsPage() {
     )
   }
 
-  const view = searchParams.get("view") === "daily" ? "daily" : "exams"
+  const view =
+    route.kind === "visibility" ? "visibility" : searchParams.get("view") === "daily" ? "daily" : "exams"
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -254,11 +260,23 @@ export function ExaminationsPage() {
       </div>
       <ClsSubTabs
         aria-label="Examinations"
-        items={LIST_TABS.map((item) => (item.value === "exams" ? { ...item, count: exams.length } : item))}
+        items={LIST_TABS.filter((item) => item.value !== "visibility" || canOverride).map((item) =>
+          item.value === "exams" ? { ...item, count: exams.length } : item
+        )}
         value={view}
-        onValueChange={(value) => navigate(value === "daily" ? `${base}?view=daily` : base)}
+        onValueChange={(value) =>
+          navigate(value === "daily" ? `${base}?view=daily` : value === "visibility" ? `${base}/result-visibility` : base)
+        }
       />
-      {view === "daily" ? (
+      {view === "visibility" ? (
+        canOverride ? (
+          <ResultVisibilityPanel />
+        ) : (
+          <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-14 text-center text-sm text-[var(--cls-muted)]">
+            Only the principal and operations can manage result visibility.
+          </div>
+        )
+      ) : view === "daily" ? (
         <DailyTestsPanel />
       ) : (
         loadState ?? (
