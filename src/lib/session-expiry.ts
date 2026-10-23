@@ -1,18 +1,31 @@
 import { useSyncExternalStore } from "react"
 
 /**
- * Who was signed in when the API rejected the token. While this is set the
- * portal shows the re-login dialog and the API client sends nothing, so no
- * request leaves without a token and the open form keeps its data.
+ * Raised when the session can't be renewed (refresh failed, or another tab
+ * signed out). The portal clears the auth and sends the user to /login with a
+ * notice; `returnTo` is where login brings them back.
  */
-export type ExpiredSession = { email: string; role: string }
+export type ExpiredSession = { returnTo: string }
 
+const RETURN_KEY = "eduvia-return-to"
 let expired: ExpiredSession | null = null
 const listeners = new Set<() => void>()
 
-export function markSessionExpired(session: ExpiredSession) {
+function currentPath() {
+  if (typeof window === "undefined") return "/"
+  return window.location.pathname + window.location.search
+}
+
+export function markSessionExpired(returnTo = currentPath()) {
   if (expired) return
-  expired = session
+  // Same-origin paths only (not "//host" or "/\\host"), never back to /login.
+  const safe = /^\/(?![/\\])/.test(returnTo) && !returnTo.startsWith("/login") ? returnTo : "/"
+  try {
+    sessionStorage.setItem(RETURN_KEY, safe)
+  } catch {
+    // Private mode: router state still carries it.
+  }
+  expired = { returnTo: safe }
   listeners.forEach((listener) => listener())
 }
 
@@ -25,6 +38,17 @@ export function expiredSession() {
   return expired
 }
 
+/** One-shot read of the stored return-to path (cleared after use). */
+export function takeReturnTo(): string | null {
+  try {
+    const value = sessionStorage.getItem(RETURN_KEY)
+    sessionStorage.removeItem(RETURN_KEY)
+    return value
+  } catch {
+    return null
+  }
+}
+
 export function useExpiredSession() {
   return useSyncExternalStore(
     (listener) => {
@@ -35,4 +59,4 @@ export function useExpiredSession() {
   )
 }
 
-export const SESSION_EXPIRED_MESSAGE = "Your session has expired. Sign in again to continue."
+export const SESSION_EXPIRED_MESSAGE = "Session expired, please sign in again."

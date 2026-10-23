@@ -3,6 +3,7 @@ export type ListApplicationsRequest = {
   q?: string
   submitted?: "true" | "false"
   hasInterview?: "true" | "false"
+  decision?: "Admit" | "Reject" | "Waitlist"
   page?: number
   pageSize?: number
 }

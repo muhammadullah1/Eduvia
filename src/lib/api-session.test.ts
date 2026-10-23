@@ -11,6 +11,16 @@ function jsonResponse(status: number, body: unknown) {
 }
 
 describe("API client with an expired session", () => {
+  it("signs this tab out when another tab's session ends", () => {
+    saveAuth({ role: "super_admin", token: "t", user })
+    const oldValue = localStorage.getItem("eduvia-auth")
+    localStorage.setItem("eduvia-auth", JSON.stringify({ state: { role: "super_admin" }, version: 0 }))
+    window.dispatchEvent(new StorageEvent("storage", { key: "eduvia-auth", oldValue }))
+    expect(loadAuth()).toBeNull()
+    expect(expiredSession()).not.toBeNull()
+  })
+
+
   const fetchMock = vi.fn()
 
   beforeEach(() => {
@@ -39,7 +49,7 @@ describe("API client with an expired session", () => {
       status: 401,
       message: SESSION_EXPIRED_MESSAGE,
     })
-    expect(expiredSession()).toEqual({ email: "admin@cls.edu.pk", role: "super_admin" })
+    expect(expiredSession()).toEqual({ returnTo: "/" })
     expect(loadAuth()).toBeNull()
   })
 

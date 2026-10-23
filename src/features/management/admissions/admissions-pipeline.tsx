@@ -49,11 +49,12 @@ export function AdmissionsPipeline({ applications, classes, onOpen, totals }: Pr
   }))
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-2">
+    <div className="flex min-w-0 max-w-full gap-3 overflow-x-auto overscroll-x-contain pb-2">
       {columns.map((column) => (
         <section
           key={column.status}
-          className="flex w-[min(100%,17.5rem)] shrink-0 flex-col gap-3 sm:w-72"
+          // Columns share the width and only scroll (inside this container) below ~11rem each (6 columns fit at 1440px).
+          className="flex min-w-[11rem] flex-1 basis-0 flex-col gap-3"
         >
           <header className="flex items-center justify-between gap-2 px-0.5">
             <h3 className="text-sm font-semibold text-[var(--cls-ink)]">

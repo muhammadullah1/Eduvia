@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react"
+import { type FormEvent, useEffect, useState } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
@@ -12,6 +12,7 @@ import {
 import { Spinner } from "@/components/ui/spinner"
 import { api,ApiHttpError } from "@/lib/api"
 import { ALL_ROLES, portalPath, type Role,saveAuth } from "@/lib/auth"
+import { SESSION_EXPIRED_MESSAGE, takeReturnTo } from "@/lib/session-expiry"
 
 import {
   AuthBrand,
@@ -32,7 +33,13 @@ function isPortalRole(role: string): role is Role {
 export function LoginScreen() {
   const navigate = useNavigate()
   const location = useLocation()
-  const redirectTo = (location.state as { from?: string } | null)?.from
+  const routeState = location.state as { from?: string; expired?: boolean } | null
+  const sessionExpired = Boolean(routeState?.expired)
+  const [redirectTo] = useState(() => routeState?.from ?? takeReturnTo() ?? undefined)
+
+  useEffect(() => {
+    if (sessionExpired) toast.info(SESSION_EXPIRED_MESSAGE, { id: "session-expired" })
+  }, [sessionExpired])
 
   const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
@@ -105,6 +112,15 @@ export function LoginScreen() {
         <p className="pt-[3.5px] text-[10.5px] leading-[14px] text-[#667085] md:pt-2 md:text-xs md:leading-[18px]">
           Enter your credentials to open your portal.
         </p>
+
+        {sessionExpired ? (
+          <p
+            role="status"
+            className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"
+          >
+            {SESSION_EXPIRED_MESSAGE}
+          </p>
+        ) : null}
 
         <form onSubmit={handleSubmit} className="pt-[17.5px] md:pt-8">
           <div className="flex flex-col gap-[5.25px] md:gap-2">
