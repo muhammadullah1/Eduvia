@@ -9,6 +9,7 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { useSchool } from "@/data/store"
+import { AttendanceReviewPage } from "@/features/management/attendance"
 import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
 import { EnrollmentPromotionPage } from "@/features/management/enrollment-promotion"
 import { LifecyclePage } from "@/features/management/lifecycle"
@@ -39,6 +40,7 @@ import {
   WeeklyTestsPanel,
 } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
+import { TeacherNotificationsBell } from "@/features/teacher/attendance-notices"
 import { TeacherPortal } from "@/features/teacher/screens"
 import { api } from "@/lib/api"
 import {
@@ -57,7 +59,6 @@ import { academicFocusForSection } from "./academic-section"
 import { HeaderUserMenu } from "./header-user-menu"
 import { navigation, roles, sectionIds, subtitles } from "./navigation"
 import { PortalTopbar } from "./portal-topbar"
-import { SectionPlaceholder } from "./section-placeholder"
 import { Sidebar } from "./sidebar"
 
 const LEGACY_SECTION_REDIRECT: Record<string, string> = {
@@ -206,9 +207,7 @@ export function PortalShell() {
     }
     if (section === "enrollment-promotion") return <EnrollmentPromotionPage />
     if (section === "lifecycle") return <LifecyclePage />
-    if (section === "student-attendance") {
-      return <SectionPlaceholder section={section} />
-    }
+    if (section === "student-attendance") return <AttendanceReviewPage />
     if (section === "substitutes" || section === "absences") {
       return <SubstitutesPage />
     }
@@ -292,14 +291,18 @@ export function PortalShell() {
                     </div>
                   ) : null}
                 </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="Notifications"
-                  onClick={() => setNotesOpen((open) => !open)}
-                >
-                  <Bell />
-                </Button>
+                {role === "teacher" ? (
+                  <TeacherNotificationsBell onOpenAttendance={() => openSection("attendance")} />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Notifications"
+                    onClick={() => setNotesOpen((open) => !open)}
+                  >
+                    <Bell />
+                  </Button>
+                )}
                 <HeaderUserMenu
                   role={role}
                   userName={signedInName}
@@ -309,7 +312,7 @@ export function PortalShell() {
                 />
               </div>
             </div>
-            {notesOpen ? (
+            {notesOpen && role !== "teacher" ? (
               <div className="rounded-xl border bg-card p-3">
                 {state.audits.slice(0, 5).map((event) => (
                   <div key={event.id} className="border-b py-2 last:border-0">

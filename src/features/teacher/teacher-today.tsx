@@ -18,11 +18,12 @@ import {
 } from "@/components/ui/chart"
 import { Separator } from "@/components/ui/separator"
 import { useSchool } from "@/data/store"
-import { isAttendancePresent } from "@/data/types"
+import { attendancePercent } from "@/data/types"
 import { teacherDuties, weekdayOf } from "@/lib/academics"
 import { getToday } from "@/lib/dates"
 import { classLabel, formatDate } from "@/lib/format"
 
+import { TodayAttendanceDuty } from "./attendance-notices"
 import { signedInTeacher } from "./session"
 
 const attendanceConfig = {
@@ -76,16 +77,14 @@ export function TeacherToday({
     const marks = state.attendance.filter(
       (mark) => classIds.includes(mark.classId) && mark.date === date
     )
-    const present = marks.filter((mark) =>
-      isAttendancePresent(mark.status)
-    ).length
     return {
       day: label,
-      value: marks.length ? Math.round((present / marks.length) * 100) : 0,
+      value: attendancePercent(marks.map((mark) => mark.status), 0) ?? 0,
     }
   })
   return (
     <div className="grid gap-6">
+      <TodayAttendanceDuty onOpenAttendance={() => onOpen("attendance")} />
       <div className="relative overflow-hidden rounded-3xl bg-primary p-7 text-primary-foreground md:p-9">
         <div className="school-grid absolute inset-0 opacity-10" />
         <div className="relative z-10 max-w-xl">

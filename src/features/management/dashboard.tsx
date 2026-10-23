@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { studentName, useSchool } from "@/data/store"
-import { isAttendancePresent } from "@/data/types"
+import { attendancePercent, isAttendancePresent } from "@/data/types"
 import { feeMonthsLabel } from "@/features/fees/receipts"
 import { getToday } from "@/lib/dates"
 import { monthLabel, outstanding } from "@/lib/fees"
@@ -54,9 +54,9 @@ export function ManagementDashboard({
   const presentToday = state.attendance.filter(
     (mark) => mark.date === today && isAttendancePresent(mark.status)
   ).length
-  const markedToday = state.attendance.filter(
-    (mark) => mark.date === today
-  ).length
+  const todayRate = attendancePercent(
+    state.attendance.filter((mark) => mark.date === today).map((mark) => mark.status)
+  )
   // Overall fee totals: super admin only (UR-01). The dashboard is not mounted for other roles.
   const collectedThisMonth = state.payments
     .filter(
@@ -169,9 +169,7 @@ export function ManagementDashboard({
           icon={UserCheck}
           label="Today’s attendance"
           value={
-            markedToday
-              ? `${Math.round((presentToday / markedToday) * 1000) / 10}%`
-              : "—"
+            todayRate === null ? "—" : `${todayRate}%`
           }
           note={`${presentToday} present today`}
         />

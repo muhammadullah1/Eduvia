@@ -4,7 +4,7 @@ import {
   mapTeacherAbsencesFromApi,
 } from "@/api/teacher-absences/map-absences"
 import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
-import { PORTAL_CORE_SLICES, type SchoolDataSlice } from "@/data/portal-sync"
+import { canListUserAccounts, canReadSlice, PORTAL_CORE_SLICES, readableSlices, type SchoolDataSlice, unavailableSlicesFor } from "@/data/portal-sync"
 import {
   type AbsenceStatus,
   type AcademicSession,
@@ -151,7 +151,9 @@ export async function fetchPortalCore(): Promise<
       safeGet<ApiClass[]>("/classes", undefined, []),
       safeGet<ApiSession[]>("/sessions", undefined, []),
       safeGet<ApiSubject[]>("/subjects", undefined, []),
-      safeGet<ApiSettings>("/settings", undefined, {}),
+      canReadSlice(loadAuth()?.role, "settings")
+        ? safeGet<ApiSettings>("/settings", undefined, {})
+        : Promise.resolve({} as ApiSettings),
     ])
 
   const classes: ClassSection[] = classesData.length
@@ -314,7 +316,9 @@ async function fetchStudentsFromApi(): Promise<Student[]> {
 async function fetchStaffFromApi(): Promise<Staff[]> {
   const [teachersData, usersData] = await Promise.all([
     safeGet<ApiTeacher[]>("/teachers", undefined, []),
-    safeGet<{ users: ApiUser[] }>("/users", { pageSize: 1000 }, { users: [] }),
+    canListUserAccounts(loadAuth()?.role)
+      ? safeGet<{ users: ApiUser[] }>("/users", { pageSize: 1000 }, { users: [] })
+      : Promise.resolve({ users: [] as ApiUser[] }),
   ])
 
   const teacherStaff: Staff[] = teachersData.map((t) => ({
@@ -367,9 +371,14 @@ async function fetchFeesFromApi(): Promise<
   Pick<SchoolState, "feeMonths" | "payments">
 > {
   const today = getToday()
+  const role = loadAuth()?.role
   const [feeMonthsData, paymentsData] = await Promise.all([
-    safeGet<ApiFeeMonth[]>("/fees/months", undefined, []),
-    safeGet<ApiPayment[]>("/fees/payments", undefined, []),
+    canReadSlice(role, "feeMonths")
+      ? safeGet<ApiFeeMonth[]>("/fees/months", undefined, [])
+      : Promise.resolve([] as ApiFeeMonth[]),
+    canReadSlice(role, "payments")
+      ? safeGet<ApiPayment[]>("/fees/payments", undefined, [])
+      : Promise.resolve([] as ApiPayment[]),
   ])
 
   const feeMonths: FeeMonth[] = feeMonthsData.length
@@ -427,7 +436,8 @@ const LIGHT_FETCH_SLICES = new Set<SchoolDataSlice>([
 export async function fetchSchoolDataSlices(
   slices: SchoolDataSlice[]
 ): Promise<Partial<SchoolState>> {
-  const want = new Set(slices)
+  // Never request a slice the signed-in role cannot read (the API would answer 403).
+  const want = new Set(readableSlices(loadAuth()?.role, slices))
   if (want.size === 0) return {}
   const partial: Partial<SchoolState> = {}
   const tasks: Promise<void>[] = []
@@ -504,7 +514,9 @@ export async function fetchSchoolDataSlices(
 export async function fetchBackendState(
   only?: ReadonlySet<SchoolDataSlice>
 ): Promise<SchoolState> {
-  const need = (slice: SchoolDataSlice) => !only || only.has(slice)
+  const role = loadAuth()?.role
+  const unavailable = unavailableSlicesFor(role)
+  const need = (slice: SchoolDataSlice) => (!only || only.has(slice)) && !unavailable.has(slice)
   const [
     classesData,
     sessionsData,
@@ -541,7 +553,7 @@ export async function fetchBackendState(
     need("staff")
       ? safeGet<ApiTeacher[]>("/teachers", undefined, [])
       : Promise.resolve([] as ApiTeacher[]),
-    need("staff")
+    need("staff") && canListUserAccounts(role)
       ? safeGet<{ users: ApiUser[] }>("/users", { pageSize: 1000 }, { users: [] })
       : Promise.resolve({ users: [] as ApiUser[] }),
     need("students")

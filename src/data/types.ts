@@ -17,6 +17,24 @@ export function isAttendancePresent(status: AttendanceStatus): boolean {
   return status === "Present" || status === "Late"
 }
 
+/** Leave and Excused days are left out of attendance percentages. */
+export function isAttendanceCounted(status: AttendanceStatus): boolean {
+  return status !== "Leave" && status !== "Excused"
+}
+
+/**
+ * The one attendance-percentage rule (matches the API's utils/attendance.js):
+ * attended (Present + Late) / counted days, where Leave and Excused are not
+ * counted. Returns null when nothing is countable (e.g. all leave), so callers
+ * never divide by zero. Rounded to `decimals` places (default 1).
+ */
+export function attendancePercent(statuses: AttendanceStatus[], decimals = 1): number | null {
+  const counted = statuses.filter(isAttendanceCounted)
+  if (!counted.length) return null
+  const factor = 10 ** decimals
+  return Math.round((counted.filter(isAttendancePresent).length / counted.length) * 100 * factor) / factor
+}
+
 /**
  * Maps raw backend application status to canonical frontend ApplicationStatus.
  *

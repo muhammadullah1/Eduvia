@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { studentName, useSchool } from "@/data/store"
-import { isAttendancePresent } from "@/data/types"
+import { attendancePercent, isAttendancePresent } from "@/data/types"
 import { monthlySummaries } from "@/lib/academics"
 import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
@@ -33,6 +33,7 @@ export function OperationsOverview({
   const present = marked.filter((mark) =>
     isAttendancePresent(mark.status)
   ).length
+  const todayRate = attendancePercent(marked.map((mark) => mark.status), 0)
   const pendingCover = state.teacherAbsences.filter(
     (row) => row.date === today && row.status === "Pending"
   ).length
@@ -92,9 +93,7 @@ export function OperationsOverview({
           icon={UserCheck}
           label="Today’s attendance"
           value={
-            marked.length
-              ? `${Math.round((present / marked.length) * 100)}%`
-              : "—"
+            todayRate === null ? "—" : `${todayRate}%`
           }
           note={`${present} present`}
         />

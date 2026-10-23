@@ -18,16 +18,21 @@ type MonthPickerProps = {
   monthsBack?: number
   monthsAhead?: number
   className?: string
+  id?: string
   "aria-label"?: string
 }
 
-/** Month selector built on shadcn Select (replaces native `<input type="month">`). */
+/**
+ * Month selector built on shadcn Select (replaces native `<input type="month">`).
+ * Uses the default SelectTrigger size/styles so it lines up with other Selects in a filter row.
+ */
 export function MonthPicker({
   value,
   onChange,
   monthsBack = 24,
   monthsAhead = 12,
   className,
+  id,
   "aria-label": ariaLabel = "Month",
 }: MonthPickerProps) {
   const options = useMemo(() => {
@@ -45,7 +50,7 @@ export function MonthPicker({
 
   return (
     <Select value={value} onValueChange={onChange}>
-      <SelectTrigger size="sm" aria-label={ariaLabel} className={cn("w-40 text-xs", className)}>
+      <SelectTrigger id={id} aria-label={ariaLabel} className={cn("w-40", className)}>
         <SelectValue placeholder="Pick a month" />
       </SelectTrigger>
       <SelectContent className="max-h-64">

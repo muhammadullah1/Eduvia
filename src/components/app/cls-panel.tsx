@@ -1,6 +1,6 @@
 import type { ReactNode } from "react"
 
-import { TableHead } from "@/components/ui/table"
+import { TableCell, TableHead } from "@/components/ui/table"
 import { cn } from "@/lib/utils"
 
 /** White bordered card used by the admissions-style list pages. */
@@ -79,6 +79,16 @@ export function ClsTh({ className, children }: { className?: string; children?: 
       {children}
     </TableHead>
   )
+}
+
+/** Compact, left-aligned "Action" column header; pair with ClsActionCell so the label sits over the buttons. Give it a fixed width. */
+export function ClsActionTh({ className, label = "Action" }: { className?: string; label?: string }) {
+  return <ClsTh className={cn("text-left", className)}>{label}</ClsTh>
+}
+
+/** Cell for row buttons, aligned with ClsActionTh. */
+export function ClsActionCell({ className, children }: { className?: string; children?: ReactNode }) {
+  return <TableCell className={cn("text-left", className)}>{children}</TableCell>
 }
 
 export function ClsEmpty({ title, children }: { title: string; children?: ReactNode }) {

@@ -99,3 +99,14 @@ The live portal hydrates from the API when a token exists, and otherwise keeps t
 - Readmission is allowed from `StruckOff`, `Graduated` or `Withdrawn`. It needs a class and session and checks class capacity. `Inactive` students cannot be promoted.
 - `/admin/lifecycle` has a Change status tab and a History tab. History is filtered and paginated on the server. CSV export walks every page on the client.
 - Result visibility now lives at `/admin/exams/result-visibility`, behind `results.override`, and `/admin/results-gate` redirects there. An override always needs a reason of at least 3 characters. Visibility state is still read from the client store.
+
+## Attendance review (EDUVIA-14, SRS 6.3)
+- Statuses: Present, Absent, Late, Leave (Late added by migration 056). Attended % = (Present + Late) / marked days; working days = dates the register was taken.
+- API: `GET /attendance/review/{today,daily,monthly,absentees,low,changes}`, `POST /attendance/review/reminders` (perm `attendance.review`), `PATCH /attendance/:id` (perm `attendance.edit`, reason required). SA + Ops only.
+- Edit window: school setting `attendance.editWindowDays` (default 7), applied to management edits and teacher re-marks; no future dates. Low threshold: `attendance.lowThreshold` (default 75).
+- Every change to a saved mark writes `attendance_changes` (source review|register) plus an audit log. Rows are never edited or deleted.
+- Reminders: today only, pending classes, once per class per day (`attendance_reminders`), shown to the teacher as a system notice.
+- Frontend: `src/features/management/attendance/` → `AttendanceReviewPage` at `/admin/student-attendance`, tabs synced to `?tab=`.
+
+## Reports UI (EDUVIA-14)
+- `/admin/reports` and the accountant's collections use `src/components/app/report-layout.tsx` (page header, white panel + toolbar, washed table header, `PaginationComponent` footer) and `useClientPagination` (10 per page), the same patterns as Classes/Subjects. Downloads go through `src/hooks/use-report-download.ts`.
