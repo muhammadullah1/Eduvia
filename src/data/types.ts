@@ -51,6 +51,9 @@ export function normalizeApplicationStatus(raw: string): ApplicationStatus {
   }
 }
 
+/** Active only while it has enrolled students; Archived once deleted. */
+export type ClassStatus = "Active" | "Inactive" | "Archived"
+
 export type ClassSection = {
   id: string
   label: string
@@ -61,7 +64,7 @@ export type ClassSection = {
   periodCount: number
   /** Monthly tuition used when fee months are generated. */
   monthlyFee: number
-  status?: "Active" | "Archived"
+  status?: ClassStatus
   /** Period index → HH:mm from GET /classes */
   periodStartTimes?: Record<string, string>
   studentCount?: number
@@ -116,7 +119,10 @@ export type AdmissionDocument = {
   id: string
   label: string
   status: DocumentStatus
+  /** R2 object key (or a legacy URL) of the stored file. */
   fileUrl?: string | null
+  /** Picked in the wizard, uploaded when the step is saved. Never sent to the API. */
+  pendingFile?: File | null
 }
 
 export type Application = {

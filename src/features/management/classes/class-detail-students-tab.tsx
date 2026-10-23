@@ -12,13 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { FeeMonth, Student } from "@/data/types"
 import {
   studentFeeStatus,
-  studentIsActive,
   type StudentFeeUiStatus,
+  studentIsActive,
 } from "@/features/management/classes/use-class-detail"
 import { useClientPagination } from "@/hooks/use-client-pagination"
-import type { FeeMonth, Student } from "@/data/types"
 
 function feeTone(status: StudentFeeUiStatus): StatusChipTone {
   if (status === "overdue") return "danger"

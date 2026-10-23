@@ -12,8 +12,8 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 import { StaffPhotoField } from "@/features/management/teachers-assignments/staff-photo-field"
+import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 import {
   formatPhonePk,
   phonePkError,
@@ -23,7 +23,10 @@ export type EditStaffPayload = {
   firstName: string
   lastName: string
   phone: string
-  photo: string
+  /** New photo to upload on save. */
+  photoFile: File | null
+  /** True when the current photo was removed. */
+  removePhoto: boolean
 }
 
 type Props = {
@@ -44,7 +47,8 @@ export function EditStaffUserModal({
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
   const [phone, setPhone] = useState("")
-  const [photo, setPhoto] = useState("")
+  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [removePhoto, setRemovePhoto] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [phoneError, setPhoneError] = useState<string | null>(null)
 
@@ -53,7 +57,8 @@ export function EditStaffUserModal({
     setFirstName(staff.firstName)
     setLastName(staff.lastName)
     setPhone(staff.phone === "—" ? "" : formatPhonePk(staff.phone))
-    setPhoto(staff.photoUrl ?? "")
+    setPhotoFile(null)
+    setRemovePhoto(false)
     setError(null)
     setPhoneError(null)
   }, [open, staff])
@@ -79,7 +84,8 @@ export function EditStaffUserModal({
       firstName: fn,
       lastName: ln,
       phone: phoneTrimmed,
-      photo: photo.trim(),
+      photoFile,
+      removePhoto,
     })
   }
 
@@ -131,10 +137,11 @@ export function EditStaffUserModal({
             ) : null}
           </div>
           <StaffPhotoField
-            value={photo}
-            onChange={setPhoto}
+            file={photoFile}
+            onFileChange={setPhotoFile}
+            currentUrl={removePhoto ? null : staff?.photoUrl}
+            onRemoveCurrent={() => setRemovePhoto(true)}
             disabled={saving}
-            onError={setError}
           />
           {error ? (
             <p className="sm:col-span-2 text-sm text-destructive">{error}</p>

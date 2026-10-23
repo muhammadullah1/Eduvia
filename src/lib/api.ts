@@ -1,4 +1,10 @@
-import { type AuthUser, clearAuth, loadAuth } from "@/lib/auth"
+import { type AuthUser, clearAuth, loadAuth, saveAuth } from "@/lib/auth"
+import {
+  expiredSession,
+  markSessionExpired,
+  SESSION_EXPIRED_MESSAGE,
+} from "@/lib/session-expiry"
+import { coordinatedRefresh, onTokenFromOtherTab } from "@/lib/token-refresh"
 
 const BASE_URL = import.meta.env.VITE_API_URL || "/api"
 
@@ -20,8 +26,62 @@ export class ApiHttpError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+/** Sign-in, refresh and password endpoints work without a token. */
+const PUBLIC_PATH = /^\/auth\/(login|refresh|logout|forgot-password|verify-token|reset-password)\b/
+
+let refreshInFlight: Promise<string | null> | null = null
+
+async function requestNewAccessToken(): Promise<string | null> {
+  try {
+    const res = await fetch(`${BASE_URL}/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", platform: "webApp" },
+    })
+    if (!res.ok) return null
+    const body = (await res.json()) as ApiResponse<{ token?: string }>
+    return body?.data?.token ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Exchanges the httpOnly refresh cookie for a new access token. Concurrent
+ * 401s in this tab share one call, and other tabs are coordinated through
+ * token-refresh.ts so the rotating cookie is spent by one tab at a time.
+ */
+export function refreshAccessToken(staleToken = loadAuth()?.token): Promise<string | null> {
+  if (!refreshInFlight) {
+    refreshInFlight = coordinatedRefresh(staleToken, requestNewAccessToken)
+      .then((token) => {
+        const session = loadAuth()
+        if (!token || !session) return null
+        if (session.token !== token) saveAuth({ ...session, token })
+        return token
+      })
+      .finally(() => {
+        refreshInFlight = null
+      })
+  }
+  return refreshInFlight
+}
+
+// Keep idle tabs on the latest token another tab obtained.
+if (typeof window !== "undefined") {
+  onTokenFromOtherTab((token) => {
+    const session = loadAuth()
+    if (session && session.token !== token) saveAuth({ ...session, token })
+  })
+}
+
+async function request<T>(path: string, options: RequestInit = {}, retried = false): Promise<T> {
   const session = loadAuth()
+  const isPublic = PUBLIC_PATH.test(path)
+  // Never send a portal request without a token: hold it until the user signs in again.
+  if (!isPublic && (!session?.token || expiredSession())) {
+    throw new ApiHttpError(401, SESSION_EXPIRED_MESSAGE)
+  }
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     platform: "webApp",
@@ -39,6 +99,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     res = await fetch(url, {
       ...options,
       headers,
+      credentials: "include",
     })
   } catch (err) {
     const errorMsg =
@@ -46,8 +107,16 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new ApiHttpError(0, `Cannot connect to API server: ${errorMsg}`)
   }
 
-  if (res.status === 401) {
+  if (res.status === 401 && !isPublic) {
+    // Access tokens are short-lived: refresh once, then retry the original request once.
+    if (!retried && session?.token && (await refreshAccessToken(session.token))) {
+      return request<T>(path, options, true)
+    }
+    if (session) {
+      markSessionExpired({ email: session.user?.email ?? "", role: session.role })
+    }
     clearAuth()
+    throw new ApiHttpError(401, SESSION_EXPIRED_MESSAGE)
   }
 
   let body: unknown
@@ -135,6 +204,7 @@ export const api = {
 
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 
+
   login: async (
     email: string,
     password: string,
@@ -148,6 +218,15 @@ export const api = {
         ...(schoolId ? { schoolId } : {}),
       }),
     })
+  },
+
+  /** Revokes the refresh cookie server-side; local sign-out happens regardless. */
+  logout: async (): Promise<void> => {
+    try {
+      await request<unknown>("/auth/logout", { method: "POST" })
+    } catch {
+      // Already signed out or offline: nothing else to revoke.
+    }
   },
 
   forgotPassword: async (

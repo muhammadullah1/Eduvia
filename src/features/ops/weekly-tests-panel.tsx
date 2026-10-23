@@ -2,6 +2,7 @@ import { ClipboardList, Flag } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { EmptyState, Field, StatusBadge } from "@/components/app/kit"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -14,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { MonthPicker } from "@/components/ui/month-picker"
 import {
   Select,
   SelectContent,
@@ -30,7 +32,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { studentName, useSchool } from "@/data/store"
 import { type WeeklyTest } from "@/data/types"
 import { monthlySummaries, weekdayOf, WEEKDAYS } from "@/lib/academics"
@@ -122,14 +123,7 @@ export function WeeklyTestsPanel() {
           { value: "schedule", label: "Test days" },
         ]}
         trailing={
-          <Input
-            type="month"
-            className="h-8 w-36 text-xs"
-            value={month}
-            onChange={(event) =>
-              setMonth(event.target.value || getToday().slice(0, 7))
-            }
-          />
+          <MonthPicker value={month} onChange={setMonth} />
         }
       />
       <Alert>

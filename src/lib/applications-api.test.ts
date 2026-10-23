@@ -46,6 +46,7 @@ describe("applications-api helpers", () => {
     })
     expect(body.interviewDate).toBeNull()
     expect(body.interviewScore).toBeUndefined()
-    expect(body.notes).toBeUndefined()
+    // Notes are sent as "" so a user can clear them (the API accepts "").
+    expect(body.notes).toBe("")
   })
 })

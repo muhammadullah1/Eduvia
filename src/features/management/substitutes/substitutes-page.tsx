@@ -5,12 +5,16 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useSchool } from "@/data/store"
 import type { TeacherAbsence } from "@/data/types"
-import { useActor } from "@/lib/actor"
 import { weekdayOf } from "@/lib/academics"
+import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
 import { formatDate } from "@/lib/format"
 
-import { AssignSubstitutesModal } from "./assign-substitutes-modal"
+import {
+  type AbsenceDraft,
+  AssignSubstitutesModal,
+  type CoverPicks,
+} from "./assign-substitutes-modal"
 import { useSubstituteMutations } from "./hooks/use-substitute-mutations"
 import {
   useSubstitutionLog,
@@ -22,9 +26,10 @@ import { SubstitutesDayBoard } from "./substitutes-day-board"
 import { SubstitutesDayToolbar } from "./substitutes-day-toolbar"
 import { SubstitutionLogModal } from "./substitution-log-modal"
 
-type AssignTarget = {
-  teacherId: string
-  date: string
+type CoverStep = {
+  draft: AbsenceDraft
+  /** True when opened from "Mark teacher absent", so Back returns to it. */
+  fromMarkAbsent: boolean
 }
 
 function groupAbsencesByTeacher(rows: TeacherAbsence[]) {
@@ -43,7 +48,7 @@ export function SubstitutesPage() {
 
   const [markModalOpen, setMarkModalOpen] = useState(false)
   const [logModalOpen, setLogModalOpen] = useState(false)
-  const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null)
+  const [coverStep, setCoverStep] = useState<CoverStep | null>(null)
 
   const [teacherId, setTeacherId] = useState("")
   const [absentDate, setAbsentDate] = useState(getToday)
@@ -67,7 +72,7 @@ export function SubstitutesPage() {
 
   const { data: logData } = useSubstitutionLog(logModalOpen)
 
-  const { markAbsent, assign, removeCover, cancelAbsence } =
+  const { markAbsentWithCover, assign, removeCover, cancelAbsence } =
     useSubstituteMutations(actor.role)
 
   const teacher = teachers.find((person) => person.id === teacherId)
@@ -106,8 +111,8 @@ export function SubstitutesPage() {
     return (id: string) => map.get(id) ?? id
   }, [teachers])
 
-  const assignTeacher = assignTarget
-    ? teachers.find((p) => p.id === assignTarget.teacherId)
+  const coverTeacher = coverStep
+    ? teachers.find((p) => p.id === coverStep.draft.teacherId)
     : undefined
 
   function togglePeriod(period: number) {
@@ -118,28 +123,69 @@ export function SubstitutesPage() {
     )
   }
 
-  async function submitAbsent() {
-    const tid = Number(teacherId)
-    if (!Number.isFinite(tid)) {
-      toast.error("Choose a teacher.")
-      return
-    }
+  function resetMarkForm() {
+    setTeacherId("")
+    setPeriods([])
+    setNotes("")
+  }
+
+  /** Step 1 → step 2. Nothing is saved until the substitutes are confirmed. */
+  function continueToCover() {
+    if (!teacherId || periods.length === 0) return
+    setMarkModalOpen(false)
+    setCoverStep({
+      draft: { teacherId, date: absentDate, periods, notes: notes.trim() },
+      fromMarkAbsent: true,
+    })
+  }
+
+  function backToMarkAbsent() {
+    setCoverStep(null)
+    setMarkModalOpen(true)
+  }
+
+  function closeCover() {
+    if (coverStep?.fromMarkAbsent) resetMarkForm()
+    setCoverStep(null)
+  }
+
+  function coverPendingFor(tid: string) {
+    const pending = dayRows
+      .filter((row) => row.teacherId === tid && row.status === "Pending")
+      .map((row) => row.periodIndex)
+    if (!pending.length) return
+    setCoverStep({
+      draft: { teacherId: tid, date: viewDate, periods: pending, notes: "" },
+      fromMarkAbsent: false,
+    })
+  }
+
+  async function confirmCover(picks: CoverPicks) {
+    if (!coverStep) return
+    const { draft } = coverStep
+    const assignments = Object.entries(picks).map(([period, subId]) => ({
+      periodIndex: Number(period),
+      substituteTeacherId: Number(subId),
+    }))
     try {
-      await markAbsent.mutateAsync({
-        teacherId: tid,
-        date: absentDate,
-        periods,
-        notes: notes.trim() || undefined,
+      await markAbsentWithCover.mutateAsync({
+        teacherId: Number(draft.teacherId),
+        date: draft.date,
+        periods: draft.periods,
+        notes: draft.notes || undefined,
+        assignments,
       })
-      toast.success("Affected periods loaded — assign substitutes below")
-      setViewDate(absentDate)
-      setPeriods([])
-      setNotes("")
-      setMarkModalOpen(false)
-      setAssignTarget({ teacherId, date: absentDate })
+      const open = draft.periods.length - assignments.length
+      toast.success(
+        `${teacherNameById(draft.teacherId)} marked absent · ${assignments.length} period(s) covered` +
+          (open > 0 ? `, ${open} still pending` : "")
+      )
+      setViewDate(draft.date)
+      resetMarkForm()
+      setCoverStep(null)
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : "Could not mark teacher absent."
+        err instanceof Error ? err.message : "Could not save the absence."
       )
     }
   }
@@ -287,9 +333,7 @@ export function SubstitutesPage() {
           grouped={grouped}
           substitutions={substitutions}
           teacherNameById={teacherNameById}
-          onAssignTeacher={(tid) =>
-            setAssignTarget({ teacherId: tid, date: viewDate })
-          }
+          onAssignTeacher={coverPendingFor}
           onAssignOne={(absenceId, substituteId) =>
             void assignOne(absenceId, substituteId)
           }
@@ -311,19 +355,24 @@ export function SubstitutesPage() {
           setPeriods([])
         }}
         date={absentDate}
-        onDateChange={setAbsentDate}
+        onDateChange={(value) => {
+          setAbsentDate(value)
+          setPeriods([])
+        }}
         periods={periods}
         onTogglePeriod={togglePeriod}
         onSelectAllPeriods={() =>
           setPeriods(
-            Array.from({ length: periodCount }, (_, index) => index + 1)
+            [...new Set(teachingSlots.map((slot) => slot.periodIndex))].sort(
+              (a, b) => a - b
+            )
           )
         }
         notes={notes}
         onNotesChange={setNotes}
         periodCount={periodCount}
         teachingSlots={teachingSlots}
-        onSubmit={() => void submitAbsent()}
+        onSubmit={continueToCover}
       />
 
       <SubstitutionLogModal
@@ -334,23 +383,15 @@ export function SubstitutesPage() {
         nameOf={teacherNameById}
       />
 
-      {assignTarget && assignTeacher ? (
+      {coverStep ? (
         <AssignSubstitutesModal
-          open={Boolean(assignTarget)}
-          onOpenChange={(open) => !open && setAssignTarget(null)}
-          teacherId={assignTarget.teacherId}
-          teacherName={teacherNameById(assignTarget.teacherId)}
-          teacherSubject={assignTeacher.subject}
-          date={assignTarget.date}
-          absences={dayData?.teacherAbsences ?? []}
-          substitutions={substitutions}
-          teachers={teachers}
-          classes={state.classes}
-          teacherNameById={teacherNameById}
-          onAssign={(absenceId, substituteId) =>
-            assignOne(absenceId, substituteId)
-          }
-          onDone={() => setAssignTarget(null)}
+          draft={coverStep.draft}
+          teacherName={teacherNameById(coverStep.draft.teacherId)}
+          teacherSubject={coverTeacher?.subject}
+          saving={markAbsentWithCover.isPending}
+          onBack={coverStep.fromMarkAbsent ? backToMarkAbsent : undefined}
+          onClose={closeCover}
+          onConfirm={(picks) => void confirmCover(picks)}
         />
       ) : null}
     </div>

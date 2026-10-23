@@ -1,12 +1,14 @@
 import { ArrowLeft } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import type { ClassStatus } from "@/data/types"
+
+import { ClassStatusBadge } from "./class-status-badge"
 
 type Props = {
   title: string
   meta?: string
-  status?: "Active" | "Archived"
+  status?: ClassStatus
   onBack: () => void
   onEdit: () => void
 }
@@ -18,8 +20,6 @@ export function ClassDetailHeader({
   onBack,
   onEdit,
 }: Props) {
-  const active = status === "Active"
-
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-center gap-3">
@@ -38,38 +38,31 @@ export function ClassDetailHeader({
             <h1 className="truncate text-xl font-semibold tracking-tight text-[var(--cls-ink)]">
               {title}
             </h1>
-            <span
-              className={cn(
-                "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs font-medium",
-                active
-                  ? "border-emerald-200/80 bg-emerald-50 text-emerald-800"
-                  : "border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-muted)]"
-              )}
-            >
-              <span
-                className={cn(
-                  "size-1.5 rounded-full",
-                  active ? "bg-emerald-600" : "bg-[var(--cls-muted)]"
-                )}
-                aria-hidden
-              />
-              {active ? "Active" : "Archived"}
-            </span>
+            <ClassStatusBadge status={status} />
           </div>
           {meta ? (
             <p className="mt-1 text-[13px] text-[var(--cls-muted)]">{meta}</p>
           ) : null}
         </div>
       </div>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="h-9 shrink-0 border-[var(--cls-border)] px-4 text-sm font-medium"
-        onClick={onEdit}
-      >
-        Edit class
-      </Button>
+      <div className="flex shrink-0 flex-col items-stretch gap-1 sm:items-end">
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-9 border-[var(--cls-border)] px-4 text-sm font-medium"
+            onClick={onEdit}
+          >
+            Edit class
+          </Button>
+        </div>
+        {status !== "Archived" ? (
+          <p className="text-xs text-[var(--cls-muted)]">
+            Status follows enrolment: active while students are enrolled.
+          </p>
+        ) : null}
+      </div>
     </div>
   )
 }

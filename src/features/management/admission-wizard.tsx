@@ -1,9 +1,7 @@
 import { Check, Plus, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
-import { useGetApplication } from "@/features/management/admissions/hooks/use-admissions"
-import { applicationNumericId } from "@/lib/applications-api"
-import { toast } from "@/lib/toast"
 
+import { STORAGE_DIRS, uploadFileToStorage } from "@/api/storage/storage.service"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -25,6 +23,8 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useSchool } from "@/data/store"
 import type { AdmissionDocument, Application } from "@/data/types"
+import { AdmissionDocumentUpload } from "@/features/management/admissions/admission-document-upload"
+import { mapAdmissionSaveError } from "@/features/management/admissions/admission-form-errors"
 import {
   AdmissionFieldLabel,
   AdmissionStepper,
@@ -33,21 +33,21 @@ import {
   ReadOnlyRefCard,
   WizardStepHeader,
 } from "@/features/management/admissions/admission-ui"
-import { AdmissionDocumentUpload } from "@/features/management/admissions/admission-document-upload"
-import { mapAdmissionSaveError } from "@/features/management/admissions/admission-form-errors"
+import { useGetApplication } from "@/features/management/admissions/hooks/use-admissions"
+import { useActor } from "@/lib/actor"
 import {
   enrollmentDateBounds,
   interviewDateBounds,
   isIsoDateInRange,
   studentDobBounds,
 } from "@/lib/admission-date-bounds"
+import { applicationNumericId } from "@/lib/applications-api"
 import {
   formatInterviewScore,
   interviewMarksError,
   marksDigitsOnly,
   parseInterviewScore,
 } from "@/lib/interview-score"
-import { useActor } from "@/lib/actor"
 import {
   cnicError,
   formatCnic,
@@ -55,6 +55,7 @@ import {
   normalizePhonePk,
   phonePkError,
 } from "@/lib/pakistan-validation"
+import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
 function classSelectionValid(
@@ -426,7 +427,7 @@ export function AdmissionWizard({
     return Object.keys(next).length === 0
   }
 
-  function buildPayload(classIdOverride?: string, upToStep = step) {
+  function buildPayload(classIdOverride?: string, upToStep = step, docs = documents) {
     const primary = primaryGuardian()
     const payload: Record<string, unknown> = {
       name: student.name,
@@ -448,7 +449,7 @@ export function AdmissionWizard({
     }
 
     if (upToStep >= 2) {
-      payload.documents = documents
+      payload.documents = docs.map(({ id, label, status, fileUrl }) => ({ id, label, status, fileUrl }))
     }
 
     if (upToStep >= 3) {
@@ -484,8 +485,8 @@ export function AdmissionWizard({
     return payload
   }
 
-  async function persistStepProgress() {
-    const payload = buildPayload(student.classId, step)
+  async function persistStepProgress(docs = documents) {
+    const payload = buildPayload(student.classId, step, docs)
     if (!createdId) {
       const result = await persistApplicationDraft(payload, actor.name)
       if ("error" in result) return result
@@ -500,7 +501,16 @@ export function AdmissionWizard({
   async function continueStep() {
     if (!validateStep(step)) return
     setSaving(true)
-    const save = await persistStepProgress()
+    let docs = documents
+    if (step === 2) {
+      const uploaded = await uploadPendingDocuments()
+      if (!uploaded) {
+        setSaving(false)
+        return
+      }
+      docs = uploaded
+    }
+    const save = await persistStepProgress(docs)
     setSaving(false)
     if ("error" in save && typeof save.error === "string") {
       showSaveError(save.error)
@@ -581,18 +591,36 @@ export function AdmissionWizard({
     return result.id
   }
 
-  async function handleDocumentUpdated(doc: AdmissionDocument) {
-    const nextDocs = documents.map((item) => (item.id === doc.id ? doc : item))
-    setDocuments(nextDocs)
-    const appId = createdId ?? (await ensureApplicationId())
-    if (!appId) return
-    const patch = await patchApplicationRecord(
-      appId,
-      { ...buildPayload(student.classId, Math.max(step, 2)), documents: nextDocs },
-      actor.name
-    )
-    if (patch) showSaveError(patch)
+  function handleDocumentChanged(doc: AdmissionDocument) {
+    setDocuments((list) => list.map((item) => (item.id === doc.id ? doc : item)))
   }
+
+  /**
+   * Uploads files picked on the documents step straight to R2 (presigned
+   * PUT under admissions/<id>/documents) and returns the documents with their
+   * object keys, ready to be saved through the normal application update.
+   */
+  async function uploadPendingDocuments(): Promise<AdmissionDocument[] | null> {
+    if (!documents.some((doc) => doc.pendingFile)) return documents
+    const appId = await ensureApplicationId()
+    const numericId = appId ? applicationNumericId(appId) : null
+    if (!numericId) return null
+    try {
+      const next = await Promise.all(
+        documents.map(async (doc) => {
+          if (!doc.pendingFile) return doc
+          const stored = await uploadFileToStorage(doc.pendingFile, STORAGE_DIRS.admissionDocuments(numericId))
+          return { ...doc, status: "Uploaded" as const, fileUrl: stored.objectKey, pendingFile: null }
+        })
+      )
+      setDocuments(next)
+      return next
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload the documents.")
+      return null
+    }
+  }
+
 
   return (
     <Dialog
@@ -1081,7 +1109,7 @@ export function AdmissionWizard({
               <WizardStepHeader
                 step={step}
                 title="Required documents"
-                description="Upload PDF or image files (max 10 MB). Documents are stored securely for this application."
+                description="Attach PDF, Word or image files (max 10 MB). They upload when you continue and are only visible to admissions staff and the child's guardians."
               />
               {documents.map((doc) => (
                 <div
@@ -1099,8 +1127,7 @@ export function AdmissionWizard({
                   <AdmissionDocumentUpload
                     applicationId={createdId}
                     document={doc}
-                    onEnsureApplication={ensureApplicationId}
-                    onUpdated={(updated) => void handleDocumentUpdated(updated)}
+                    onChange={handleDocumentChanged}
                   />
                 </div>
               ))}

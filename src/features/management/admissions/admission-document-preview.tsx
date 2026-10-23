@@ -1,6 +1,7 @@
 import { Eye } from "lucide-react"
 import { useState } from "react"
 
+import applicationsService from "@/api/admissions/applications.service"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -9,7 +10,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { toast } from "@/lib/toast"
 
+/** Signed R2 links keep the key's extension before the query string. */
 function isPdfUrl(url: string) {
   return /\.pdf(\?|$)/i.test(url)
 }
@@ -19,6 +22,8 @@ type PreviewProps = {
   onOpenChange: (open: boolean) => void
   title: string
   fileUrl: string
+  /** Overrides the extension check (blob: URLs have none). */
+  isPdf?: boolean
 }
 
 export function AdmissionDocumentPreviewDialog({
@@ -26,8 +31,9 @@ export function AdmissionDocumentPreviewDialog({
   onOpenChange,
   title,
   fileUrl,
+  isPdf,
 }: PreviewProps) {
-  const pdf = isPdfUrl(fileUrl)
+  const pdf = isPdf ?? isPdfUrl(fileUrl)
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -70,20 +76,48 @@ export function AdmissionDocumentPreviewDialog({
 
 type ViewButtonProps = {
   title: string
-  fileUrl: string
+  /** A local file not uploaded yet. */
+  file?: File | null
+  /** A stored document: opened through a short-lived signed link. */
+  stored?: { applicationId: number; documentId: number } | null
   size?: "sm" | "default"
   variant?: "outline" | "ghost" | "link"
   className?: string
 }
 
+/** Opens a document preview; stored files get a fresh 5-minute link each time. */
 export function AdmissionDocumentViewButton({
   title,
-  fileUrl,
+  file,
+  stored,
   size = "sm",
   variant = "outline",
   className,
 }: ViewButtonProps) {
-  const [open, setOpen] = useState(false)
+  const [url, setUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function open() {
+    if (file) {
+      setUrl(URL.createObjectURL(file))
+      return
+    }
+    if (!stored) return
+    setLoading(true)
+    try {
+      const link = await applicationsService.documentUrl(stored.applicationId, stored.documentId)
+      setUrl(link.url)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not open the document.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  function close() {
+    if (url?.startsWith("blob:")) URL.revokeObjectURL(url)
+    setUrl(null)
+  }
 
   return (
     <>
@@ -92,17 +126,21 @@ export function AdmissionDocumentViewButton({
         size={size}
         variant={variant}
         className={className}
-        onClick={() => setOpen(true)}
+        disabled={loading}
+        onClick={() => void open()}
       >
         <Eye data-icon="inline-start" />
-        View
+        {loading ? "Opening…" : "View"}
       </Button>
-      <AdmissionDocumentPreviewDialog
-        open={open}
-        onOpenChange={setOpen}
-        title={title}
-        fileUrl={fileUrl}
-      />
+      {url ? (
+        <AdmissionDocumentPreviewDialog
+          open
+          onOpenChange={(next) => !next && close()}
+          title={title}
+          fileUrl={url}
+          isPdf={file ? file.type === "application/pdf" : undefined}
+        />
+      ) : null}
     </>
   )
 }

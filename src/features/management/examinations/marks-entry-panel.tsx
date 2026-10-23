@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { marksInput } from "@/lib/marks"
 import { cn } from "@/lib/utils"
 
 import { Chooser } from "./exam-shared"
@@ -273,7 +274,7 @@ export function MarksEntryPanel({ exam, classId, paperId, onSelect, canManage, c
                             aria-describedby={check.kind === "invalid" ? errorId : undefined}
                             disabled={!editable || row.absent || row.exempt}
                             value={row.score}
-                            onChange={(event) => updateRow(row.studentId, { score: event.target.value })}
+                            onChange={(event) => updateRow(row.studentId, { score: marksInput(event.target.value) })}
                           />
                           {check.kind === "invalid" ? (
                             <p id={errorId} className="mt-1 text-xs text-red-600">

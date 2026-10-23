@@ -1,6 +1,6 @@
+import { useQueryClient } from "@tanstack/react-query"
 import { Layers, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
-import { useQueryClient } from "@tanstack/react-query"
 
 import classesService from "@/api/classes/classes.service"
 import {
@@ -9,15 +9,15 @@ import {
 } from "@/api/classes/map-class"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
-import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import type { ClassSection } from "@/data/types"
-import { CreateClassModal } from "@/features/management/classes/create-class-modal"
 import { ClassesDataTable } from "@/features/management/classes/classes-data-table"
+import { CreateClassModal } from "@/features/management/classes/create-class-modal"
 import { EditClassModal } from "@/features/management/classes/edit-class-modal"
 import {
   invalidateClassesList,
   useClassesList,
 } from "@/features/management/classes/hooks/use-classes"
+import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { toast } from "@/lib/toast"
 
@@ -62,9 +62,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
       ...klass,
       studentCount: klass.studentCount ?? 0,
       subjectCount: klass.subjectCount ?? 0,
-      status: (klass.status === "Archived" ? "Archived" : "Active") as
-        | "Active"
-        | "Archived",
+      status: klass.status ?? "Active",
     }))
   }, [classes])
 

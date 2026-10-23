@@ -16,6 +16,7 @@ import { type WeeklyTest } from "@/data/types"
 import { weekdayOf } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { classLabel, formatDate } from "@/lib/format"
+import { marksInput } from "@/lib/marks"
 
 // ---- weekly subject tests (UR-05 / UR-06) ----------------------------------------------
 
@@ -89,10 +90,7 @@ export function MarksDialog({
                     onChange={(event) =>
                       setDraft({
                         ...draft,
-                        [row.studentId]: event.target.value.replace(
-                          /[^0-9.]/g,
-                          ""
-                        ),
+                        [row.studentId]: marksInput(event.target.value),
                       })
                     }
                   />

@@ -1,7 +1,8 @@
 import { api } from "@/lib/api"
+
 import {
-  mapTeacherAbsencesFromApi,
   type AbsenceRow,
+  mapTeacherAbsencesFromApi,
 } from "./map-absences"
 
 export type MarkAbsentBody = {
@@ -19,12 +20,37 @@ export type AvailableSubstituteTeacher = {
   current?: boolean
 }
 
+export type CoverPeriod = {
+  periodIndex: number
+  class: { id: number; label: string } | null
+  subject: { id: number; name: string } | null
+  free: AvailableSubstituteTeacher[]
+}
+
+export type MarkAbsentWithCoverBody = MarkAbsentBody & {
+  assignments: { periodIndex: number; substituteTeacherId: number }[]
+}
+
 const teacherAbsencesService = {
   list: (query?: { date?: string; teacherId?: number; status?: string }) =>
     api.get<AbsenceRow[]>("/teacher-absences", query),
 
   markAbsent: (body: MarkAbsentBody) =>
     api.post<AbsenceRow[]>("/teacher-absences", body),
+
+  coverPreview: (query: { teacherId: number; date: string; periods: number[] }) =>
+    api.get<{ periods: CoverPeriod[] }>("/teacher-absences/cover-preview", {
+      teacherId: query.teacherId,
+      date: query.date,
+      periods: query.periods.join(","),
+    }),
+
+  /** Marks the absence and assigns every picked cover in one transaction. */
+  markAbsentWithCover: (body: MarkAbsentWithCoverBody) =>
+    api.post<{ absences: AbsenceRow[]; assigned: number }>(
+      "/teacher-absences/bulk",
+      body
+    ),
 
   availableSubstitutes: (absenceId: number) =>
     api.get<{

@@ -1,11 +1,11 @@
-import { Button } from "@/components/ui/button"
-import { StatusChip } from "@/components/app/status-chip"
 import {
+  type ClassSubjectRow,
   subjectDaysLabel,
   subjectSummaryStats,
   subjectTeachersLabel,
-  type ClassSubjectRow,
 } from "@/api/timetable/map-timetable"
+import { StatusChip } from "@/components/app/status-chip"
+import { Button } from "@/components/ui/button"
 type Props = {
   className: string
   subjects: ClassSubjectRow[]

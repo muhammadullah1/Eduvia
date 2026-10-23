@@ -1,3 +1,4 @@
+import { resolveStorageUrl } from "@/api/storage/storage.service"
 import type { ApiTeacher } from "@/lib/api-types"
 import type { ApiUser } from "@/lib/api-types"
 import type { Role } from "@/lib/auth"
@@ -79,7 +80,7 @@ export function buildStaffDirectory(
       subjectId: teacher?.subject?.id != null ? String(teacher.subject.id) : undefined,
       classLabels,
       employeeCode: teacher?.employeeCode?.trim() || "—",
-      photoUrl: user.photo?.trim() || null,
+      photoUrl: user.photoUrl ?? resolveStorageUrl(user.photo),
     })
   }
 

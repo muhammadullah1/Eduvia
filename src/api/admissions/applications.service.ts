@@ -65,16 +65,11 @@ const applicationsService = {
   enroll: (id: number, body: Record<string, unknown> = {}) =>
     api.post<EnrollApplicationData>(`/applications/${id}/enroll`, body),
 
-  presignDocument: (
-    applicationId: number,
-    body: { documentId: number; contentType: string; fileName: string }
-  ) =>
-    api.post<{
-      documentId: number
-      uploadUrl: string
-      fileUrl: string
-      maxBytes: number
-    }>(`/applications/${applicationId}/documents/presign`, body),
+  /** Short-lived signed link to a stored document (access checked by the API). */
+  documentUrl: (applicationId: number, documentId: number) =>
+    api.get<{ url: string; expiresIn: number }>(
+      `/applications/${applicationId}/documents/${documentId}/url`
+    ),
 
   clearDocument: (applicationId: number, documentId: number) =>
     api.delete<ApplicationDto>(

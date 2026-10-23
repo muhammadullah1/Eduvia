@@ -14,8 +14,10 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { TimePicker } from "@/components/ui/time-picker"
 import type { ClassSection } from "@/data/types"
 import { getToday } from "@/lib/dates"
+import { EXAM_NAME_MAX, EXAM_NAME_MIN, marksInput, paperTotalError } from "@/lib/marks"
 import { cn } from "@/lib/utils"
 
 type Props = {
@@ -179,6 +181,10 @@ export function ScheduleExamPage({
       setError("Give the exam a name.")
       return
     }
+    if (name.trim().length < EXAM_NAME_MIN || name.trim().length > EXAM_NAME_MAX) {
+      setError(`The exam name must be ${EXAM_NAME_MIN}–${EXAM_NAME_MAX} characters.`)
+      return
+    }
     if (!startDate || !endDate) {
       setError("Choose a start date and an end date.")
       return
@@ -209,8 +215,9 @@ export function ScheduleExamPage({
       const total = Number(paper.totalMarks)
       const passing = Number(paper.passingMarks)
       const label = `${paper.subject}`
-      if (!Number.isFinite(total) || total <= 0) {
-        setError(`Enter paper marks for ${label}.`)
+      const totalError = paperTotalError(paper.totalMarks)
+      if (totalError) {
+        setError(`${label}: ${totalError}`)
         return
       }
       if (!Number.isFinite(passing) || passing < 0 || passing > total) {
@@ -258,6 +265,11 @@ export function ScheduleExamPage({
       rememberDefaults,
     })
   }
+
+  // Date and time stay optional; the form only warns about missing ones.
+  const unscheduled = papers.filter(
+    (paper) => classIds.includes(paper.classId) && (!paper.paperDate || !paper.startTime)
+  ).length
 
   return (
     <div className="flex flex-col gap-5">
@@ -339,9 +351,14 @@ export function ScheduleExamPage({
             <Input
               value={name}
               placeholder="e.g. Mid-Term Examination 2026"
+              maxLength={EXAM_NAME_MAX}
+              aria-describedby="exam-name-count"
               disabled={locked}
               onChange={(event) => setName(event.target.value)}
             />
+            <p id="exam-name-count" className="mt-1 text-right text-xs text-[var(--cls-muted)]">
+              {name.length}/{EXAM_NAME_MAX}
+            </p>
           </Field>
           <Field label="Session" required>
             <Input value={sessionName || "Current session"} disabled />
@@ -473,12 +490,15 @@ export function ScheduleExamPage({
                             <td className="px-4 py-2.5">
                               <Input
                                 className="h-9 w-28"
-                                inputMode="decimal"
+                                inputMode="numeric"
+                                maxLength={4}
+                                aria-label={`${paper.subject} total marks`}
+                                aria-invalid={paperTotalError(paper.totalMarks) ? true : undefined}
                                 disabled={paperLocked}
                                 value={paper.totalMarks}
                                 onChange={(event) =>
                                   updatePaper(paper.classId, paper.subjectId, {
-                                    totalMarks: event.target.value,
+                                    totalMarks: marksInput(event.target.value, { decimals: false }),
                                   })
                                 }
                               />
@@ -487,50 +507,53 @@ export function ScheduleExamPage({
                               <Input
                                 className="h-9 w-28"
                                 inputMode="decimal"
+                                aria-label={`${paper.subject} passing marks`}
                                 disabled={paperLocked}
                                 value={paper.passingMarks}
                                 onChange={(event) =>
                                   updatePaper(paper.classId, paper.subjectId, {
-                                    passingMarks: event.target.value,
+                                    passingMarks: marksInput(event.target.value),
                                   })
                                 }
                               />
                             </td>
                             <td className="px-4 py-2.5">
-                              <Input
-                                type="date"
+                              <DatePicker
+                                id={`paper-date-${paper.classId}-${paper.subjectId}`}
                                 className="h-9 w-40"
+                                placeholder="Not set"
                                 aria-label={`${paper.subject} paper date`}
-                                min={(ongoing && startDate < today ? today : startDate) || undefined}
-                                max={endDate || undefined}
+                                defaultMonthKind="today"
+                                fromDate={(ongoing && startDate < today ? today : startDate) || undefined}
+                                maxDate={endDate || undefined}
                                 disabled={paperLocked}
                                 value={paper.paperDate}
-                                onChange={(event) =>
-                                  updatePaper(paper.classId, paper.subjectId, { paperDate: event.target.value })
+                                onChange={(value) =>
+                                  updatePaper(paper.classId, paper.subjectId, { paperDate: value })
                                 }
                               />
                             </td>
                             <td className="px-4 py-2.5">
-                              <Input
-                                type="time"
-                                className="h-9 w-32"
+                              <TimePicker
+                                className="w-32"
+                                label="Start time"
                                 aria-label={`${paper.subject} start time`}
                                 disabled={paperLocked}
                                 value={paper.startTime}
-                                onChange={(event) =>
-                                  updatePaper(paper.classId, paper.subjectId, { startTime: event.target.value })
+                                onChange={(value) =>
+                                  updatePaper(paper.classId, paper.subjectId, { startTime: value })
                                 }
                               />
                             </td>
                             <td className="px-4 py-2.5">
-                              <Input
-                                type="time"
-                                className="h-9 w-32"
+                              <TimePicker
+                                className="w-32"
+                                label="End time"
                                 aria-label={`${paper.subject} end time`}
                                 disabled={paperLocked}
                                 value={paper.endTime}
-                                onChange={(event) =>
-                                  updatePaper(paper.classId, paper.subjectId, { endTime: event.target.value })
+                                onChange={(value) =>
+                                  updatePaper(paper.classId, paper.subjectId, { endTime: value })
                                 }
                               />
                             </td>
@@ -545,6 +568,13 @@ export function ScheduleExamPage({
             ))
           )}
         </section>
+      ) : null}
+
+      {unscheduled > 0 ? (
+        <p className="rounded-lg border border-[#fedf89] bg-[#fffaeb] px-3 py-2 text-sm text-[#b54708]" role="status">
+          {unscheduled} {unscheduled === 1 ? "paper has" : "papers have"} no date or start time yet. You can save
+          now and add them later; the date sheet stays incomplete until you do.
+        </p>
       ) : null}
 
       {error ? (

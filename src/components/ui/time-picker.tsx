@@ -24,6 +24,9 @@ type TimePickerProps = {
   id?: string
   className?: string
   minuteStep?: number
+  /** Heading inside the popover (default "Start time"). */
+  label?: string
+  "aria-label"?: string
 }
 
 function parseTime(value: string) {
@@ -43,6 +46,8 @@ export function TimePicker({
   id,
   className,
   minuteStep = 5,
+  label = "Start time",
+  "aria-label": ariaLabel,
 }: TimePickerProps) {
   const { hour, minute } = parseTime(value)
 
@@ -81,6 +86,7 @@ export function TimePicker({
           id={id}
           variant="outline"
           disabled={disabled}
+          aria-label={ariaLabel}
           className={cn(
             "h-9 w-full justify-start gap-2 border-[var(--cls-border)] bg-white px-2.5 text-xs font-medium tabular-nums text-[var(--cls-ink)] shadow-none",
             className
@@ -92,7 +98,7 @@ export function TimePicker({
       </PopoverTrigger>
       <PopoverContent className="w-auto p-3" align="start">
         <p className="mb-2 text-xs font-medium text-[var(--cls-muted)]">
-          Start time
+          {label}
         </p>
         <div className="flex items-center gap-2">
           <Select
