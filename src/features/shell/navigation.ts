@@ -169,7 +169,7 @@ export const subtitles: Record<string, string> = {
   "daily-test-schedule": "Weekly test calendar and publishing.",
   students: "Enrolled students and class registers.",
   "enrollment-promotion": "Enrollment steps and class promotion.",
-  lifecycle: "Student lifecycle and result visibility rules.",
+  lifecycle: "Status changes, graduation, strike-off, readmission and their history.",
   "student-attendance": "School-wide attendance insight.",
   "collect-fee": "Record fee payments and print receipts.",
   "offline-sync": "Import fee workbooks and sync offline collections.",

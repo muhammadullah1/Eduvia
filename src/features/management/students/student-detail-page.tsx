@@ -1,13 +1,19 @@
 import { useQuery } from "@tanstack/react-query"
-import { ArrowLeft } from "lucide-react"
-import type { ReactNode } from "react"
+import { ArrowLeft, ArrowUpRight, RefreshCcw } from "lucide-react"
+import { type ReactNode, useState } from "react"
 
+import lifecycleService, { LIFECYCLE_QUERY_KEY, type LifecycleEvent } from "@/api/students/lifecycle.service"
 import studentsService from "@/api/students/students.service"
 import { ClsPanel, ClsPanelHeader, ClsStatCard } from "@/components/app/cls-panel"
+import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
+import { useActor } from "@/lib/actor"
 import type { ApiStudentParent } from "@/lib/api-types"
 import { formatDate } from "@/lib/format"
+import { can } from "@/lib/permissions"
 
+import { ChangeStatusDialog, PromoteDialog } from "../lifecycle"
+import { EVENT_LABELS, EVENT_TONES, eventDetail } from "../lifecycle/lifecycle-rules"
 import { StudentStatusChip } from "./student-status-chip"
 
 type Props = {
@@ -33,13 +39,21 @@ function guardianName(parent: ApiStudentParent) {
   return parent.guardianName || userName || parent.fatherName || parent.motherName || "—"
 }
 
-/** Read-only student profile, opened from the students list (like the staff profile). */
+/** Student profile, opened from the students list. Managers can change status or promote from here. */
 export function StudentDetailPage({ studentId, onBack }: Props) {
   const id = Number(studentId)
+  const actor = useActor()
+  const canManage = can(actor.role, "students.manage")
+  const [dialog, setDialog] = useState<"status" | "promote" | null>(null)
   const { data: student, isLoading, isError, refetch } = useQuery({
     queryKey: ["students", "detail", id],
     enabled: Number.isFinite(id) && id > 0,
     queryFn: () => studentsService.get(id),
+  })
+  const lifecycleQuery = useQuery({
+    queryKey: [LIFECYCLE_QUERY_KEY, id],
+    enabled: canManage && Number.isFinite(id) && id > 0,
+    queryFn: () => lifecycleService.timeline(id),
   })
 
   const back = (
@@ -76,6 +90,16 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
 
   const name = `${student.firstName} ${student.lastName}`.trim()
   const parents = student.parents ?? []
+  const lifecycleStudent = {
+    id: student.id,
+    name,
+    admissionNo: student.admissionNo,
+    status: student.status,
+    classLabel: student.class?.label ?? null,
+    classId: student.fkClassId,
+    admittedOn: student.admissionDate ?? student.admittedOn ?? null,
+  }
+  const timeline: LifecycleEvent[] = [...(lifecycleQuery.data?.events ?? [])].reverse()
   const history = [
     ...(student.statusEvents ?? []).map((event) => ({
       key: `s${event.id}`,
@@ -112,6 +136,20 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
           </div>
           <p className="font-mono text-xs text-[var(--cls-muted)]">{student.admissionNo}</p>
         </div>
+        {canManage ? (
+          <div className="ml-auto flex shrink-0 gap-2">
+            {student.status === "Active" ? (
+              <Button variant="outline" onClick={() => setDialog("promote")}>
+                <ArrowUpRight data-icon="inline-start" />
+                Promote
+              </Button>
+            ) : null}
+            <Button onClick={() => setDialog("status")}>
+              <RefreshCcw data-icon="inline-start" />
+              Change status
+            </Button>
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -173,8 +211,35 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
       </div>
 
       <ClsPanel>
-        <ClsPanelHeader title="History" description="Status changes and promotions" />
-        {history.length === 0 ? (
+        <ClsPanelHeader title="History" description="Enrollment, promotions and status changes, newest first" />
+        {canManage && lifecycleQuery.data ? (
+          timeline.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-[var(--cls-muted)]">No changes recorded yet.</p>
+          ) : (
+            <ol className="divide-y divide-[var(--cls-border)]">
+              {timeline.map((event) => (
+                <li key={event.id} className="flex items-start justify-between gap-3 px-4 py-3 text-sm">
+                  <div className="flex min-w-0 flex-col gap-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <StatusChip tone={EVENT_TONES[event.type] ?? "neutral"} showDot>
+                        {EVENT_LABELS[event.type] ?? event.type}
+                      </StatusChip>
+                      <span className="font-medium text-[var(--cls-ink)]">{eventDetail(event)}</span>
+                    </div>
+                    {event.reason ? <p className="text-xs text-[var(--cls-muted)]">{event.reason}</p> : null}
+                    {event.academicStatus ? (
+                      <p className="text-xs text-[var(--cls-muted)]">Academic status: {event.academicStatus}</p>
+                    ) : null}
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-[var(--cls-muted)]">
+                    <span>{formatDate(event.date)}</span>
+                    {event.recordedBy ? <span>{event.recordedBy}</span> : null}
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )
+        ) : history.length === 0 ? (
           <p className="px-4 py-6 text-sm text-[var(--cls-muted)]">No changes recorded yet.</p>
         ) : (
           <ul className="divide-y divide-[var(--cls-border)]">
@@ -190,6 +255,14 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
           </ul>
         )}
       </ClsPanel>
+      <ChangeStatusDialog
+        student={dialog === "status" ? lifecycleStudent : null}
+        onOpenChange={(open) => !open && setDialog(null)}
+      />
+      <PromoteDialog
+        student={dialog === "promote" ? lifecycleStudent : null}
+        onOpenChange={(open) => !open && setDialog(null)}
+      />
     </div>
   )
 }

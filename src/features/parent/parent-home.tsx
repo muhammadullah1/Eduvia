@@ -9,7 +9,7 @@ import {
   CardTitle,
 } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { isAttendancePresent, type SchoolState } from "@/data/types"
+import { attendancePercent, isAttendanceCounted, isAttendancePresent, type SchoolState } from "@/data/types"
 import { weekdayOf } from "@/lib/academics"
 import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
@@ -26,12 +26,10 @@ export function ParentHome() {
   const marks = state.attendance.filter(
     (mark) => mark.studentId === child.id && mark.date.startsWith(currentMonth)
   )
-  const present = marks.filter((mark) =>
-    isAttendancePresent(mark.status)
-  ).length
-  const rate = marks.length
-    ? `${Math.round((present / marks.length) * 1000) / 10}%`
-    : "—"
+  const counted = marks.filter((mark) => isAttendanceCounted(mark.status))
+  const present = counted.filter((mark) => isAttendancePresent(mark.status)).length
+  const percent = attendancePercent(marks.map((mark) => mark.status))
+  const rate = percent === null ? "—" : `${percent}%`
   const visible = state.sheets.filter(
     (sheet) =>
       sheet.classId === child.classId &&
@@ -91,7 +89,7 @@ export function ParentHome() {
           icon={UserCheck}
           label={`${monthLabel(currentMonth)} attendance`}
           value={rate}
-          note={`${present} of ${marks.length} days`}
+          note={`${present} of ${counted.length} days (leave not counted)`}
           tone="accent"
         />
         <MetricCard

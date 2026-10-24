@@ -83,7 +83,7 @@ export function StudentsPage({ query, onOpenStudent }: Props) {
   const totalCount = useStudentCount()
   const activeCount = useStudentCount("Active")
   const pendingCount = useStudentCount("Pending")
-  const withdrawnCount = useStudentCount("Withdrawn")
+  const struckOffCount = useStudentCount("StruckOff")
 
   const studentsQuery = useQuery({
     queryKey: ["students", "directory", term, classId, status, page, pageSize],
@@ -122,7 +122,7 @@ export function StudentsPage({ query, onOpenStudent }: Props) {
         <ClsStatCard label="Total students" value={totalCount.data ?? "—"} hint="All statuses" />
         <ClsStatCard label="Active" value={activeCount.data ?? "—"} hint="Currently enrolled" accent="success" />
         <ClsStatCard label="Pending" value={pendingCount.data ?? "—"} hint="Awaiting enrollment" accent="warning" />
-        <ClsStatCard label="Withdrawn" value={withdrawnCount.data ?? "—"} hint="Left the school" />
+        <ClsStatCard label="Struck off" value={struckOffCount.data ?? "—"} hint="Left the school after enrollment" />
       </div>
 
       <ClsPanel>
@@ -174,7 +174,7 @@ export function StudentsPage({ query, onOpenStudent }: Props) {
                 <SelectItem value={ALL}>All statuses</SelectItem>
                 {STATUSES.map((item) => (
                   <SelectItem key={item} value={item}>
-                    {item === "StruckOff" ? "Struck off" : item}
+                    {item === "StruckOff" ? "Struck off" : item === "Withdrawn" ? "Withdrawn (not enrolled)" : item}
                   </SelectItem>
                 ))}
               </SelectContent>

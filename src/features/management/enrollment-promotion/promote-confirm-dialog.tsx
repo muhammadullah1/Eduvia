@@ -10,6 +10,7 @@ import promotionsService, {
   type PromotionAction,
 } from "@/api/students/promotions.service"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { DatePicker } from "@/components/ui/date-picker"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
@@ -64,6 +65,7 @@ export function PromoteConfirmDialog(props: Props) {
   const [graduationResult, setGraduationResult] = useState("Passed")
   const [holdClassId, setHoldClassId] = useState(props.defaultRepeatClass?.id)
   const [touched, setTouched] = useState(false)
+  const [graduationOverride, setGraduationOverride] = useState(false)
 
   const repeatClass = sameSession ? source : props.targetClasses.find((klass) => klass.id === holdClassId)
   const input = {
@@ -80,7 +82,11 @@ export function PromoteConfirmDialog(props: Props) {
   const invalid = Object.keys(errors).length > 0
 
   const mutation = useMutation({
-    mutationFn: () => promotionsService.bulkPromote(buildPromoteRequest(input, sameSession)),
+    mutationFn: () =>
+      promotionsService.bulkPromote({
+        ...buildPromoteRequest(input, sameSession),
+        ...(counts.graduate ? { graduationOverride } : {}),
+      }),
     onSuccess: (result) => {
       toast.success("Promotion complete", {
         description: `${result.promoted} promoted · ${result.repeated} held back · ${result.graduated} graduated`,
@@ -193,6 +199,23 @@ export function PromoteConfirmDialog(props: Props) {
             </div>
           ) : null}
         </div>
+        {counts.graduate ? (
+          <label
+            htmlFor="graduation-override"
+            className="flex cursor-pointer items-start gap-2 text-xs leading-5 text-[var(--cls-muted)]"
+          >
+            <Checkbox
+              id="graduation-override"
+              checked={graduationOverride}
+              onCheckedChange={(checked) => setGraduationOverride(checked === true)}
+              className="mt-0.5"
+            />
+            <span>
+              Allow graduation even if {classDisplayName(source)} is not the final grade. The override is recorded in
+              the history and audit log.
+            </span>
+          </label>
+        ) : null}
         {touched && (errors.targetClass || errors.students || errors.targetSession) ? (
           <p className="text-xs text-red-600">{errors.targetClass ?? errors.students ?? errors.targetSession}</p>
         ) : null}

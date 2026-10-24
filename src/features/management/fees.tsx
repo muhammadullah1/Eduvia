@@ -3,6 +3,7 @@ import { useMemo, useState } from "react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { toast } from "sonner"
 
+import feeReportsService from "@/api/fees/fee-reports.service"
 import {
   EmptyState,
   Pager,
@@ -158,7 +159,14 @@ export function Fees({ query }: { query: string }) {
             <Button
               variant="outline"
               className="flex-1"
-              onClick={() => toast.success("Fee template downloaded")}
+              onClick={() => {
+                feeReportsService
+                  .importTemplate()
+                  .then((name) => toast.success(`Downloaded ${name}`))
+                  .catch((err: unknown) =>
+                    toast.error(err instanceof Error ? err.message : "Template download failed")
+                  )
+              }}
             >
               <Download data-icon="inline-start" />
               Template

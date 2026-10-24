@@ -29,7 +29,10 @@ const PERMISSIONS = {
   "exams.manage": ["super_admin", "operations_manager"],
   "results.override": ["super_admin", "operations_manager"],
   "admissions.manage": ["super_admin", "operations_manager"],
-  "audit.view": ["super_admin", "operations_manager"],
+  "students.manage": ["super_admin", "operations_manager"],
+  "attendance.review": ["super_admin", "operations_manager"],
+  "audit.view": ["super_admin"], // API audit.read is Super Admin only
+  "fees.reports": ["super_admin", "accountant"],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Permission = keyof typeof PERMISSIONS

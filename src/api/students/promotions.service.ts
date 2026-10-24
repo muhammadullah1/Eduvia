@@ -9,6 +9,8 @@ export type BulkPromoteRequest = {
   sessionId: number
   date: string
   graduationResult?: string
+  /** Graduate from a class that is not the final grade (audited). */
+  graduationOverride?: boolean
   students: { studentId: number; action: PromotionAction }[]
 }
 

@@ -9,8 +9,10 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { useSchool } from "@/data/store"
+import { AttendanceReviewPage } from "@/features/management/attendance"
 import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
 import { EnrollmentPromotionPage } from "@/features/management/enrollment-promotion"
+import { LifecyclePage } from "@/features/management/lifecycle"
 import {
   AcademicSetup,
   Admissions,
@@ -34,11 +36,11 @@ import {
   CurriculumPanel,
   LessonReviewPanel,
   OperationsOverview,
-  ResultsGatePanel,
   SettingsPanel,
   WeeklyTestsPanel,
 } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
+import { TeacherNotificationsBell } from "@/features/teacher/attendance-notices"
 import { TeacherPortal } from "@/features/teacher/screens"
 import { api } from "@/lib/api"
 import {
@@ -57,7 +59,6 @@ import { academicFocusForSection } from "./academic-section"
 import { HeaderUserMenu } from "./header-user-menu"
 import { navigation, roles, sectionIds, subtitles } from "./navigation"
 import { PortalTopbar } from "./portal-topbar"
-import { SectionPlaceholder } from "./section-placeholder"
 import { Sidebar } from "./sidebar"
 
 const LEGACY_SECTION_REDIRECT: Record<string, string> = {
@@ -66,7 +67,12 @@ const LEGACY_SECTION_REDIRECT: Record<string, string> = {
   people: "students",
   absences: "substitutes",
   "weekly-tests": "daily-test-schedule",
-  "results-gate": "lifecycle",
+  "results-gate": "exams",
+}
+
+/** Sub-path appended when a legacy section moved under another section. */
+const LEGACY_SECTION_REST: Record<string, string> = {
+  "results-gate": "result-visibility",
 }
 
 const CLS_SHELL_ROLES = new Set<Role>(["super_admin", "operations_manager"])
@@ -153,7 +159,12 @@ export function PortalShell() {
     roleParam !== portalPath(role).split("/")[1] ||
     (sectionParam && legacyTarget)
   ) {
-    return <Navigate to={portalPath(role, section)} replace />
+    return (
+      <Navigate
+        to={portalPath(role, section, legacyTarget ? LEGACY_SECTION_REST[rawSection] : undefined)}
+        replace
+      />
+    )
   }
 
   function openSection(id: string) {
@@ -195,17 +206,14 @@ export function PortalShell() {
       return <Students query={query} />
     }
     if (section === "enrollment-promotion") return <EnrollmentPromotionPage />
-    if (section === "lifecycle") return <ResultsGatePanel />
-    if (section === "student-attendance") {
-      return <SectionPlaceholder section={section} />
-    }
+    if (section === "lifecycle") return <LifecyclePage />
+    if (section === "student-attendance") return <AttendanceReviewPage />
     if (section === "substitutes" || section === "absences") {
       return <SubstitutesPage />
     }
     if (section === "daily-test-schedule") return <DailyTestSchedulePage />
     if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
-    if (section === "results-gate") return <ResultsGatePanel />
     if (
       section === "fees" ||
       section === "collect-fee" ||
@@ -283,14 +291,18 @@ export function PortalShell() {
                     </div>
                   ) : null}
                 </div>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  aria-label="Notifications"
-                  onClick={() => setNotesOpen((open) => !open)}
-                >
-                  <Bell />
-                </Button>
+                {role === "teacher" ? (
+                  <TeacherNotificationsBell onOpenAttendance={() => openSection("attendance")} />
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    aria-label="Notifications"
+                    onClick={() => setNotesOpen((open) => !open)}
+                  >
+                    <Bell />
+                  </Button>
+                )}
                 <HeaderUserMenu
                   role={role}
                   userName={signedInName}
@@ -300,7 +312,7 @@ export function PortalShell() {
                 />
               </div>
             </div>
-            {notesOpen ? (
+            {notesOpen && role !== "teacher" ? (
               <div className="rounded-xl border bg-card p-3">
                 {state.audits.slice(0, 5).map((event) => (
                   <div key={event.id} className="border-b py-2 last:border-0">

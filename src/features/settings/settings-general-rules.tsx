@@ -161,14 +161,12 @@ export function SettingsGeneralRules() {
             </Select>
           </Field>
           <label className="flex items-center gap-2 text-sm">
-            <Switch
-              disabled={!canResults}
-              checked={visibility.requireOverrideReason}
-              onCheckedChange={(requireOverrideReason) =>
-                setVisibility({ ...visibility, requireOverrideReason })
-              }
-            />
+            {/* Overrides always need a reason (school decision); the switch shows the rule. */}
+            <Switch disabled checked aria-describedby="override-reason-note" />
             Require a reason for manual overrides
+            <span id="override-reason-note" className="text-xs text-muted-foreground">
+              Always on
+            </span>
           </label>
         </CardContent>
         {canResults ? (

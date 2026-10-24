@@ -155,7 +155,7 @@ type SchoolContextValue = {
     date: string,
     rows: { studentId: string; status: AttendanceStatus }[],
     actor: string
-  ) => void
+  ) => Promise<void>
   addUpdate: (
     input: Omit<SchoolUpdate, "id" | "status" | "author"> & { author: string }
   ) => Result
@@ -2144,11 +2144,9 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       simple((current) => {
         const blocked = denied(actor, "results.override")
         if (blocked) return { error: blocked }
-        if (
-          current.settings.resultVisibility.requireOverrideReason &&
-          !reason.trim()
-        )
-          return { error: "An override reason is required." }
+        // D9: a reason is always required, whatever the legacy setting says.
+        if (reason.trim().length < 3)
+          return { error: "Give a reason of at least 3 characters." }
         if (
           !current.sheets.some(
             (sheet) =>
@@ -2300,13 +2298,19 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
 
   // ---- attendance & communication ----------------------------------------------------
 
+  /** Saves on the server first; the local register only changes once the API accepts it (e.g. not a 403). */
   const saveAttendance = useCallback(
-    (
+    async (
       classId: string,
       date: string,
       rows: { studentId: string; status: AttendanceStatus }[],
       actor: string
     ) => {
+      const classNumId = Number(classId)
+      if (Number.isFinite(classNumId)) {
+        const marks = rows.map((r) => ({ studentId: Number(r.studentId), status: r.status }))
+        await api.post("/attendances/mark", { classId: classNumId, date, marks })
+      }
       simple((current) => {
         const rest = current.attendance.filter(
           (mark) =>
@@ -2316,24 +2320,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
               rows.some((row) => row.studentId === mark.studentId)
             )
         )
-
-        const classNumId = Number(classId)
-        if (Number.isFinite(classNumId)) {
-          const marks = rows.map((r) => {
-            const student = current.students.find(
-              (s) => s.id === r.studentId || s.admissionNo === r.studentId
-            )
-            return {
-              studentId: Number(student?.id ?? r.studentId),
-              status: r.status,
-            }
-          })
-          api
-            .post("/attendances/mark", { classId: classNumId, date, marks })
-            .then(syncBackend)
-            .catch(console.error)
-        }
-
         return {
           next: withAudit(
             {
@@ -2348,6 +2334,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           ),
         }
       })
+      void Promise.resolve(syncBackend()).catch(console.error)
     },
     [simple, syncBackend]
   )

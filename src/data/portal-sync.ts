@@ -75,7 +75,72 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   "results-gate": ["resultOverrides", "students", "feeMonths"],
   messages: ["updates"],
   settings: [],
-  reports: ["students", "feeMonths", "payments", "expenses"],
+  /** Fee reports load from /fees/reports; only the SA audit trail comes from the store. */
+  reports: ["audits"],
+}
+
+const SA = "super_admin"
+const OPS = "operations_manager"
+const ACC = "accountant"
+const TCH = "teacher"
+const PAR = "parent"
+const EVERYONE: Role[] = [SA, OPS, ACC, TCH, PAR]
+
+/**
+ * Who may read each slice's endpoint. Mirrors the API permission map
+ * (Eduvia-Api `constants/permissions.js`); a role missing here gets a 403 from the API,
+ * so the portal never asks. Fee data is Super Admin + Accountant (+ a parent's own child);
+ * the Operations Manager never receives fee months, payments or expenses.
+ */
+export const SLICE_READ_ROLES: Record<SchoolDataSlice | "users", readonly Role[]> = {
+  classes: EVERYONE, // academic.read
+  sessions: EVERYONE,
+  subjects: EVERYONE,
+  settings: [SA, OPS], // settings.read
+  staff: [SA, OPS, TCH], // teachers.read (/teachers)
+  users: [SA, OPS], // users.read (/users)
+  students: EVERYONE, // students.read (scoped server-side)
+  applications: [SA, OPS], // admissions.manage
+  feeMonths: [SA, ACC, PAR], // fees.months.read
+  payments: [SA, ACC, PAR], // fees.payments.read
+  expenses: [SA, ACC], // expenses.read
+  sheets: [SA, OPS, TCH, PAR], // exams.read
+  resultOverrides: [SA, OPS], // results.override
+  attendance: [SA, OPS, TCH, PAR], // attendance.read
+  plannedChapters: [SA, OPS, TCH], // chapters.read
+  dailyLessons: [SA, OPS, TCH, PAR], // lessons.read
+  slots: [SA, OPS, TCH, PAR], // timetable.read
+  teacherAbsences: [SA, OPS, TCH], // absences.read
+  substitutions: [SA, OPS, TCH],
+  testSchedules: [SA, OPS, TCH, PAR], // tests.read
+  weeklyTests: [SA, OPS, TCH, PAR],
+  updates: EVERYONE, // updates.read
+  audits: [SA], // audit.read
+}
+
+export function canReadSlice(role: Role | undefined, slice: SchoolDataSlice | "users") {
+  return Boolean(role) && SLICE_READ_ROLES[slice].includes(role as Role)
+}
+
+/** Slices whose endpoints this role may not read, so syncing skips them (no doomed 403s). */
+export function unavailableSlicesFor(role: Role | undefined): ReadonlySet<SchoolDataSlice> {
+  if (!role) return new Set()
+  return new Set(
+    (Object.keys(SLICE_READ_ROLES) as (SchoolDataSlice | "users")[]).filter(
+      (slice): slice is SchoolDataSlice => slice !== "users" && !canReadSlice(role, slice)
+    )
+  )
+}
+
+/** Drop the slices a role cannot read. */
+export function readableSlices(role: Role | undefined, slices: Iterable<SchoolDataSlice>): SchoolDataSlice[] {
+  const blocked = unavailableSlicesFor(role)
+  return [...new Set(slices)].filter((slice) => !blocked.has(slice))
+}
+
+/** Staff user accounts (/users) are management-only; teachers still load /teachers. */
+export function canListUserAccounts(role: Role | undefined) {
+  return canReadSlice(role, "users")
 }
 
 export type PortalSyncPlan =
@@ -110,18 +175,17 @@ export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPl
     return { mode: "full" }
   }
   if (section === "settings") {
-    return { mode: "partial", slices: ["settings"] }
+    return { mode: "partial", slices: readableSlices(role, ["settings"]) }
   }
   const sectionSlices = ADMIN_SECTION_SLICES[section]
   if (!sectionSlices) {
     return { mode: "partial", slices: [] }
   }
   if (NO_DEFAULT_CORE.has(section)) {
-    return { mode: "partial", slices: [...new Set(sectionSlices)] }
+    return { mode: "partial", slices: readableSlices(role, sectionSlices) }
   }
   const core = MINIMAL_CORE_SECTIONS.has(section)
     ? (["classes"] as const)
     : PORTAL_CORE_SLICES
-  const slices = [...new Set([...core, ...sectionSlices])]
-  return { mode: "partial", slices }
+  return { mode: "partial", slices: readableSlices(role, [...core, ...sectionSlices]) }
 }

@@ -206,6 +206,56 @@ export const api = {
 
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 
+  /**
+   * Download a server-generated file (report, template, printable sheet) with the
+   * signed-in token and save it under the server's filename.
+   */
+  download: async (
+    path: string,
+    query?: Record<string, string | number | undefined | null>,
+    fallbackName = "download",
+    retried = false
+  ): Promise<string> => {
+    const session = loadAuth()
+    if (!session?.token) throw new ApiHttpError(401, SESSION_EXPIRED_MESSAGE)
+    const url = `${BASE_URL}${getCacheKey(path, query)}`
+    let res: Response
+    try {
+      res = await fetch(url, {
+        headers: { Authorization: `Bearer ${session.token}`, platform: "webApp" },
+        credentials: "include",
+      })
+    } catch (err) {
+      throw new ApiHttpError(0, `Cannot connect to API server: ${err instanceof Error ? err.message : "Network request failed"}`)
+    }
+    if (res.status === 401 && !retried && (await refreshAccessToken(session.token))) {
+      return api.download(path, query, fallbackName, true)
+    }
+    if (!res.ok) {
+      let msg = res.statusText || "Download failed"
+      try {
+        const body = (await res.json()) as { message?: string }
+        if (body?.message) msg = body.message
+      } catch {
+        // not JSON
+      }
+      throw new ApiHttpError(res.status, msg)
+    }
+    const disposition = res.headers.get("content-disposition") || ""
+    const match = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(disposition)
+    const filename = match ? decodeURIComponent(match[1]) : fallbackName
+    const blob = await res.blob()
+    const href = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = href
+    link.download = filename
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(href), 1000)
+    return filename
+  },
+
 
   login: async (
     email: string,
