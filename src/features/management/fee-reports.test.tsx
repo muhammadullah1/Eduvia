@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react"
 import type { ReactNode } from "react"
+import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { FeeReport } from "@/api/fees/fee-reports.service"
@@ -34,9 +35,13 @@ const report = (kind: string, rows: number, summary: FeeReport["summary"] = [["S
   summary,
 })
 
-function wrap(node: ReactNode) {
+function wrap(node: ReactNode, initialEntries = ["/admin/fees?tab=reports"]) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return render(<QueryClientProvider client={client}>{node}</QueryClientProvider>)
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter initialEntries={initialEntries}>{node}</MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 beforeEach(() => {
@@ -99,6 +104,13 @@ describe("FeeReportsPanel", () => {
     expect(screen.queryByRole("tablist", { name: "Fee reports" })).toBeNull()
     expect(screen.queryByLabelText("Summary")).toBeNull()
     expect(screen.getByText(/Receipts you recorded/)).toBeTruthy()
+  })
+
+  it("opens directly on subtab from URL query param", async () => {
+    wrap(<FeeReportsPanel kinds={[...ALL]} />, ["/admin/fees?tab=reports&subtab=class-wise"])
+    const tabs = within(screen.getByRole("tablist", { name: "Fee reports" })).getAllByRole("tab")
+    const activeTab = tabs.find((t) => t.getAttribute("aria-selected") === "true")
+    expect(activeTab?.textContent).toBe("Class-wise")
   })
 })
 

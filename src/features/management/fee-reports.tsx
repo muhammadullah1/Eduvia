@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { BarChart3, Play, Printer } from "lucide-react"
 import { useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 
 import feeReportsService, {
   FEE_REPORT_KINDS,
@@ -29,6 +30,7 @@ import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useReportDownload } from "@/hooks/use-report-download"
 import { getToday } from "@/lib/dates"
 import { printDocument } from "@/lib/print"
+import { useUrlTab } from "@/lib/use-url-tab"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 10
@@ -65,19 +67,35 @@ function printReport(report: FeeReport) {
 export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
   const { state } = useSchool()
   const today = getToday()
+  const [searchParams] = useSearchParams()
   const tabs = useMemo(
     () => FEE_REPORT_TABS.map((t) => ({ ...t, kinds: t.kinds.filter((k) => kinds.includes(k)) })).filter((t) => t.kinds.length),
     [kinds]
   )
-  const [tab, setTab] = useState(tabs[0]?.value ?? "daily")
-  const current = tabs.find((t) => t.value === tab) ?? tabs[0]
-  const [kind, setKind] = useState<FeeReportKind>(current?.kinds[0] ?? "daily")
-  const [from, setFrom] = useState(today)
-  const [to, setTo] = useState(today)
-  const [month, setMonth] = useState(today.slice(0, 7))
-  const [classId, setClassId] = useState("all")
+  const allowedSubtabs = useMemo(() => {
+    const list: string[] = tabs.map((t) => t.value)
+    if (kinds.includes("outstanding") && !list.includes("outstanding")) list.push("outstanding")
+    if (kinds.includes("advance") && !list.includes("advance")) list.push("advance")
+    return list
+  }, [tabs, kinds])
+
+  const [activeSubtab, setActiveSubtab] = useUrlTab(allowedSubtabs, "subtab")
+  const effectiveTab =
+    activeSubtab === "outstanding" || activeSubtab === "advance" ? "outstanding-advance" : activeSubtab
+  const current = tabs.find((t) => t.value === effectiveTab) ?? tabs[0]
+
+  const initialKind: FeeReportKind =
+    activeSubtab === "outstanding" || activeSubtab === "advance"
+      ? (activeSubtab as FeeReportKind)
+      : (current?.kinds[0] ?? "daily")
+  const [kind, setKind] = useState<FeeReportKind>(initialKind)
+
+  const [from, setFrom] = useState(searchParams.get("from") || today)
+  const [to, setTo] = useState(searchParams.get("to") || today)
+  const [month, setMonth] = useState(searchParams.get("month") || today.slice(0, 7))
+  const [classId, setClassId] = useState(searchParams.get("classId") || "all")
   const [applied, setApplied] = useState<Applied | null>(
-    kinds[0] === "daily" ? { kind: "daily", filters: { from: today, to: today, classId: "all" } } : null
+    kinds[0] === "daily" ? { kind: "daily", filters: { from: searchParams.get("from") || today, to: searchParams.get("to") || today, classId: searchParams.get("classId") || "all" } } : null
   )
   const { busy, run } = useReportDownload()
   const meta = FEE_REPORT_KINDS.find((k) => k.kind === kind) ?? FEE_REPORT_KINDS[0]
@@ -101,11 +119,16 @@ export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
 
   function selectKind(next: FeeReportKind) {
     setKind(next)
+    if (next === "outstanding" || next === "advance") {
+      setActiveSubtab(next)
+    } else {
+      setActiveSubtab(effectiveTab)
+    }
     // Daily opens on today's receipts (as in Figma); the others wait for Generate Report.
     setApplied(next === "daily" ? { kind: next, filters: { from, to, classId } } : null)
   }
   function selectTab(value: string) {
-    setTab(value)
+    setActiveSubtab(value)
     const next = tabs.find((t) => t.value === value)
     if (next) selectKind(next.kinds[0])
   }
@@ -276,7 +299,9 @@ function SummaryCards({ summary }: { summary: [string, string | number][] }) {
       ? "grid-cols-1 sm:grid-cols-3"
       : totalCards === 4
         ? "grid-cols-2 lg:grid-cols-4"
-        : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+        : totalCards === 6
+          ? "grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+          : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
 
   return (
     <div className={cn("grid gap-3", gridCols)} aria-label="Summary">

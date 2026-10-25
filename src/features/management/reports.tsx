@@ -1,3 +1,5 @@
+import { useState } from "react"
+
 import { FEE_REPORT_KINDS } from "@/api/fees/fee-reports.service"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { EmptyState } from "@/components/app/kit"
@@ -8,9 +10,11 @@ import {
 } from "@/components/app/report-layout"
 import { Badge } from "@/components/ui/badge"
 import { useSchool } from "@/data/store"
+import { ReportTab } from "@/features/finance/report-tab"
 import { FeeReportsPanel } from "@/features/management/fee-reports"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
+import { getToday } from "@/lib/dates"
 import { timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
 import { useUrlTab } from "@/lib/use-url-tab"
@@ -18,15 +22,20 @@ import { useUrlTab } from "@/lib/use-url-tab"
 const ALL_KINDS = FEE_REPORT_KINDS.map((k) => k.kind)
 
 /**
- * Reports (SRS 4.5). Fee reports come from the API and are Super Admin + Accountant only;
- * the Operations Manager never sees fee data. The audit trail is Super Admin only.
+ * Reports (SRS §4.5, §4.6, §9). Fee reports come from the API and are Super Admin + Accountant only;
+ * the Operations Manager never sees fee data. Financial reports are Super Admin only.
+ * The audit trail is Super Admin + Operations Manager (read-only for Ops).
  */
 export function Reports() {
   const actor = useActor()
   const fees = can(actor.role, "fees.reports")
+  const finance = can(actor.role, "finance.manage")
   const audit = can(actor.role, "audit.view")
+  const [period, setPeriod] = useState(getToday().slice(0, 7))
+
   const tabs = [
     ...(fees ? [{ value: "fees", label: "Fee reports" }] : []),
+    ...(finance ? [{ value: "finance", label: "Financial report" }] : []),
     ...(audit ? [{ value: "audit", label: "Audit trail" }] : []),
   ]
   const [view, setView] = useUrlTab(tabs.length ? tabs.map((t) => t.value) : ["none"])
@@ -47,11 +56,18 @@ export function Reports() {
     <div className="flex flex-col gap-6">
       <ReportPageHeader
         title="Reports"
-        subtitle={fees ? "Fee collections and balances, downloadable as branded Excel, CSV or PDF" : "Security audit trail"}
+        subtitle={
+          fees
+            ? "Fee collections, overall finances, and traceable security audit history"
+            : "Security audit trail"
+        }
       />
       {tabs.length > 1 ? <ClsSubTabs aria-label="Reports" value={view} onValueChange={setView} items={tabs} /> : null}
       {view === "fees" && fees ? (
         <FeeReportsPanel kinds={actor.role === "super_admin" ? ALL_KINDS : ["daily"]} />
+      ) : null}
+      {view === "finance" && finance ? (
+        <ReportTab period={period} onPeriod={setPeriod} />
       ) : null}
       {view === "audit" && audit ? <AuditTrail /> : null}
     </div>
