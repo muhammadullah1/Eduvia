@@ -779,8 +779,10 @@ export async function fetchBackendState(
     : []
 
   // 9. Expenses
-  const expenses: Expense[] = expensesData.length
-    ? expensesData.map((e) => ({
+  // Step 8: `/expenses` returns `{ rows, totals }` (React Query in features/finance); older array responses still map.
+  const expenseRows: ApiExpense[] = Array.isArray(expensesData) ? expensesData : []
+  const expenses: Expense[] = expenseRows.length
+    ? expenseRows.map((e) => ({
         id: String(e.id),
         title: e.title,
         category: e.category,

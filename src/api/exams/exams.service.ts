@@ -17,6 +17,18 @@ export type ExamStatus =
   | "Published"
   | "Archived"
 
+export type ExamGateStatus = {
+  exam: { id: number; name: string; feeMonth: string | null }
+  feeRule: string
+  publishedSheets: number
+  totalSheets: number
+  rows: {
+    student: { id: number; firstName: string; lastName: string; admissionNo: string | null }
+    feeCleared: boolean
+    visibleToParent: boolean
+  }[]
+}
+
 export type ExamClassRef = { id: number; label: string }
 
 export type ExamSheetSummary = {
@@ -375,6 +387,9 @@ const examsService = {
       classId,
       reason,
     }),
+
+  /** Per-student result gate: a yes/no fee-cleared flag only, never amounts. */
+  gateStatus: (examId: number) => api.get<ExamGateStatus>(`/exams/${examId}/visibility`),
 
   updateVisibility: (body: { feeRule?: string; rankTie?: "shared" | "dense" }) =>
     api.put<unknown>("/settings/resultVisibility", body),

@@ -29,7 +29,10 @@ export type LifecycleEvent = {
   reasonCategory: string | null
   finalResult: string | null
   academicStatus: string | null
-  outstandingAmount: number | null
+  /** Fee roles only; stripped by the API for the Operations Manager. */
+  outstandingAmount?: number | null
+  /** Yes/no dues recorded with a strike-off (every staff role). */
+  hasOutstanding?: boolean | null
   transferToSchool: string | null
   graduationOverride: boolean | null
   recordedBy: string | null
@@ -57,7 +60,9 @@ export type StudentLifecycle = {
   status: LifecycleStatus
   admittedOn: string | null
   finalGrade: boolean
-  outstanding: number
+  /** Amount for fee roles; null for the Operations Manager. */
+  outstanding: number | null
+  hasOutstanding: boolean
   allowed: { to: LifecycleStatus; eventType: LifecycleEventType }[]
   reasons: { Inactive: string[]; StruckOff: string[] }
   events: LifecycleEvent[]

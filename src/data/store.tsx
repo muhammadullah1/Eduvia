@@ -27,7 +27,6 @@ import {
   type Application,
   type AttendanceStatus,
   type ClassSection,
-  type Expense,
   type FeeMonth,
   type MarkRow,
   type Payment,
@@ -75,12 +74,6 @@ import { can, type Permission, ROLE_LABELS } from "@/lib/permissions"
 const LEGACY_KEYS = ["eduvia-demo-v4", "eduvia-demo-v5"]
 
 type ApplicationInput = Omit<Application, "id" | "status" | "submittedOn">
-type SyncReport = {
-  imported: number
-  skipped: number
-  failed: number
-  notes: string[]
-}
 type Result = string | null
 
 export type RecordPaymentInput = {
@@ -134,8 +127,6 @@ type SchoolContextValue = {
     patch: Partial<Pick<Student, "status" | "classId" | "phone" | "guardian">>,
     actor: string
   ) => void
-  importWorkbook: (fileName: string, actor: Actor) => SyncReport | string
-  addExpense: (input: Omit<Expense, "id">, actor: Actor) => Result
   addSession: (
     input: Omit<AcademicSession, "id" | "current">,
     actor: string
@@ -873,106 +864,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
     [simple]
   )
 
-  const importWorkbook = useCallback(
-    (fileName: string, actor: Actor) => {
-      if (!fileName) return "Choose the controlled .xlsx template first."
-      const blocked = denied(actor, "fees.payments.record")
-      if (blocked) return blocked
-      const notes: string[] = []
-      let imported = 0
-      let skipped = 0
-      let failed = 0
-      const batch = fileName.toLowerCase().replace(/[^a-z0-9]/g, "")
-      const candidates = stateRef.current.students
-        .filter((student) => student.status === "Active")
-        .slice(0, 3)
-      candidates.forEach((student, index) => {
-        if (fileName.toLowerCase().includes("bad") && index === 0) {
-          failed += 1
-          notes.push(`Failed ${student.id}: amount missing`)
-          return
-        }
-        const result = recordPayment(
-          {
-            studentId: student.id,
-            amount: classFee(stateRef.current, student.classId),
-            method: "Offline import",
-            idempotencyKey: `sync:${batch}:${student.id}`,
-            note: `Imported from ${fileName}`,
-          },
-          actor
-        )
-        if ("error" in result) {
-          failed += 1
-          notes.push(`Failed ${student.id}: ${result.error}`)
-        } else if (result.duplicate) {
-          skipped += 1
-          notes.push(
-            `Skipped duplicate row for ${student.id} (already ${result.payment.ref})`
-          )
-        } else {
-          imported += 1
-        }
-      })
-      const report: SyncReport = { imported, skipped, failed, notes }
-      commit((current) => ({
-        next: withAudit(
-          {
-            ...current,
-            syncLogs: [
-              {
-                id: uid("sy"),
-                fileName,
-                ...report,
-                at: new Date().toISOString(),
-              },
-              ...current.syncLogs,
-            ],
-          },
-          actor.name,
-          `Imported ${imported} offline fee rows from ${fileName}`,
-          "fee_payment"
-        ),
-      }))
-      return report
-    },
-    [commit, recordPayment]
-  )
-
-  const addExpense = useCallback(
-    (input: Omit<Expense, "id">, actor: Actor) =>
-      simple((current) => {
-        const blocked = denied(actor, "finance.manage")
-        if (blocked) return { error: blocked }
-        if (!input.title.trim() || input.amount <= 0)
-          return { error: "Title and a positive amount are required." }
-
-        api
-          .post("/expenses", {
-            title: input.title.trim(),
-            category: input.category,
-            amount: input.amount,
-            date: input.date,
-          })
-          .then(syncBackend)
-          .catch(console.error)
-
-        return {
-          next: withAudit(
-            {
-              ...current,
-              expenses: [
-                { ...input, title: input.title.trim(), id: uid("EX") },
-                ...current.expenses,
-              ],
-            },
-            actor.name,
-            `Posted expense ${input.title.trim()}`
-          ),
-        }
-      }),
-    [simple, syncBackend]
-  )
 
   // ---- academic setup ----------------------------------------------------------
 
@@ -2417,8 +2308,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       finalizeApplication,
       setApplicationStatus,
       updateStudent,
-      importWorkbook,
-      addExpense,
       addSession,
       activateSession,
       addClass,
@@ -2460,8 +2349,6 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       finalizeApplication,
       setApplicationStatus,
       updateStudent,
-      importWorkbook,
-      addExpense,
       addSession,
       activateSession,
       addClass,

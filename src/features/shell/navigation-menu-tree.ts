@@ -55,6 +55,7 @@ const FINANCE_FOLDER: NavFolder = {
     { type: "link", id: "fees" },
     { type: "link", id: "collect-fee" },
     { type: "link", id: "offline-sync" },
+    { type: "link", id: "finance" },
   ],
 }
 
@@ -71,21 +72,18 @@ const OPERATIONS_TREE: NavNode[] = [
   { type: "link", id: "overview" },
   ACADEMIC_FOLDER,
   STUDENT_FOLDER,
-  { type: "link", id: "reports" },
+  { type: "link", id: "audit-log" },
   { type: "link", id: "settings" },
 ]
 
+/** The accountant's simple sidebar: only the sections they are allowed to use. */
 const ACCOUNTANT_TREE: NavNode[] = [
-  {
-    type: "folder",
-    key: "finance",
-    label: "Finance",
-    defaultOpen: true,
-    children: [
-      { type: "link", id: "collect" },
-      { type: "link", id: "collections" },
-    ],
-  },
+  { type: "link", id: "collect" },
+  { type: "link", id: "collections" },
+  { type: "link", id: "fee-structure" },
+  { type: "link", id: "fee-generation" },
+  { type: "link", id: "expenses" },
+  { type: "link", id: "offline-sync" },
 ]
 
 const TEACHER_TREE: NavNode[] = [

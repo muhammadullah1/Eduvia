@@ -1,3 +1,4 @@
+import type { LucideIcon } from "lucide-react"
 import type { ReactNode } from "react"
 
 import { TableCell, TableHead } from "@/components/ui/table"
@@ -43,11 +44,13 @@ export function ClsStatCard({
   value,
   hint,
   accent = "default",
+  icon: Icon,
 }: {
   label: string
   value: string | number
   hint?: string
   accent?: "default" | "brand" | "warning" | "success"
+  icon?: LucideIcon
 }) {
   const valueClass =
     accent === "brand"
@@ -59,10 +62,17 @@ export function ClsStatCard({
           : "text-[var(--cls-ink)]"
 
   return (
-    <div className="rounded-xl border border-[var(--cls-border)] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
-      <p className="text-xs font-medium text-[var(--cls-muted)]">{label}</p>
-      <p className={cn("mt-1 text-2xl font-semibold tracking-tight", valueClass)}>{value}</p>
-      {hint ? <p className="mt-0.5 text-xs text-[var(--cls-muted)]">{hint}</p> : null}
+    <div className="flex min-w-0 items-start gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)]">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-xs font-medium text-[var(--cls-muted)]">{label}</p>
+        <p className={cn("mt-1 truncate text-2xl font-semibold tracking-tight", valueClass)}>{value}</p>
+        {hint ? <p className="mt-0.5 truncate text-xs text-[var(--cls-muted)]">{hint}</p> : null}
+      </div>
+      {Icon ? (
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-[var(--page-wash)] text-[var(--cls-brand)]" aria-hidden>
+          <Icon className="size-4" />
+        </span>
+      ) : null}
     </div>
   )
 }

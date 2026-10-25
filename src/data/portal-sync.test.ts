@@ -29,9 +29,10 @@ describe("role-scoped portal sync", () => {
     expect(canListUserAccounts("super_admin")).toBe(true)
   })
 
-  it("operations manager never loads fee data or the audit log", () => {
+  it("operations manager never loads fee data but reads the audit log", () => {
     const ops = unavailableSlicesFor("operations_manager")
-    for (const slice of [...FEE_SLICES, "audits"] as const) expect(ops.has(slice)).toBe(true)
+    for (const slice of FEE_SLICES) expect(ops.has(slice)).toBe(true)
+    expect(ops.has("audits")).toBe(false)
     expect(ops.has("settings")).toBe(false)
     expect(ops.has("applications")).toBe(false)
     expect(canListUserAccounts("operations_manager")).toBe(true)

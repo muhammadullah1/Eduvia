@@ -1,5 +1,4 @@
-import { useState } from "react"
-
+import { FEE_REPORT_KINDS } from "@/api/fees/fee-reports.service"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { EmptyState } from "@/components/app/kit"
 import {
@@ -14,8 +13,9 @@ import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
 import { timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
+import { useUrlTab } from "@/lib/use-url-tab"
 
-const ALL_KINDS = ["daily", "monthly", "class-wise", "student-wise", "outstanding", "advance"] as const
+const ALL_KINDS = FEE_REPORT_KINDS.map((k) => k.kind)
 
 /**
  * Reports (SRS 4.5). Fee reports come from the API and are Super Admin + Accountant only;
@@ -29,7 +29,7 @@ export function Reports() {
     ...(fees ? [{ value: "fees", label: "Fee reports" }] : []),
     ...(audit ? [{ value: "audit", label: "Audit trail" }] : []),
   ]
-  const [view, setView] = useState(tabs[0]?.value ?? "none")
+  const [view, setView] = useUrlTab(tabs.length ? tabs.map((t) => t.value) : ["none"])
 
   if (tabs.length === 0) {
     return (
@@ -51,9 +51,19 @@ export function Reports() {
       />
       {tabs.length > 1 ? <ClsSubTabs aria-label="Reports" value={view} onValueChange={setView} items={tabs} /> : null}
       {view === "fees" && fees ? (
-        <FeeReportsPanel kinds={actor.role === "super_admin" ? [...ALL_KINDS] : ["daily"]} />
+        <FeeReportsPanel kinds={actor.role === "super_admin" ? ALL_KINDS : ["daily"]} />
       ) : null}
       {view === "audit" && audit ? <AuditTrail /> : null}
+    </div>
+  )
+}
+
+/** Read-only audit log page (Operations Manager); the API hides fee entries from Ops. */
+export function AuditLogPage() {
+  return (
+    <div className="flex flex-col gap-6">
+      <ReportPageHeader title="Audit log" subtitle="Read-only record of sensitive actions" />
+      <AuditTrail />
     </div>
   )
 }

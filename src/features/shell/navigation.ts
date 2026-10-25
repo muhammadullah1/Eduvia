@@ -3,10 +3,14 @@ import {
   BookOpen,
   Building2,
   Calculator,
+  CalendarRange,
+  Layers,
   MessageSquareText,
+  Receipt,
   ReceiptText,
   ShieldCheck,
   UserRound,
+  Wallet,
 } from "lucide-react"
 import { type ComponentType } from "react"
 
@@ -115,12 +119,17 @@ export const navigation: Record<
       !["fees", "collect-fee", "offline-sync", "finance"].includes(item.id)
     ),
     { id: "settings", label: "Settings", icon: navIcons.settings },
-    { id: "reports", label: "Reports", icon: navIcons.reports },
+    // No Reports: every report there is fee data. Ops reads the audit trail only.
+    { id: "audit-log", label: "Audit log", icon: navIcons.reports },
     ...legacyManagementNav,
   ],
   accountant: [
-    { id: "collect", label: "Record payment", icon: navIcons.fees },
+    { id: "collect", label: "Record payment", icon: Wallet },
     { id: "collections", label: "My daily receipts", icon: ReceiptText },
+    { id: "fee-structure", label: "Fee structure", icon: Layers },
+    { id: "fee-generation", label: "Monthly generation", icon: CalendarRange },
+    { id: "expenses", label: "Expenses", icon: Receipt },
+    { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline },
   ],
   teacher: [
     { id: "today", label: "Today", icon: navIcons.dashboard },
@@ -190,8 +199,10 @@ export const subtitles: Record<string, string> = {
   messages: "Approve what families are allowed to see.",
   settings: "Configurable pass criteria and the result fee rule.",
   reports: "Printable insight and a traceable audit history.",
+  "audit-log": "Sensitive actions recorded by the school system (read-only).",
   collect: "Record a payment; it clears the oldest unpaid month first.",
   collections: "Only the receipts you recorded, day by day.",
+  expenses: "Record school expenses; you see only the entries you recorded.",
   today: "Your timetable for today, including substitute duties.",
   attendance: "Mark and save attendance for an assigned class.",
   "daily-update": "Pick today’s planned chapter and send it for review.",

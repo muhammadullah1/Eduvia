@@ -1,4 +1,6 @@
 import type { ClassSection } from "@/data/types"
+import { useActor } from "@/lib/actor"
+import { can } from "@/lib/permissions"
 
 type Props = {
   klass: ClassSection
@@ -29,6 +31,8 @@ export function ClassDetailSummaryCard({
   subjectCount,
 }: Props) {
   const section = sectionLabel(klass)
+  // Fee amounts are Super Admin + Accountant data; Ops never sees the class fee.
+  const showFee = can(useActor().role, "fees.amounts.view")
 
   return (
     <div className="rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
@@ -48,14 +52,16 @@ export function ClassDetailSummaryCard({
           label="Subjects"
           value={`${subjectCount} on timetable`}
         />
-        <MetaField
-          label="Monthly tuition"
-          value={
-            klass.monthlyFee > 0
-              ? `PKR ${klass.monthlyFee.toLocaleString()}`
-              : "—"
-          }
-        />
+        {showFee ? (
+          <MetaField
+            label="Monthly tuition"
+            value={
+              klass.monthlyFee > 0
+                ? `PKR ${klass.monthlyFee.toLocaleString()}`
+                : "—"
+            }
+          />
+        ) : null}
       </div>
     </div>
   )

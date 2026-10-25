@@ -30,8 +30,12 @@ const GROUP_FOR_SECTION: Record<string, string> = {
   "offline-sync": "Finance",
   collect: "Finance",
   collections: "Finance",
+  "fee-structure": "Finance",
+  "fee-generation": "Finance",
   finance: "Finance",
+  expenses: "Finance",
   reports: "Reports",
+  "audit-log": "Reports",
   settings: "Settings",
   messages: "Communication",
 }

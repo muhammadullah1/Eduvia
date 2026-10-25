@@ -9,6 +9,8 @@ import {
   SidebarProvider,
 } from "@/components/ui/sidebar"
 import { useSchool } from "@/data/store"
+import { CollectFeePage } from "@/features/fees/collect"
+import { OfflineSyncPage } from "@/features/fees/offline-sync"
 import { AttendanceReviewPage } from "@/features/management/attendance"
 import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
 import { EnrollmentPromotionPage } from "@/features/management/enrollment-promotion"
@@ -16,9 +18,10 @@ import { LifecyclePage } from "@/features/management/lifecycle"
 import {
   AcademicSetup,
   Admissions,
+  AuditLogPage,
   Classes,
   Examinations,
-  Fees,
+  FeeManagement,
   Finance,
   ManagementDashboard,
   MessagesDesk,
@@ -76,6 +79,8 @@ const LEGACY_SECTION_REST: Record<string, string> = {
 }
 
 const CLS_SHELL_ROLES = new Set<Role>(["super_admin", "operations_manager"])
+/** Roles that get the green sidebar + top bar. The accountant gets it with only their own links. */
+const SIDEBAR_SHELL_ROLES = new Set<Role>(["super_admin", "operations_manager", "accountant"])
 
 export function PortalShell() {
   const { role: roleParam, section: sectionParam } = useParams()
@@ -110,7 +115,7 @@ export function PortalShell() {
     const current = sessions.find((item) => item.current)
     return current?.name ?? "2026–2027"
   }, [sessionsFromApi, state.sessions])
-  const useClsShell = CLS_SHELL_ROLES.has(role)
+  const useClsShell = SIDEBAR_SHELL_ROLES.has(role)
   const session = loadAuth()
   const authRole = session?.role
   const signedInName = session?.user
@@ -214,17 +219,14 @@ export function PortalShell() {
     if (section === "daily-test-schedule") return <DailyTestSchedulePage />
     if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
-    if (
-      section === "fees" ||
-      section === "collect-fee" ||
-      section === "offline-sync"
-    ) {
-      return <Fees query={query} />
-    }
+    if (section === "fees") return <FeeManagement query={query} />
+    if (section === "collect-fee") return <CollectFeePage />
+    if (section === "offline-sync") return <OfflineSyncPage />
     if (section === "finance") return <Finance />
     if (section === "messages") return <MessagesDesk />
     if (section === "settings") return <SettingsPanel />
     if (section === "reports") return <Reports />
+    if (section === "audit-log" && can(role, "audit.view")) return <AuditLogPage />
     return <ManagementDashboard onOpen={openSection} />
   })()
 

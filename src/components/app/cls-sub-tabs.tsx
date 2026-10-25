@@ -19,6 +19,11 @@ type Props = {
   /** Content placed at the far end of the bar (filters, month pickers). */
   trailing?: ReactNode
   "aria-label"?: string
+  /**
+   * Wrap instead of scrolling: a two-column grid on phones, a wrapping row from
+   * `sm` up, so no tab is ever hidden off-screen.
+   */
+  wrap?: boolean
 }
 
 /**
@@ -33,6 +38,7 @@ export function ClsSubTabs({
   className,
   trailing,
   "aria-label": ariaLabel = "Section tabs",
+  wrap = false,
 }: Props) {
   const listRef = useRef<HTMLDivElement>(null)
   const enabled = items.filter((item) => !item.disabled)
@@ -67,7 +73,12 @@ export function ClsSubTabs({
         role="tablist"
         aria-label={ariaLabel}
         onKeyDown={onKeyDown}
-        className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-[var(--cls-border)] bg-[var(--page-wash)] p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className={cn(
+          "rounded-xl border border-[var(--cls-border)] bg-[var(--page-wash)] p-1",
+          wrap
+            ? "grid w-full grid-cols-2 gap-1 sm:flex sm:w-auto sm:max-w-full sm:flex-wrap sm:items-center"
+            : "inline-flex max-w-full items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        )}
       >
         {items.map((item) => {
           const active = value === item.value
@@ -84,6 +95,7 @@ export function ClsSubTabs({
               onClick={() => onValueChange(item.value)}
               className={cn(
                 "inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border px-3.5 text-[13px] whitespace-nowrap transition-[background-color,color,box-shadow,border-color] duration-150",
+                wrap && "min-w-0 justify-center px-2 sm:justify-start sm:px-3.5",
                 "outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-color)]/35 focus-visible:ring-offset-1",
                 active
                   ? "border-[var(--brand-border)] bg-white font-semibold text-[var(--primary-color)] shadow-[0_1px_2px_rgba(16,24,40,0.08),0_1px_3px_rgba(4,120,87,0.12)]"
@@ -92,7 +104,7 @@ export function ClsSubTabs({
               )}
             >
               {Icon ? <Icon className="size-4 shrink-0" aria-hidden /> : null}
-              {item.label}
+              {wrap ? <span className="truncate">{item.label}</span> : item.label}
               {item.count != null ? (
                 <span
                   className={cn(

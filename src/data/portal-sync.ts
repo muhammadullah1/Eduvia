@@ -45,7 +45,8 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   ],
   people: ["staff", "students"],
   fees: ["students", "feeMonths", "payments"],
-  finance: ["expenses", "payments"],
+  /** Income, expenses and the report load via React Query (`features/finance`). */
+  finance: [],
   academic: ["staff", "slots"],
   /** Session list is React Query. Header session label uses the same query. */
   sessions: [],
@@ -77,6 +78,8 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   settings: [],
   /** Fee reports load from /fees/reports; only the SA audit trail comes from the store. */
   reports: ["audits"],
+  /** Operations Manager's read-only audit log. */
+  "audit-log": ["audits"],
 }
 
 const SA = "super_admin"
@@ -115,7 +118,7 @@ export const SLICE_READ_ROLES: Record<SchoolDataSlice | "users", readonly Role[]
   testSchedules: [SA, OPS, TCH, PAR], // tests.read
   weeklyTests: [SA, OPS, TCH, PAR],
   updates: EVERYONE, // updates.read
-  audits: [SA], // audit.read
+  audits: [SA, OPS], // audit.read (Ops read-only, fee entries filtered server-side)
 }
 
 export function canReadSlice(role: Role | undefined, slice: SchoolDataSlice | "users") {

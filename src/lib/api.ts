@@ -186,10 +186,11 @@ export const api = {
     return promise
   },
 
-  post: <T>(path: string, body?: unknown) =>
+  post: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
     request<T>(path, {
       method: "POST",
       body: body ? JSON.stringify(body) : undefined,
+      ...(headers ? { headers } : {}),
     }),
 
   put: <T>(path: string, body?: unknown) =>
@@ -204,7 +205,11 @@ export const api = {
       body: body ? JSON.stringify(body) : undefined,
     }),
 
-  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  delete: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "DELETE",
+      body: body ? JSON.stringify(body) : undefined,
+    }),
 
   /**
    * Download a server-generated file (report, template, printable sheet) with the
@@ -214,7 +219,9 @@ export const api = {
     path: string,
     query?: Record<string, string | number | undefined | null>,
     fallbackName = "download",
-    retried = false
+    retried = false,
+    /** A tab opened in the click handler: the file opens there instead of downloading. */
+    target?: Window | null
   ): Promise<string> => {
     const session = loadAuth()
     if (!session?.token) throw new ApiHttpError(401, SESSION_EXPIRED_MESSAGE)
@@ -229,7 +236,7 @@ export const api = {
       throw new ApiHttpError(0, `Cannot connect to API server: ${err instanceof Error ? err.message : "Network request failed"}`)
     }
     if (res.status === 401 && !retried && (await refreshAccessToken(session.token))) {
-      return api.download(path, query, fallbackName, true)
+      return api.download(path, query, fallbackName, true, target)
     }
     if (!res.ok) {
       let msg = res.statusText || "Download failed"
@@ -246,6 +253,12 @@ export const api = {
     const filename = match ? decodeURIComponent(match[1]) : fallbackName
     const blob = await res.blob()
     const href = URL.createObjectURL(blob)
+    if (target && !target.closed) {
+      // Opened synchronously by the click handler, so popup blockers allow it.
+      target.location.href = href
+      setTimeout(() => URL.revokeObjectURL(href), 60_000)
+      return filename
+    }
     const link = document.createElement("a")
     link.href = href
     link.download = filename

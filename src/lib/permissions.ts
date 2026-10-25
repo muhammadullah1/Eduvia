@@ -10,6 +10,7 @@ const PERMISSIONS = {
   "fees.payments.record": ["super_admin", "accountant"],
   "fees.payments.confirm": ["super_admin", "accountant"],
   "fees.payments.allocate_manual": ["super_admin"],
+  "fees.import": ["super_admin", "accountant"],
   "fees.status.view": ["super_admin", "operations_manager", "accountant"],
   "finance.manage": ["super_admin"],
   "settings.fees": ["super_admin"],
@@ -31,8 +32,13 @@ const PERMISSIONS = {
   "admissions.manage": ["super_admin", "operations_manager"],
   "students.manage": ["super_admin", "operations_manager"],
   "attendance.review": ["super_admin", "operations_manager"],
-  "audit.view": ["super_admin"], // API audit.read is Super Admin only
+  "audit.view": ["super_admin", "operations_manager"], // API audit.read; Ops is read-only and never sees fee entries
+  /** Fee amounts inside non-fee screens (class fee, strike-off dues). The API strips them for everyone else. */
+  "fees.amounts.view": ["super_admin", "accountant", "parent"],
   "fees.reports": ["super_admin", "accountant"],
+  /** Fee structure: Accountant reads, only Super Admin changes it (API fees.structure.*). */
+  "fees.structure.view": ["super_admin", "accountant"],
+  "fees.structure.manage": ["super_admin"],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Permission = keyof typeof PERMISSIONS

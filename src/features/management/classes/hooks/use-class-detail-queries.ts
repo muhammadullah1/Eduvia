@@ -1,14 +1,15 @@
-import { useQuery, type QueryClient } from "@tanstack/react-query"
+import { type QueryClient,useQuery } from "@tanstack/react-query"
 
-import feesService from "@/api/fees/fees.service"
 import { FEE_MONTHS_QUERY_KEY } from "@/api/fees/constants"
+import feesService from "@/api/fees/fees.service"
 import { mapFeeMonthDto } from "@/api/fees/map-fee-month"
-import { mapStudentDto } from "@/api/students/map-student"
 import { STUDENTS_QUERY_KEY } from "@/api/students/constants"
+import { mapStudentDto } from "@/api/students/map-student"
 import studentsService from "@/api/students/students.service"
-import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
 import { TIMETABLE_QUERY_KEY } from "@/api/timetable/constants"
+import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
 import timetableService from "@/api/timetable/timetable.service"
+import { canReadSlice } from "@/data/portal-sync"
 import type { FeeMonth, TimetableSlot } from "@/data/types"
 import type { Student } from "@/data/types"
 import { loadAuth } from "@/lib/auth"
@@ -86,7 +87,10 @@ export function useClassTimetableQuery(
 export function useFeeMonthsQuery(enabled = true) {
   return useQuery({
     queryKey: [FEE_MONTHS_QUERY_KEY],
-    enabled: enabled && Boolean(loadAuth()?.token),
+    enabled:
+      enabled &&
+      Boolean(loadAuth()?.token) &&
+      canReadSlice(loadAuth()?.role, "feeMonths"),
     queryFn: async () => {
       const rows = await feesService.listMonths()
       return (rows ?? []).map(mapFeeMonthDto)
