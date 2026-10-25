@@ -195,6 +195,9 @@ export async function fetchPortalCore(): Promise<
       settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
     resultVisibility:
       settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
+    fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+    attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
+    admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
   }
 
   return { classes, sessions, subjects, settings }
@@ -257,6 +260,9 @@ async function fetchRequestedCore(
         settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
       resultVisibility:
         settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
+      fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+      attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
+      admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
     }
   }
   return partial
@@ -1025,6 +1031,9 @@ export async function fetchBackendState(
       settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
     resultVisibility:
       settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
+    fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+    attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
+    admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
   }
 
   // 19. Updates

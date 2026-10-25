@@ -14,10 +14,6 @@ import {
   fetchSchoolDataSlices,
 } from "@/data/backend-sync"
 import {
-  invalidateAdmissionDetail,
-  invalidateAdmissionsLists,
-} from "@/lib/invalidate-admissions"
-import {
   ADMISSION_WIZARD_SLICES,
   resolvePortalSyncPlan,
 } from "@/data/portal-sync"
@@ -27,6 +23,7 @@ import {
   type Application,
   type AttendanceStatus,
   type ClassSection,
+  DEFAULT_SETTINGS,
   type FeeMonth,
   type MarkRow,
   type Payment,
@@ -51,6 +48,7 @@ import {
   weekOfMonth,
 } from "@/lib/academics"
 import type { Actor } from "@/lib/actor"
+import { api, ApiHttpError } from "@/lib/api"
 import {
   createApplicationDraft,
   decideApplication,
@@ -60,8 +58,7 @@ import {
   submitApplication,
   toApplicationApiBody,
 } from "@/lib/applications-api"
-import { api, ApiHttpError } from "@/lib/api"
-import { type Role, loadAuth } from "@/lib/auth"
+import { loadAuth,type Role } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
 import {
   allocateOldestFirst,
@@ -69,6 +66,10 @@ import {
   monthLabel,
   validateManualPlan,
 } from "@/lib/fees"
+import {
+  invalidateAdmissionDetail,
+  invalidateAdmissionsLists,
+} from "@/lib/invalidate-admissions"
 import { can, type Permission, ROLE_LABELS } from "@/lib/permissions"
 
 const LEGACY_KEYS = ["eduvia-demo-v4", "eduvia-demo-v5"]
@@ -267,19 +268,7 @@ function emptyState(): SchoolState {
     substitutions: [],
     testSchedules: [],
     weeklyTests: [],
-    settings: {
-      dailyTestRules: {
-        passPercent: 40,
-        maxFailsPerMonth: 1,
-        lowMarksEnabled: true,
-        lowMarksMinPassed: 3,
-        lowMarksBelowPercent: 55,
-      },
-      resultVisibility: {
-        feeRule: "all_due_paid",
-        requireOverrideReason: true,
-      },
-    },
+    settings: DEFAULT_SETTINGS,
   }
 }
 
@@ -2146,6 +2135,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           return {
             error: "Only the super admin can change the result fee rule.",
           }
+        if (patch.fees && !can(actor.role, "settings.fees"))
+          return {
+            error: "Only the super admin can change fee settings.",
+          }
+        if (patch.fees) {
+          if (patch.fees.defaultMonthlyFee < 0)
+            return { error: "Default monthly fee cannot be negative." }
+          if (patch.fees.dueDay < 1 || patch.fees.dueDay > 28)
+            return { error: "Due day must be between 1 and 28." }
+          if (patch.fees.maxAdvanceMonths < 0 || patch.fees.maxAdvanceMonths > 24)
+            return { error: "Advance months must be between 0 and 24." }
+        }
         if (patch.dailyTestRules) {
           const blocked = denied(actor, "settings.academic")
           if (blocked) return { error: blocked }
@@ -2160,17 +2161,49 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           if (rules.maxFailsPerMonth < 0 || rules.lowMarksMinPassed < 0)
             return { error: "Counts cannot be negative." }
         }
+        if (patch.attendance) {
+          const blocked = denied(actor, "settings.academic")
+          if (blocked) return { error: blocked }
+          if (patch.attendance.editWindowDays < 0 || patch.attendance.editWindowDays > 31)
+            return { error: "Edit window must be between 0 and 31 days." }
+          if (patch.attendance.lowThreshold < 1 || patch.attendance.lowThreshold > 100)
+            return { error: "Low attendance threshold must be between 1% and 100%." }
+        }
+        if (patch.admission) {
+          const blocked = denied(actor, "settings.academic")
+          if (blocked) return { error: blocked }
+          if (patch.admission.digits < 1 || patch.admission.digits > 8)
+            return { error: "Digits must be between 1 and 8." }
+        }
         const settings = { ...current.settings, ...patch }
 
         if (patch.dailyTestRules) {
           api
-            .put("/settings/daily-tests", patch.dailyTestRules)
+            .put("/settings/dailyTestRules", patch.dailyTestRules)
             .then(syncBackend)
             .catch(console.error)
         }
         if (patch.resultVisibility) {
           api
-            .put("/settings/results", patch.resultVisibility)
+            .put("/settings/resultVisibility", patch.resultVisibility)
+            .then(syncBackend)
+            .catch(console.error)
+        }
+        if (patch.fees) {
+          api
+            .put("/settings/fees", patch.fees)
+            .then(syncBackend)
+            .catch(console.error)
+        }
+        if (patch.attendance) {
+          api
+            .put("/settings/attendance", patch.attendance)
+            .then(syncBackend)
+            .catch(console.error)
+        }
+        if (patch.admission) {
+          api
+            .put("/settings/admission", patch.admission)
             .then(syncBackend)
             .catch(console.error)
         }
