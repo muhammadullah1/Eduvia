@@ -55,39 +55,33 @@ export function TotalTile({
   testId?: string
   icon?: LucideIcon
 }) {
+  const valueColor =
+    tone === "income"
+      ? "text-emerald-700"
+      : tone === "expense"
+        ? "text-red-700"
+        : "text-[var(--cls-ink)]"
+
+  const iconBg =
+    tone === "income"
+      ? "bg-emerald-50 text-emerald-700"
+      : tone === "expense"
+        ? "bg-red-50 text-red-700"
+        : "bg-[var(--page-wash)] text-[var(--cls-brand)]"
+
   return (
     <div
       data-testid={testId}
-      className={cn(
-        "flex min-w-0 items-center gap-3 rounded-xl border px-4 py-2.5",
-        tone === "income" && "border-emerald-200 bg-emerald-50",
-        tone === "expense" && "border-red-200 bg-red-50",
-        tone === "neutral" && "border-[var(--cls-border)] bg-white"
-      )}
+      className="flex min-w-0 items-start gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)]"
     >
       <div className="min-w-0 flex-1">
-      <p className="truncate text-xs text-[var(--cls-muted)]">{label}</p>
-      <p
-        className={cn(
-          "mt-0.5 text-lg font-semibold tabular-nums",
-          tone === "income" && "text-emerald-800",
-          tone === "expense" && "text-red-700",
-          tone === "neutral" && "text-[var(--cls-ink)]"
-        )}
-      >
-        {value}
-      </p>
+        <p className="truncate text-xs font-medium text-[var(--cls-muted)]">{label}</p>
+        <p className={cn("mt-1 truncate text-2xl font-semibold tracking-tight tabular-nums", valueColor)}>
+          {value}
+        </p>
       </div>
       {Icon ? (
-        <span
-          aria-hidden
-          className={cn(
-            "grid size-9 shrink-0 place-items-center rounded-lg",
-            tone === "income" && "bg-emerald-100 text-emerald-700",
-            tone === "expense" && "bg-red-100 text-red-700",
-            tone === "neutral" && "bg-[var(--page-wash)] text-[var(--cls-brand)]"
-          )}
-        >
+        <span aria-hidden className={cn("grid size-9 shrink-0 place-items-center rounded-lg", iconBg)}>
           <Icon className="size-4" />
         </span>
       ) : null}

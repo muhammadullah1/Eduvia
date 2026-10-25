@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ExternalLink, GraduationCap, HandCoins, Lock, MoreHorizontal, Pencil, Plus, RefreshCw, Trash2, Wallet } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import financeService, { INCOME_CATEGORIES, type IncomeCategory, type IncomeRow } from "@/api/finance/finance.service"
 import { reportCellClass,ReportHeadRow, ReportPanel, ReportPanelMessage } from "@/components/app/report-layout"
@@ -39,12 +39,24 @@ const toValues = (row: IncomeRow): EntryValues => ({
  * income rows come from confirmed fee payments (locked, with View Receipt);
  * Donation / Grant / Misc are added here, edited, or deleted with a reason.
  */
-export function IncomeTab({ month }: { month: string }) {
+export function IncomeTab({
+  month,
+  addTrigger,
+  hideAddButton = false,
+}: {
+  month: string
+  addTrigger?: number
+  hideAddButton?: boolean
+}) {
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ["finance", "income", month], queryFn: () => financeService.income(month) })
   const [sheet, setSheet] = useState<{ mode: "add" | "edit"; row?: IncomeRow } | null>(null)
   const [deleting, setDeleting] = useState<IncomeRow | null>(null)
   const [receiptBusy, setReceiptBusy] = useState<number | null>(null)
+
+  useEffect(() => {
+    if (addTrigger) setSheet({ mode: "add" })
+  }, [addTrigger])
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["finance"] })
   const save = useMutation({
@@ -97,17 +109,17 @@ export function IncomeTab({ month }: { month: string }) {
 
   return (
     <div className="flex min-w-0 flex-col gap-4" data-testid="finance-income">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
-          <TotalTile icon={Wallet} label={`Total Income (${label})`} value={data ? pkrAmount(data.totals.total) : "—"} tone="income" testId="income-total" />
-          <TotalTile icon={GraduationCap} label="Fee income" value={data ? pkrAmount(data.totals.fee) : "—"} />
-          <TotalTile icon={HandCoins} label="Other income" value={data ? pkrAmount(data.totals.other) : "—"} />
-        </div>
-        <Button onClick={() => setSheet({ mode: "add" })} className="w-full lg:w-auto">
+      <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+        <TotalTile icon={Wallet} label={`Total Income (${label})`} value={data ? pkrAmount(data.totals.total) : "—"} tone="income" testId="income-total" />
+        <TotalTile icon={GraduationCap} label="Fee income" value={data ? pkrAmount(data.totals.fee) : "—"} />
+        <TotalTile icon={HandCoins} label="Other income" value={data ? pkrAmount(data.totals.other) : "—"} />
+      </div>
+      {!hideAddButton ? (
+        <Button onClick={() => setSheet({ mode: "add" })} className="w-full sm:w-auto">
           <Plus data-icon="inline-start" />
           Add Other Income
         </Button>
-      </div>
+      ) : null}
 
       <ReportPanel>
         {list.isLoading ? (

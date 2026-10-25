@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Info, MoreHorizontal, Pencil, Plus, Receipt, Trash2, Users, Wrench } from "lucide-react"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 
 import financeService, {
   EXPENSE_CATEGORIES,
@@ -38,11 +38,25 @@ const toValues = (row: ExpenseRow): EntryValues => ({
  * the month's expenses. `ownOnly` is the accountant's view: they record
  * expenses and see the ones they recorded, without totals, edit or delete.
  */
-export function ExpensesTab({ month, ownOnly = false }: { month: string; ownOnly?: boolean }) {
+export function ExpensesTab({
+  month,
+  ownOnly = false,
+  addTrigger,
+  hideAddButton = false,
+}: {
+  month: string
+  ownOnly?: boolean
+  addTrigger?: number
+  hideAddButton?: boolean
+}) {
   const qc = useQueryClient()
   const list = useQuery({ queryKey: ["finance", "expenses", month], queryFn: () => financeService.expenses(month) })
   const [sheet, setSheet] = useState<{ mode: "add" | "edit"; row?: ExpenseRow } | null>(null)
   const [deleting, setDeleting] = useState<ExpenseRow | null>(null)
+
+  useEffect(() => {
+    if (addTrigger) setSheet({ mode: "add" })
+  }, [addTrigger])
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["finance"] })
   const save = useMutation({
@@ -91,24 +105,24 @@ export function ExpensesTab({ month, ownOnly = false }: { month: string; ownOnly
 
   return (
     <div className="flex min-w-0 flex-col gap-4" data-testid="finance-expenses">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        {totals ? (
-          <div className="grid min-w-0 flex-1 grid-cols-1 gap-3 sm:grid-cols-3">
-            <TotalTile icon={Receipt} label={`Total Expenses (${label})`} value={pkrAmount(totals.total)} tone="expense" testId="expense-total" />
-            <TotalTile icon={Users} label="Staff" value={pkrAmount(totals.staff)} testId="expense-staff" />
-            <TotalTile icon={Wrench} label="Other" value={pkrAmount(totals.other)} testId="expense-other" />
-          </div>
-        ) : (
-          <div>
-            <h2 className="text-base font-semibold text-[var(--cls-ink)]">{ownOnly ? `Expenses you recorded — ${label}` : `Expenses — ${label}`}</h2>
-            {ownOnly ? <p className="mt-0.5 text-sm text-[var(--cls-muted)]">Only your own entries are listed. Totals and reports are kept by the Super Admin.</p> : null}
-          </div>
-        )}
-        <Button onClick={() => setSheet({ mode: "add" })} className="w-full lg:w-auto">
+      {totals ? (
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
+          <TotalTile icon={Receipt} label={`Total Expenses (${label})`} value={pkrAmount(totals.total)} tone="expense" testId="expense-total" />
+          <TotalTile icon={Users} label="Staff" value={pkrAmount(totals.staff)} testId="expense-staff" />
+          <TotalTile icon={Wrench} label="Other" value={pkrAmount(totals.other)} testId="expense-other" />
+        </div>
+      ) : (
+        <div>
+          <h2 className="text-base font-semibold text-[var(--cls-ink)]">{ownOnly ? `Expenses you recorded — ${label}` : `Expenses — ${label}`}</h2>
+          {ownOnly ? <p className="mt-0.5 text-sm text-[var(--cls-muted)]">Only your own entries are listed. Totals and reports are kept by the Super Admin.</p> : null}
+        </div>
+      )}
+      {!hideAddButton ? (
+        <Button onClick={() => setSheet({ mode: "add" })} className="w-full sm:w-auto">
           <Plus data-icon="inline-start" />
           Add Expense
         </Button>
-      </div>
+      ) : null}
 
       <p className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="note">
         <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />

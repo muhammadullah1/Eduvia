@@ -93,8 +93,6 @@ export function CollectFeePage() {
 
   return (
     <div className="grid min-w-0 grid-cols-1 gap-4" data-testid="collect-fee">
-      <StudentSearch onPick={(s) => setStudentId(s.id)} />
-
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {overview.isError ? (
           <p className="text-sm text-red-600 sm:col-span-3">
@@ -118,10 +116,16 @@ export function CollectFeePage() {
       {studentId ? (
         <CollectForStudent key={studentId} studentId={studentId} onClose={() => setStudentId(null)} onLedger={() => setLedgerOf(studentId)} />
       ) : (
-        <ClsPanel>
-          <ClsEmpty title="Search for a student to collect a fee">
-            Unpaid months and any credit balance appear here. Payments clear the oldest month first.
-          </ClsEmpty>
+        <ClsPanel className="p-6">
+          <div className="flex flex-col gap-4">
+            <div>
+              <h2 className="text-base font-semibold text-[var(--cls-ink)]">Collect Student Fee</h2>
+              <p className="mt-1 text-sm text-[var(--cls-muted)]">
+                Search by student name or admission number to view unpaid fee months, apply credit balance, and record collections.
+              </p>
+            </div>
+            <StudentSearch onPick={(s) => setStudentId(s.id)} />
+          </div>
         </ClsPanel>
       )}
     </div>
@@ -138,19 +142,19 @@ function StudentSearch({ onPick }: { onPick: (s: CollectStudent) => void }) {
   return (
     <div className="relative w-full max-w-xl">
       <Label htmlFor="collect-search" className="sr-only">Search students</Label>
-      <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" aria-hidden />
-      <Input
-        id="collect-search"
-        value={text}
-        autoComplete="off"
-        placeholder="Search by student name or admission number..."
-        className="h-11 bg-white pl-9"
-        onChange={(e) => { setText(e.target.value); setOpen(true) }}
-        onFocus={() => setOpen(true)}
-        onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
-        aria-describedby="collect-search-hint"
-      />
-      <p id="collect-search-hint" className="mt-1.5 text-xs text-[var(--cls-muted)]">Type at least {MIN_SEARCH} characters to search</p>
+      <div className="relative flex items-center">
+        <Search className="pointer-events-none absolute left-3.5 size-4 text-[var(--cls-muted)]" aria-hidden />
+        <Input
+          id="collect-search"
+          value={text}
+          autoComplete="off"
+          placeholder="Search by student name or admission number..."
+          className="h-11 w-full rounded-lg border border-[var(--cls-border)] bg-white pl-10 pr-4 text-sm"
+          onChange={(e) => { setText(e.target.value); setOpen(true) }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={(e) => { if (e.key === "Escape") setOpen(false) }}
+        />
+      </div>
       {open && enabled ? (
         <div role="listbox" aria-label="Matching students" className="absolute z-20 mt-1 max-h-80 w-full overflow-y-auto rounded-xl border border-[var(--cls-border)] bg-white shadow-lg">
           {results.isError ? (

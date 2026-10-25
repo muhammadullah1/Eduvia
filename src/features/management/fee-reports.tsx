@@ -270,8 +270,16 @@ function SummaryCards({ summary }: { summary: [string, string | number][] }) {
   const methods = summary.filter(([label]) => methodOf(label))
   const others = summary.filter(([label]) => !methodOf(label))
   const methodTotal = methods.reduce((total, [, value]) => total + Math.round(Number(value || 0) * 100), 0) / 100
+  const totalCards = others.length + (methods.length ? 1 : 0)
+  const gridCols =
+    totalCards === 3
+      ? "grid-cols-1 sm:grid-cols-3"
+      : totalCards === 4
+        ? "grid-cols-2 lg:grid-cols-4"
+        : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-5"
+
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-label="Summary">
+    <div className={cn("grid gap-3", gridCols)} aria-label="Summary">
       {others.map(([label, value]) => (
         <div key={label} className={cardClass}>
           <p className="text-xs font-medium text-[var(--cls-muted)]">{label}</p>
@@ -279,19 +287,15 @@ function SummaryCards({ summary }: { summary: [string, string | number][] }) {
         </div>
       ))}
       {methods.length ? (
-        <div className={cn(cardClass, "col-span-2")} data-testid="summary-methods">
-          <div className="flex items-baseline justify-between gap-3">
-            <p className="text-xs font-medium text-[var(--cls-muted)]">Collections by method (PKR)</p>
-            <p className="text-sm font-semibold tabular-nums text-[var(--cls-ink)]">{money(methodTotal)}</p>
-          </div>
-          <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1.5 sm:grid-cols-4">
-            {methods.map(([label, value]) => (
-              <div key={label} className="min-w-0">
-                <dt className="truncate text-[11px] text-[var(--cls-muted)]">{methodOf(label)}</dt>
-                <dd className="text-sm font-semibold tabular-nums text-[var(--cls-ink)]">{money(value)}</dd>
-              </div>
-            ))}
-          </dl>
+        <div className={cardClass} data-testid="summary-methods">
+          <p className="text-xs font-medium text-[var(--cls-muted)]">Collections by method (PKR)</p>
+          <p className="mt-1 text-xl font-semibold tabular-nums text-[var(--cls-ink)]">{money(methodTotal)}</p>
+          <p
+            className="mt-1.5 truncate text-xs text-[var(--cls-muted)]"
+            title={methods.map(([label, value]) => `${methodOf(label)}: ${money(value)}`).join(", ")}
+          >
+            {methods.map(([label, value]) => `${methodOf(label)}: ${money(value)}`).join(" · ")}
+          </p>
         </div>
       ) : null}
     </div>

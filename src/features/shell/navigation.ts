@@ -85,7 +85,7 @@ const managementNav: { id: string; label: string; icon: Icon }[] = [
   { id: "student-attendance", label: "Attendance", icon: navIcons.attendance },
   { id: "exams", label: "Examinations", icon: navIcons.exams },
   { id: "fees", label: "Fee Management", icon: navIcons.fees },
-  { id: "collect-fee", label: "Collect Fee", icon: navIcons.fees },
+  { id: "collect-fee", label: "Collect Fee", icon: navIcons.collectFee },
   { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline },
   { id: "messages", label: "Communication", icon: MessageSquareText },
 ]

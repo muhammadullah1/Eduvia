@@ -88,7 +88,7 @@ describe("CollectFeePage", () => {
     expect(await screen.findByText("Total Students")).toBeTruthy()
     expect(screen.getByText("With Outstanding")).toBeTruthy()
     expect(screen.getByText("Today's Collection")).toBeTruthy()
-    expect(screen.getByText("Type at least 2 characters to search")).toBeTruthy()
+    expect(screen.getByPlaceholderText(/Search by student name/)).toBeTruthy()
   })
 
   it("accountant never sees a school-wide total", async () => {
