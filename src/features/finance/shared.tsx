@@ -45,12 +45,14 @@ export function CategoryChip({ category, label }: { category: string; label: str
 export function TotalTile({
   label,
   value,
+  hint,
   tone = "neutral",
   testId,
   icon: Icon,
 }: {
   label: string
   value: string
+  hint?: string
   tone?: "income" | "expense" | "neutral"
   testId?: string
   icon?: LucideIcon
@@ -72,17 +74,18 @@ export function TotalTile({
   return (
     <div
       data-testid={testId}
-      className="flex min-w-0 items-start gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.05)]"
+      className="flex min-w-0 min-h-[102px] items-start justify-between gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-5 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
     >
       <div className="min-w-0 flex-1">
         <p className="truncate text-xs font-medium text-[var(--cls-muted)]">{label}</p>
         <p className={cn("mt-1 truncate text-2xl font-semibold tracking-tight tabular-nums", valueColor)}>
           {value}
         </p>
+        {hint ? <p className="mt-1 truncate text-xs text-[var(--cls-muted)]">{hint}</p> : null}
       </div>
       {Icon ? (
-        <span aria-hidden className={cn("grid size-9 shrink-0 place-items-center rounded-lg", iconBg)}>
-          <Icon className="size-4" />
+        <span aria-hidden className={cn("grid size-10 shrink-0 place-items-center rounded-xl", iconBg)}>
+          <Icon className="size-5" />
         </span>
       ) : null}
     </div>

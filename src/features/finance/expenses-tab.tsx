@@ -107,9 +107,28 @@ export function ExpensesTab({
     <div className="flex min-w-0 flex-col gap-4" data-testid="finance-expenses">
       {totals ? (
         <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-          <TotalTile icon={Receipt} label={`Total Expenses (${label})`} value={pkrAmount(totals.total)} tone="expense" testId="expense-total" />
-          <TotalTile icon={Users} label="Staff" value={pkrAmount(totals.staff)} testId="expense-staff" />
-          <TotalTile icon={Wrench} label="Other" value={pkrAmount(totals.other)} testId="expense-other" />
+          <TotalTile
+            icon={Receipt}
+            label={`Total Expenses (${label})`}
+            value={pkrAmount(totals.total)}
+            hint={`${totals.entries} recorded expense entr${totals.entries === 1 ? "y" : "ies"}`}
+            tone="expense"
+            testId="expense-total"
+          />
+          <TotalTile
+            icon={Users}
+            label="Staff"
+            value={pkrAmount(totals.staff)}
+            hint="Salaries & disbursements"
+            testId="expense-staff"
+          />
+          <TotalTile
+            icon={Wrench}
+            label="Other"
+            value={pkrAmount(totals.other)}
+            hint="Utilities, supplies & repairs"
+            testId="expense-other"
+          />
         </div>
       ) : (
         <div>

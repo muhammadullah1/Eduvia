@@ -110,9 +110,26 @@ export function IncomeTab({
   return (
     <div className="flex min-w-0 flex-col gap-4" data-testid="finance-income">
       <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-3">
-        <TotalTile icon={Wallet} label={`Total Income (${label})`} value={data ? pkrAmount(data.totals.total) : "—"} tone="income" testId="income-total" />
-        <TotalTile icon={GraduationCap} label="Fee income" value={data ? pkrAmount(data.totals.fee) : "—"} />
-        <TotalTile icon={HandCoins} label="Other income" value={data ? pkrAmount(data.totals.other) : "—"} />
+        <TotalTile
+          icon={Wallet}
+          label={`Total Income (${label})`}
+          value={data ? pkrAmount(data.totals.total) : "—"}
+          hint={data ? `${data.totals.receipts} fee receipts · ${data.totals.entries} other` : "All collected revenue"}
+          tone="income"
+          testId="income-total"
+        />
+        <TotalTile
+          icon={GraduationCap}
+          label="Fee income"
+          value={data ? pkrAmount(data.totals.fee) : "—"}
+          hint={data ? `${data.totals.receipts} fee receipt${data.totals.receipts === 1 ? "" : "s"}` : "Tuition & fee receipts"}
+        />
+        <TotalTile
+          icon={HandCoins}
+          label="Other income"
+          value={data ? pkrAmount(data.totals.other) : "—"}
+          hint={data ? `${data.totals.entries} manual entr${data.totals.entries === 1 ? "y" : "ies"}` : "Donations, grants & misc"}
+        />
       </div>
       {!hideAddButton ? (
         <Button onClick={() => setSheet({ mode: "add" })} className="w-full sm:w-auto">

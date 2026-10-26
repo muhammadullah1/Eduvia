@@ -188,13 +188,15 @@ function Card({
     <div
       data-testid={testId}
       className={cn(
-        "min-w-0 rounded-xl border px-5 py-4",
+        "flex min-w-0 min-h-[102px] flex-col justify-between rounded-xl border px-5 py-4 shadow-[0_1px_2px_rgba(16,24,40,0.06)]",
         tone === "surplus" ? "border-emerald-200 bg-emerald-50" : tone === "deficit" ? "border-red-200 bg-red-50" : "border-[var(--cls-border)] bg-white"
       )}
     >
-      <p className="text-xs font-medium tracking-wide text-[var(--cls-muted)]">{label}</p>
-      <p className={cn("mt-1 truncate text-2xl font-semibold tabular-nums", tone === "expense" || tone === "deficit" ? "text-red-700" : "text-emerald-800")}>{value}</p>
-      <div className="mt-0.5 text-xs text-[var(--cls-muted)]">{sub}</div>
+      <div>
+        <p className="text-xs font-medium tracking-wide text-[var(--cls-muted)]">{label}</p>
+        <p className={cn("mt-1 truncate text-2xl font-semibold tabular-nums", tone === "expense" || tone === "deficit" ? "text-red-700" : "text-emerald-800")}>{value}</p>
+      </div>
+      <div className="mt-1 text-xs text-[var(--cls-muted)]">{sub}</div>
     </div>
   )
 }

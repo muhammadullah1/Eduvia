@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query"
 import { BarChart3, Play, Printer } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
 import feeReportsService, {
@@ -119,19 +119,29 @@ export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
 
   function selectKind(next: FeeReportKind) {
     setKind(next)
-    if (next === "outstanding" || next === "advance") {
-      setActiveSubtab(next)
-    } else {
-      setActiveSubtab(effectiveTab)
-    }
+    setActiveSubtab(next)
     // Daily opens on today's receipts (as in Figma); the others wait for Generate Report.
     setApplied(next === "daily" ? { kind: next, filters: { from, to, classId } } : null)
   }
   function selectTab(value: string) {
-    setActiveSubtab(value)
     const next = tabs.find((t) => t.value === value)
-    if (next) selectKind(next.kinds[0])
+    if (!next) return
+    const nextKind =
+      value === "outstanding-advance"
+        ? (kind === "advance" ? "advance" : "outstanding")
+        : next.kinds[0]
+    selectKind(nextKind)
   }
+  useEffect(() => {
+    if (activeSubtab === "outstanding" || activeSubtab === "advance") {
+      setKind(activeSubtab as FeeReportKind)
+    } else {
+      const match = tabs.find((t) => t.value === activeSubtab)
+      if (match && match.kinds[0]) {
+        setKind(match.kinds[0])
+      }
+    }
+  }, [activeSubtab, tabs])
   const generate = () => {
     if (!rangeError) setApplied({ kind, filters })
   }
