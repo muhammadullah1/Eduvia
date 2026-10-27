@@ -236,7 +236,8 @@ describe("LocationsPanel modal and actions", () => {
     expect(await screen.findByRole("dialog")).toBeTruthy()
     expect(screen.getByRole("heading", { name: "Edit Room" })).toBeTruthy()
     expect(screen.getByDisplayValue("Room 101")).toBeTruthy()
-    expect(screen.getByDisplayValue("R-101")).toBeTruthy()
+    expect(screen.getByDisplayValue("30")).toBeTruthy()
+    expect(screen.queryByDisplayValue("R-101")).toBeNull()
   })
 })
 

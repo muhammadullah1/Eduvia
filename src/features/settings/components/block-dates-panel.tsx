@@ -21,6 +21,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { getToday } from "@/lib/dates"
 import { cn } from "@/lib/utils"
 import { toast } from "@/lib/toast"
 
@@ -177,7 +178,7 @@ export function BlockDatesPanel() {
         </div>
 
         <div className="overflow-hidden rounded-2xl">
-          <div className="grid grid-cols-7 gap-1 rounded-t-xl bg-[color-mix(in_srgb,var(--primary-color)_8%,white)] px-0.5 py-1">
+          <div className="grid grid-cols-7 gap-2 rounded-t-xl bg-[color-mix(in_srgb,var(--primary-color)_8%,white)] px-0.5 py-1">
             {WEEKDAYS.map((day) => (
               <div
                 key={day}
@@ -187,7 +188,7 @@ export function BlockDatesPanel() {
               </div>
             ))}
           </div>
-          <div className="mt-2.5 grid grid-cols-7 gap-1">
+          <div className="mt-2.5 grid grid-cols-7 gap-2">
             {cells.map((day, index) => {
               if (day == null) {
                 return (
@@ -201,26 +202,35 @@ export function BlockDatesPanel() {
               const iso = toIso(year, month, day)
               const blocked = rows.some((row) => coversDay(row, iso))
               const selected = selectedIso === iso
+              const isToday = iso === getToday()
               return (
                 <button
                   key={iso}
                   type="button"
                   onClick={() => onDayClick(day)}
+                  aria-current={isToday ? "date" : undefined}
                   title={
                     blocked
                       ? rows.find((row) => coversDay(row, iso))?.name
-                      : "Add block date"
+                      : isToday
+                        ? "Today"
+                        : "Add block date"
                   }
                   className={cn(
-                    "flex h-11 items-center justify-center rounded-lg text-base transition-colors sm:h-[45px]",
-                    blocked
-                      ? "bg-[var(--error-light)] font-medium text-[#A90523]"
-                      : "bg-[#F9FAFB] text-[#374151] hover:bg-[var(--secondary-color)]",
-                    selected &&
-                      "ring-2 ring-[var(--primary-color)] ring-offset-1"
+                    "flex h-11 items-center justify-center rounded-lg border-2 border-transparent text-base transition-colors sm:h-[45px]",
+                    blocked &&
+                      "bg-[var(--error-light)] font-medium text-[#A90523]",
+                    !blocked &&
+                      isToday &&
+                      "bg-[var(--secondary-color)] font-semibold text-[var(--primary-color)]",
+                    !blocked &&
+                      !isToday &&
+                      "bg-[#F9FAFB] text-[#374151] hover:bg-[var(--secondary-color)]",
+                    selected && "border-[var(--primary-color)]"
                   )}
                 >
                   {day}
+                  {isToday ? <span className="sr-only">Today</span> : null}
                 </button>
               )
             })}

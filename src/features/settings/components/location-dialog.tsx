@@ -24,17 +24,6 @@ import {
 } from "@/components/ui/select"
 import { toast } from "@/lib/toast"
 
-const LOCATION_TYPES = [
-  "classroom",
-  "lab",
-  "auditorium",
-  "gym",
-  "library",
-  "playground",
-  "online",
-  "other",
-] as const
-
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback
 }
@@ -56,8 +45,6 @@ export function LocationDialog({
 }) {
   const [sessionId, setSessionId] = useState(activeSessionId)
   const [name, setName] = useState("")
-  const [locationCode, setLocationCode] = useState("")
-  const [locationType, setLocationType] = useState<string>("classroom")
   const [capacity, setCapacity] = useState("30")
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -65,14 +52,10 @@ export function LocationDialog({
     if (locationToEdit) {
       setSessionId(String(locationToEdit.fkSessionId))
       setName(locationToEdit.name)
-      setLocationCode(locationToEdit.locationCode ?? "")
-      setLocationType(locationToEdit.locationType ?? "classroom")
       setCapacity(String(locationToEdit.capacity ?? 30))
     } else {
       setSessionId(activeSessionId)
       setName("")
-      setLocationCode("")
-      setLocationType("classroom")
       setCapacity("30")
     }
     setFormError(null)
@@ -80,13 +63,13 @@ export function LocationDialog({
 
   const mutation = useMutation({
     mutationFn: () => {
-      if (!name.trim()) throw new Error("Location name is required.")
+      if (!name.trim()) throw new Error("Room name is required.")
       if (!sessionId) throw new Error("Session is required.")
       const body = {
         name: name.trim(),
         fkSessionId: Number(sessionId),
-        locationCode: locationCode.trim() || null,
-        locationType,
+        locationCode: locationToEdit?.locationCode ?? null,
+        locationType: locationToEdit?.locationType ?? "classroom",
         capacity: Number(capacity) || 30,
       }
       if (locationToEdit) {
@@ -95,12 +78,12 @@ export function LocationDialog({
       return schoolCatalogService.createLocation(body)
     },
     onSuccess: () => {
-      toast.success(locationToEdit ? "Location updated" : "Location saved")
+      toast.success(locationToEdit ? "Room updated" : "Room saved")
       onOpenChange(false)
       onSuccess()
     },
     onError: (err) => {
-      const msg = errorMessage(err, "Could not save location.")
+      const msg = errorMessage(err, "Could not save room.")
       setFormError(msg)
       toast.error(msg)
     },
@@ -124,23 +107,23 @@ export function LocationDialog({
               {locationToEdit ? "Edit Room" : "Add New Room"}
             </DialogTitle>
             <DialogDescription className="sr-only">
-              Classroom, laboratory, auditorium, or facility for class timetables.
+              Add or update a room for class timetables.
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex flex-col gap-5 px-6 py-5">
+          <div className="flex flex-col gap-4 px-6 py-5">
             {formError ? (
               <div className="rounded-lg border border-destructive/20 bg-destructive/10 p-3 text-xs text-destructive">
                 {formError}
               </div>
             ) : null}
 
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-[var(--heading)]">
                 Session
               </Label>
               <Select value={sessionId} onValueChange={setSessionId}>
-                <SelectTrigger className="h-12 rounded-[10px] bg-white px-4">
+                <SelectTrigger className="h-10 bg-white">
                   <SelectValue placeholder="Choose a session" />
                 </SelectTrigger>
                 <SelectContent>
@@ -153,7 +136,7 @@ export function LocationDialog({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-[var(--heading)]">
                 Room Name
               </Label>
@@ -164,52 +147,20 @@ export function LocationDialog({
                   if (formError) setFormError(null)
                 }}
                 placeholder="e.g. Room 101, Science Lab A"
-                className="h-12 rounded-[10px] px-4"
                 required
               />
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex flex-col gap-3">
-                <Label className="text-sm font-medium text-[var(--heading)]">
-                  Location Code
-                </Label>
-                <Input
-                  value={locationCode}
-                  onChange={(e) => setLocationCode(e.target.value)}
-                  placeholder="e.g. R-101"
-                  className="h-12 rounded-[10px] px-4"
-                />
-              </div>
-              <div className="flex flex-col gap-3">
-                <Label className="text-sm font-medium text-[var(--heading)]">
-                  Capacity
-                </Label>
-                <Input
-                  inputMode="numeric"
-                  value={capacity}
-                  onChange={(e) => setCapacity(e.target.value.replace(/\D/g, ""))}
-                  placeholder="30"
-                  className="h-12 rounded-[10px] px-4"
-                  required
-                />
-              </div>
-            </div>
-            <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-2">
               <Label className="text-sm font-medium text-[var(--heading)]">
-                Location Type
+                Capacity
               </Label>
-              <Select value={locationType} onValueChange={setLocationType}>
-                <SelectTrigger className="h-12 rounded-[10px] px-4">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LOCATION_TYPES.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type.replaceAll("_", " ")}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                inputMode="numeric"
+                value={capacity}
+                onChange={(e) => setCapacity(e.target.value.replace(/\D/g, ""))}
+                placeholder="30"
+                required
+              />
             </div>
           </div>
 
