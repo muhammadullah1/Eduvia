@@ -112,50 +112,25 @@ export function isMonthPaid(months: FeeMonth[], month: string) {
   return Boolean(row) && outstanding(row as FeeMonth) === 0
 }
 
-export const MAX_ADVANCE_MONTHS = 12
-
 /**
- * Applies a payment to one student's ledger: oldest unpaid month first, then
- * money beyond what is owed pre-pays upcoming months (Advance) up to
- * MAX_ADVANCE_MONTHS. Returns the student's updated months and the lines written.
+ * Applies a payment to one student's ledger: oldest unpaid month first, up to the
+ * months already billed. Money beyond what is owed is returned as `leftover` and
+ * becomes student credit; future months are never created or pre-paid here
+ * (same rule as the server allocator used by counter payments and offline sync).
  */
 export function allocateOldestFirst(
   ledger: FeeMonth[],
   input: {
     studentId: string
     amount: number
-    monthlyFee: number
+    /** Kept for callers; no longer used because future months are not billed here. */
+    monthlyFee?: number
     currentMonth: string
-    newId: (month: string) => string
+    newId?: (month: string) => string
   }
 ) {
-  let months = [...ledger].sort((a, b) => a.month.localeCompare(b.month))
-  let plan = planOldestFirst(months, input.amount)
-  let horizon = months.length
-    ? months[months.length - 1].month
-    : addMonths(input.currentMonth, -1)
-  for (
-    let i = 0;
-    plan.leftover > 0 &&
-    horizon < addMonths(input.currentMonth, MAX_ADVANCE_MONTHS) &&
-    i < MAX_ADVANCE_MONTHS;
-    i += 1
-  ) {
-    horizon = addMonths(horizon, 1)
-    months = [
-      ...months,
-      {
-        id: input.newId(horizon),
-        studentId: input.studentId,
-        month: horizon,
-        feeType: "Tuition",
-        amountDue: input.monthlyFee,
-        amountPaid: 0,
-        dueDate: `${horizon}-10`,
-      },
-    ]
-    plan = planOldestFirst(months, input.amount)
-  }
+  const months = [...ledger].sort((a, b) => a.month.localeCompare(b.month))
+  const plan = planOldestFirst(months, input.amount)
   return {
     months: applyLines(months, plan.lines),
     lines: plan.lines,

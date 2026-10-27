@@ -13,15 +13,16 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
+import type { Role } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 import { navigation } from "./navigation"
 import {
   folderContainsSection,
   type NavFolder,
+  type NavLink,
   type NavNode,
 } from "./navigation-menu-tree"
-import type { Role } from "@/lib/auth"
 
 const linkButtonClass =
   "h-9 rounded-md px-3.5 text-[12.25px] font-normal text-sidebar-foreground hover:bg-white/10 hover:text-white data-[active=true]:bg-white/15 data-[active=true]:text-white"
@@ -33,7 +34,7 @@ type Props = {
   role: Role
   nodes: NavNode[]
   active: string
-  onNavigate: (id: string) => void
+  onNavigate: (id: string, panel?: string) => void
 }
 
 export function SidebarNavTree({ role, nodes, active, onNavigate }: Props) {
@@ -49,7 +50,7 @@ export function SidebarNavTree({ role, nodes, active, onNavigate }: Props) {
           return (
             <NavLinkItem
               key={node.id}
-              sectionId={node.id}
+              link={node}
               active={active}
               itemsById={itemsById}
               onNavigate={onNavigate}
@@ -72,22 +73,32 @@ export function SidebarNavTree({ role, nodes, active, onNavigate }: Props) {
 }
 
 function NavLinkItem({
-  sectionId,
+  link,
   active,
   itemsById,
   onNavigate,
   nested,
 }: {
-  sectionId: string
+  link: NavLink
   active: string
   itemsById: Map<string, (typeof navigation)[Role][number]>
-  onNavigate: (id: string) => void
+  onNavigate: (id: string, panel?: string) => void
   nested: boolean
 }) {
-  const item = itemsById.get(sectionId)
-  if (!item) return null
-  const Icon = item.icon
-  const selected = active === sectionId
+  const item = itemsById.get(link.id)
+  const label = link.label ?? item?.label ?? link.id
+  const Icon = link.icon ?? item?.icon
+  if (!Icon) return null
+
+  const selected = link.panel
+    ? active === `settings?panel=${link.panel}` || active === `settings:${link.panel}`
+    : link.id === "settings"
+    ? active === "settings" ||
+      active === "settings:general" ||
+      active === "settings?panel=general"
+    : active === link.id
+
+  const handleClick = () => onNavigate(link.id, link.panel)
 
   if (nested) {
     return (
@@ -106,9 +117,9 @@ function NavLinkItem({
             selected && "font-medium text-white"
           )}
         >
-          <button type="button" onClick={() => onNavigate(sectionId)}>
+          <button type="button" onClick={handleClick}>
             <Icon />
-            <span>{item.label}</span>
+            <span>{label}</span>
           </button>
         </SidebarMenuSubButton>
       </SidebarMenuSubItem>
@@ -126,11 +137,11 @@ function NavLinkItem({
       <SidebarMenuButton
         type="button"
         isActive={selected}
-        onClick={() => onNavigate(sectionId)}
+        onClick={handleClick}
         className={cn(linkButtonClass, selected && "pl-4")}
       >
         <Icon />
-        <span>{item.label}</span>
+        <span>{label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>
   )
@@ -145,9 +156,10 @@ function NavFolderBlock({
   folder: NavFolder
   active: string
   itemsById: Map<string, (typeof navigation)[Role][number]>
-  onNavigate: (id: string) => void
+  onNavigate: (id: string, panel?: string) => void
 }) {
-  const containsActive = folderContainsSection(folder, active)
+  const activeBase = active.split(":")[0].split("?")[0]
+  const containsActive = folderContainsSection(folder, activeBase)
   const [open, setOpen] = useState(
     Boolean(folder.defaultOpen) || containsActive
   )
@@ -177,10 +189,10 @@ function NavFolderBlock({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub className="mx-3.5 border-white/10 px-0 pb-1">
-            {folder.children.map((child) => (
+            {folder.children.map((child, idx) => (
               <NavLinkItem
-                key={child.id}
-                sectionId={child.id}
+                key={`${child.id}-${child.panel ?? idx}`}
+                link={child}
                 active={active}
                 itemsById={itemsById}
                 onNavigate={onNavigate}

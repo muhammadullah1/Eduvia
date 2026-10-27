@@ -295,14 +295,19 @@ export function ConfirmDialog({
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
-        <DialogFooter>
+        <DialogFooter className="mx-0 mb-0 flex flex-row items-center justify-end gap-3 rounded-none border-0 bg-transparent sm:justify-end">
           <Button variant="outline" onClick={onClose} disabled={confirming}>
             Cancel
           </Button>
           <Button
-            variant={destructive ? "destructive" : "default"}
+            variant="default"
             onClick={onConfirm}
             disabled={confirming}
+            className={
+              destructive
+                ? "bg-[var(--destructive)] hover:bg-[#B91C1C] focus-visible:ring-[var(--destructive)]/25"
+                : undefined
+            }
           >
             {confirming ? (
               <>

@@ -186,6 +186,7 @@ export function eventDetail(event: LifecycleEvent) {
   if (event.type === "StruckOff") {
     const parts = [event.reasonCategory, event.transferToSchool ? `to ${event.transferToSchool}` : null]
     if (event.outstandingAmount != null) parts.push(`dues ${event.outstandingAmount.toFixed(2)}`)
+    else if (event.hasOutstanding != null) parts.push(event.hasOutstanding ? "dues outstanding" : "no dues")
     return parts.filter(Boolean).join(" · ")
   }
   return event.reasonCategory ?? ""

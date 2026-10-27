@@ -358,10 +358,35 @@ export type DailyTestRules = {
 
 export type ResultFeeRule = "all_due_paid" | "exam_month_paid" | "disabled"
 
+export type FeeSettings = {
+  defaultMonthlyFee: number
+  dueDay: number
+  maxAdvanceMonths: number
+}
+
+export type AttendanceSettings = {
+  editWindowDays: number
+  lowThreshold: number
+}
+
+export type AdmissionSettings = {
+  prefix: string
+  digits: number
+}
+
+export type ResultVisibilitySettings = {
+  feeRule: ResultFeeRule
+  requireOverrideReason: boolean
+  rankTie?: "shared" | "dense"
+}
+
 /** Mirrors the API `school_settings` rows. */
 export type SchoolSettings = {
   dailyTestRules: DailyTestRules
-  resultVisibility: { feeRule: ResultFeeRule; requireOverrideReason: boolean }
+  resultVisibility: ResultVisibilitySettings
+  fees: FeeSettings
+  attendance: AttendanceSettings
+  admission: AdmissionSettings
 }
 
 export type SchoolUpdate = {
@@ -452,7 +477,24 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
     lowMarksMinPassed: 3,
     lowMarksBelowPercent: 55,
   },
-  resultVisibility: { feeRule: "all_due_paid", requireOverrideReason: true },
+  resultVisibility: {
+    feeRule: "all_due_paid",
+    requireOverrideReason: true,
+    rankTie: "shared",
+  },
+  fees: {
+    defaultMonthlyFee: 8500,
+    dueDay: 10,
+    maxAdvanceMonths: 12,
+  },
+  attendance: {
+    editWindowDays: 7,
+    lowThreshold: 75,
+  },
+  admission: {
+    prefix: "CLS",
+    digits: 4,
+  },
 }
 export { getToday } from "@/lib/dates"
 export const PAGE_SIZE = 8

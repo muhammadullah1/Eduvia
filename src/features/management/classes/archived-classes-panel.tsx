@@ -5,6 +5,7 @@ import classesService from "@/api/classes/classes.service"
 import { classDisplayName } from "@/api/classes/map-class"
 import { ConfirmDialog } from "@/components/app/kit"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
+import { SettingsSearchField } from "@/features/settings/components/settings-search-field"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { toast } from "@/lib/toast"
 
@@ -115,24 +116,34 @@ export function ArchivedClassesPanel({ embedded = false }: Props) {
           </button>
         </div>
       ) : (
-        <ClassesDataTable
-          rows={paginatedItems}
-          search={search}
-          onSearchChange={setSearch}
-          loading={sessionsLoading || isLoading}
-          searchActive={Boolean(needle)}
-          onClearSearch={() => setSearch("")}
-          archivedView
-          onRestore={(id) => {
-            const row = rows.find((r) => r.id === id)
-            setRestoreTarget({
-              id,
-              name: row ? classDisplayName(row) : id,
-            })
-          }}
-          restoringId={restoringId}
-          pagination={pagination}
-        />
+        <div className="flex flex-col gap-4">
+          {embedded ? (
+            <SettingsSearchField
+              value={search}
+              onChange={setSearch}
+              placeholder="Search classes"
+            />
+          ) : null}
+          <ClassesDataTable
+            rows={paginatedItems}
+            search={search}
+            onSearchChange={setSearch}
+            loading={sessionsLoading || isLoading}
+            searchActive={Boolean(needle)}
+            onClearSearch={() => setSearch("")}
+            archivedView
+            hideSearch={embedded}
+            onRestore={(id) => {
+              const row = rows.find((r) => r.id === id)
+              setRestoreTarget({
+                id,
+                name: row ? classDisplayName(row) : id,
+              })
+            }}
+            restoringId={restoringId}
+            pagination={pagination}
+          />
+        </div>
       )}
 
       <ConfirmDialog

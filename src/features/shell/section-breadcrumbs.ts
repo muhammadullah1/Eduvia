@@ -30,13 +30,33 @@ const GROUP_FOR_SECTION: Record<string, string> = {
   "offline-sync": "Finance",
   collect: "Finance",
   collections: "Finance",
+  "fee-structure": "Finance",
+  "fee-generation": "Finance",
   finance: "Finance",
+  expenses: "Finance",
   reports: "Reports",
+  "audit-log": "Reports",
   settings: "Settings",
+  "settings-academic": "Settings",
+  "settings-calendar": "Settings",
+  "settings-rooms": "Settings",
+  "settings-archives": "Settings",
+  "settings-roles": "Settings",
   messages: "Communication",
 }
 
-export function breadcrumbsForSection(section: string, role: Role) {
+export function breadcrumbsForSection(
+  section: string,
+  role: Role,
+  panel?: string | null
+) {
+  if (section === "settings") {
+    if (panel === "calendar") return ["Settings", "Calendar & Holidays"]
+    if (panel === "rooms") return ["Settings", "Rooms & Locations"]
+    if (panel === "archives") return ["Settings", "Archives"]
+    if (panel === "roles") return ["Settings", "Roles & Permissions"]
+    return ["Settings", "General & Rules"]
+  }
   const group = GROUP_FOR_SECTION[section]
   const page = navigationLabelForSection(section, role)
   if (section === "dashboard" && role === "operations_manager") {

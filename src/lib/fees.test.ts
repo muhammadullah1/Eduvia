@@ -111,8 +111,8 @@ describe("fees domain logic", () => {
     expect(isPaidThrough(sampleMonths, "2026-10")).toBe(false)
   })
 
-  it("allocates oldest first and generates advance months when excess exists", () => {
-    // std-1 owes 3000 (09) + 5000 (10) = 8000. Payment is 13000 (+5000 for advance 11)
+  it("allocates oldest first and turns overpayment into credit, never pre-paying future months", () => {
+    // std-1 owes 3000 (09) + 5000 (10) = 8000. Payment is 13000: 5000 is left over as credit.
     const result = allocateOldestFirst(sampleMonths, {
       studentId: "std-1",
       amount: 13000,
@@ -121,22 +121,22 @@ describe("fees domain logic", () => {
       newId: (m) => `fm-${m}`,
     })
 
-    expect(result.leftover).toBe(0)
-    expect(result.lines).toHaveLength(3)
-    expect(result.lines[0]).toEqual({
-      feeMonthId: "fm-2",
-      month: "2026-09",
-      amount: 3000,
-    })
-    expect(result.lines[1]).toEqual({
-      feeMonthId: "fm-3",
-      month: "2026-10",
-      amount: 5000,
-    })
-    expect(result.lines[2]).toEqual({
-      feeMonthId: "fm-2026-11",
-      month: "2026-11",
-      amount: 5000,
-    })
+    expect(result.lines).toEqual([
+      { feeMonthId: "fm-2", month: "2026-09", amount: 3000 },
+      { feeMonthId: "fm-3", month: "2026-10", amount: 5000 },
+    ])
+    expect(result.leftover).toBe(5000)
+    // no month was created beyond what was billed
+    expect(result.months.map((m) => m.id).sort()).toEqual(sampleMonths.map((m) => m.id).sort())
+    expect(result.months.some((m) => m.month > "2026-10")).toBe(false)
+    expect(result.months.every((m) => m.amountPaid <= m.amountDue)).toBe(true)
+  })
+
+  it("puts the whole payment to credit when nothing is owed", () => {
+    const paidUp = sampleMonths.map((m) => ({ ...m, amountPaid: m.amountDue }))
+    const result = allocateOldestFirst(paidUp, { studentId: "std-1", amount: 2500, currentMonth: "2026-10" })
+    expect(result.lines).toEqual([])
+    expect(result.leftover).toBe(2500)
+    expect(result.months).toHaveLength(paidUp.length)
   })
 })

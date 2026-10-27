@@ -1,10 +1,13 @@
 import type {
   AbsenceStatus,
+  AdmissionSettings,
+  AttendanceSettings,
   AttendanceStatus,
   DailyTestRules,
   DocumentStatus,
+  FeeSettings,
   PaymentStatus,
-  ResultFeeRule,
+  ResultVisibilitySettings,
   ReviewStatus,
   SheetStatus,
   StudentStatus,
@@ -428,11 +431,10 @@ export type ApiDailyTest = {
 
 export type ApiSettings = {
   dailyTestRules?: DailyTestRules
-  resultVisibility?: {
-    feeRule: ResultFeeRule
-    requireOverrideReason: boolean
-  }
-  fees?: Record<string, unknown>
+  resultVisibility?: ResultVisibilitySettings
+  fees?: FeeSettings
+  attendance?: AttendanceSettings
+  admission?: AdmissionSettings
 }
 
 export type ApiUpdate = {

@@ -1,7 +1,9 @@
+import { useQuery } from "@tanstack/react-query"
 import { ShieldAlert } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import examsService from "@/api/exams/exams.service"
 import { ClsEmpty, clsHeadRowClass, ClsPanel, ClsPanelHeader, clsRowClass, ClsTh } from "@/components/app/cls-panel"
 import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
@@ -19,7 +21,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components
 import { Textarea } from "@/components/ui/textarea"
 import { studentName, useSchool } from "@/data/store"
 import { FEE_RULE_LABELS } from "@/features/ops/fee-rule-labels"
-import { activeOverride, feeCleared, resultVisibility } from "@/lib/academics"
+import { activeOverride, resultVisibility } from "@/lib/academics"
 import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
@@ -48,6 +50,14 @@ export function ResultVisibilityPanel() {
   const studentIds = [...new Set(sheets.flatMap((sheet) => sheet.rows.map((row) => row.studentId)))]
   const today = getToday()
   const context = { feeMonths: state.feeMonths, overrides: state.resultOverrides, rule, today }
+  // Fee status comes from the API as a yes/no flag (the Operations Manager has no fee
+  // months to work it out from, and must never receive amounts).
+  const gateQuery = useQuery({
+    queryKey: ["exam-gate", examId],
+    queryFn: () => examsService.gateStatus(Number(examId)),
+    enabled: /^\d+$/.test(examId),
+  })
+  const gate = new Map((gateQuery.data?.rows ?? []).map((row) => [String(row.student.id), row]))
   const reasonError = reason.trim().length < MIN_REASON ? `Give a reason of at least ${MIN_REASON} characters.` : null
 
   function close() {
@@ -115,7 +125,7 @@ export function ResultVisibilityPanel() {
                 <ClsTh className="w-[20%]">Student</ClsTh>
                 <ClsTh className="w-[14%]">Class</ClsTh>
                 <ClsTh className="w-[10%]">Published</ClsTh>
-                <ClsTh className="w-[10%]">Fee rule</ClsTh>
+                <ClsTh className="w-[10%]">Fees cleared</ClsTh>
                 <ClsTh>Override</ClsTh>
                 <ClsTh className="w-[12%]">Parent sees</ClsTh>
                 <ClsTh className="w-[110px]" />
@@ -125,9 +135,11 @@ export function ResultVisibilityPanel() {
               {studentIds.map((studentId) => {
                 const own = sheets.filter((sheet) => sheet.rows.some((row) => row.studentId === studentId))
                 const published = own.filter((sheet) => sheet.status === "Published")
-                const cleared = feeCleared(state.feeMonths, studentId, exam?.feeMonth, rule, today)
+                const cleared = gate.get(studentId)?.feeCleared
                 const override = activeOverride(state.resultOverrides, examId, studentId)
-                const visible = published.some((sheet) => resultVisibility(sheet, studentId, context).visible)
+                const visible =
+                  gate.get(studentId)?.visibleToParent ??
+                  published.some((sheet) => resultVisibility(sheet, studentId, context).visible)
                 return (
                   <TableRow key={studentId} className={clsRowClass}>
                     <TableCell className="truncate text-sm font-medium text-[var(--cls-ink)]">
@@ -140,9 +152,13 @@ export function ResultVisibilityPanel() {
                       {published.length}/{own.length}
                     </TableCell>
                     <TableCell>
-                      <StatusChip tone={cleared ? "success" : "warning"} showDot>
-                        {cleared ? "Paid" : "Unpaid"}
-                      </StatusChip>
+                      {cleared == null ? (
+                        <StatusChip>{gateQuery.isLoading ? "Checking…" : "—"}</StatusChip>
+                      ) : (
+                        <StatusChip tone={cleared ? "success" : "warning"} showDot>
+                          {cleared ? "Cleared" : "Not cleared"}
+                        </StatusChip>
+                      )}
                     </TableCell>
                     <TableCell className="text-xs whitespace-normal text-[var(--cls-muted)]">
                       {override ? (

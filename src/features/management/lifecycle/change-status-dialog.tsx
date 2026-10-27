@@ -231,15 +231,17 @@ function ChangeStatusBody({
                   <div
                     className={cn(
                       "flex items-start gap-2 rounded-lg border px-3 py-2.5 text-xs leading-5 sm:col-span-2",
-                      info.outstanding > 0
+                      info.hasOutstanding
                         ? "border-amber-200 bg-amber-50 text-amber-900"
                         : "border-emerald-200 bg-emerald-50 text-emerald-900"
                     )}
                   >
                     <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
                     <p>
-                      {info.outstanding > 0
-                        ? `Outstanding fees of Rs ${money(info.outstanding)} are recorded with the strike-off. Monthly fees stop from here.`
+                      {info.hasOutstanding
+                        ? info.outstanding != null
+                          ? `Outstanding fees of Rs ${money(info.outstanding)} are recorded with the strike-off. Monthly fees stop from here.`
+                          : "This student has outstanding fees; they are recorded with the strike-off. Monthly fees stop from here."
                         : "No outstanding fees. Monthly fees stop from here."}
                     </p>
                   </div>

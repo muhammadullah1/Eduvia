@@ -40,7 +40,13 @@ export function lifecycleToCsv(events: LifecycleEvent[]) {
     event.reason,
     event.finalResult,
     event.academicStatus,
-    event.outstandingAmount == null ? "" : event.outstandingAmount.toFixed(2),
+    event.outstandingAmount != null
+      ? event.outstandingAmount.toFixed(2)
+      : event.hasOutstanding == null
+        ? ""
+        : event.hasOutstanding
+          ? "Yes"
+          : "No",
     event.transferToSchool,
     event.graduationOverride ? "Yes" : "",
     event.recordedBy,

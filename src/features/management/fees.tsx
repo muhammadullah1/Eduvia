@@ -1,16 +1,15 @@
-import { CloudUpload, Download, FileSpreadsheet, Plus } from "lucide-react"
+import { CloudUpload, FileSpreadsheet, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { toast } from "sonner"
 
-import feeReportsService from "@/api/fees/fee-reports.service"
 import {
   EmptyState,
   Pager,
   SearchField,
   StatusBadge,
 } from "@/components/app/kit"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -30,11 +29,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
@@ -59,6 +56,7 @@ import {
 } from "@/features/fees/components"
 import { feeMonthsLabel } from "@/features/fees/receipts"
 import { useActor } from "@/lib/actor"
+import { portalPath } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
 import { formatDate, pkr } from "@/lib/format"
@@ -67,16 +65,13 @@ import { useClientTable } from "@/lib/use-client-table"
 import { chartConfig, monthsThroughToday, queryMatch } from "./shared"
 
 export function Fees({ query }: { query: string }) {
-  const { state, confirmPayment, importWorkbook } = useSchool()
+  const { state, confirmPayment } = useSchool()
   const actor = useActor()
+  const navigate = useNavigate()
   const [localQuery, setLocalQuery] = useState("")
   const [status, setStatus] = useState("all")
   const [payOpen, setPayOpen] = useState(false)
-  const [syncOpen, setSyncOpen] = useState(false)
   const [ledgerOf, setLedgerOf] = useState("")
-  const [fileName, setFileName] = useState("")
-  const [syncing, setSyncing] = useState(false)
-  const [report, setReport] = useState<string[]>([])
   const search = localQuery || query
   const rows = state.payments.filter(
     (payment) =>
@@ -151,35 +146,17 @@ export function Fees({ query }: { query: string }) {
             </div>
             <CardTitle className="mt-4">Offline fee desk</CardTitle>
             <CardDescription>
-              Upload the controlled workbook. Each row carries an idempotency
-              key, so re-imported rows are skipped and reported.
+              Download the template, fill it offline, then validate and import
+              it in Offline Sync. Receipts already in the system are skipped.
             </CardDescription>
           </CardHeader>
           <CardFooter className="gap-2">
             <Button
-              variant="outline"
               className="flex-1"
-              onClick={() => {
-                feeReportsService
-                  .importTemplate()
-                  .then((name) => toast.success(`Downloaded ${name}`))
-                  .catch((err: unknown) =>
-                    toast.error(err instanceof Error ? err.message : "Template download failed")
-                  )
-              }}
-            >
-              <Download data-icon="inline-start" />
-              Template
-            </Button>
-            <Button
-              className="flex-1"
-              onClick={() => {
-                setReport([])
-                setSyncOpen(true)
-              }}
+              onClick={() => navigate(portalPath(actor.role, "offline-sync"))}
             >
               <CloudUpload data-icon="inline-start" />
-              Upload
+              Open Offline Sync
             </Button>
           </CardFooter>
         </Card>
@@ -323,72 +300,6 @@ export function Fees({ query }: { query: string }) {
           <div className="max-h-[60vh] overflow-y-auto">
             <FeeMonthTable studentId={ledgerOf} />
           </div>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={syncOpen} onOpenChange={setSyncOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Synchronise offline fees</DialogTitle>
-            <DialogDescription>
-              Every row is validated. Duplicates stay out of the ledger.
-            </DialogDescription>
-          </DialogHeader>
-          <label className="flex min-h-36 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed bg-muted/40 p-6 text-center">
-            <CloudUpload className="size-5" />
-            <span className="mt-3 text-sm font-medium">
-              {fileName || "Choose .xlsx workbook"}
-            </span>
-            <Input
-              type="file"
-              accept=".xlsx,.xls"
-              className="sr-only"
-              onChange={(event) =>
-                setFileName(event.target.files?.[0]?.name ?? "")
-              }
-            />
-          </label>
-          {syncing ? (
-            <p className="text-sm text-muted-foreground">Validating rows…</p>
-          ) : null}
-          {report.length ? (
-            <Alert>
-              <AlertTitle>Import report</AlertTitle>
-              <AlertDescription>
-                <ul className="mt-2 list-disc pl-4">
-                  {report.map((line) => (
-                    <li key={line}>{line}</li>
-                  ))}
-                </ul>
-              </AlertDescription>
-            </Alert>
-          ) : null}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setSyncOpen(false)}>
-              Close
-            </Button>
-            <Button
-              disabled={syncing}
-              onClick={() => {
-                setSyncing(true)
-                window.setTimeout(() => {
-                  const result = importWorkbook(fileName, actor)
-                  setSyncing(false)
-                  if (typeof result === "string") toast.error(result)
-                  else {
-                    setReport([
-                      `${result.imported} imported`,
-                      `${result.skipped} skipped`,
-                      `${result.failed} failed`,
-                      ...result.notes,
-                    ])
-                    toast.success("Workbook processed")
-                  }
-                }, 700)
-              }}
-            >
-              Validate & import
-            </Button>
-          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

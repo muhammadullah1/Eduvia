@@ -4,7 +4,6 @@ import { useNavigate, useParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import { Field } from "@/components/app/kit"
-import { DatePicker } from "@/components/ui/date-picker"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,6 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import { DatePicker } from "@/components/ui/date-picker"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -35,13 +35,13 @@ import {
 import { Tabs, TabsContent } from "@/components/ui/tabs"
 import { useSchool } from "@/data/store"
 import { type Staff } from "@/data/types"
+import {
+  type AcademicFocusTab,
+  academicPortalSectionForTab,
+} from "@/features/shell/academic-section"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
-
-import {
-  academicPortalSectionForTab,
-  type AcademicFocusTab,
-} from "@/features/shell/academic-section"
+import { can } from "@/lib/permissions"
 
 import { AcademicSetupTimetablePanel } from "./academic-setup-timetable-panel"
 import { TeacherSubjectDialog } from "./teacher-subject-dialog"
@@ -271,18 +271,20 @@ export function AcademicSetup({
                 placeholder="8"
               />
             </Field>
-            <Field
-              label="Monthly fee (PKR)"
-              hint="Used when monthly fee records are generated."
-            >
-              <Input
-                value={classForm.monthlyFee}
-                onChange={(event) =>
-                  setClassForm({ ...classForm, monthlyFee: event.target.value })
-                }
-                placeholder="8500"
-              />
-            </Field>
+            {can(actor.role, "settings.fees") ? (
+              <Field
+                label="Monthly fee (PKR)"
+                hint="Used when monthly fee records are generated."
+              >
+                <Input
+                  value={classForm.monthlyFee}
+                  onChange={(event) =>
+                    setClassForm({ ...classForm, monthlyFee: event.target.value })
+                  }
+                  placeholder="8500"
+                />
+              </Field>
+            ) : null}
           </CardContent>
           <CardFooter>
             <Button

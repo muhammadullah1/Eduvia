@@ -19,7 +19,19 @@ export type LocationRow = {
   capacity: number
 }
 
+export type SchoolProfile = {
+  id: number
+  name: string
+  code: string
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  website?: string | null
+  status?: string | null
+}
+
 const schoolCatalogService = {
+  getCurrentSchool: () => api.get<SchoolProfile>("/schools/current"),
   listBlockDates: (params?: { search?: string; archived?: boolean }) =>
     api.get<BlockDateRow[]>("/settings/block-dates", {
       search: params?.search,
@@ -58,6 +70,16 @@ const schoolCatalogService = {
     capacity: number
     description?: string | null
   }) => api.post<LocationRow>("/settings/locations", body),
+  updateLocation: (
+    id: number,
+    body: {
+      name?: string
+      locationCode?: string | null
+      locationType?: string | null
+      capacity?: number
+      description?: string | null
+    }
+  ) => api.put<LocationRow>(`/settings/locations/${id}`, body),
   archiveLocation: (id: number) => api.delete<void>(`/settings/locations/${id}`),
   restoreLocation: (id: number) =>
     api.post<LocationRow>(`/settings/locations/${id}/restore`, {}),

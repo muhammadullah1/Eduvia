@@ -1,4 +1,5 @@
 import { StatusBadge } from "@/components/app/kit"
+import { Badge } from "@/components/ui/badge"
 import {
   Table,
   TableBody,
@@ -30,6 +31,7 @@ export function FeeMonthTable({ studentId }: { studentId: string }) {
       <TableHeader>
         <TableRow>
           <TableHead>Month</TableHead>
+          <TableHead>Fee type</TableHead>
           <TableHead>Due date</TableHead>
           <TableHead>Fee</TableHead>
           <TableHead>Paid</TableHead>
@@ -42,6 +44,11 @@ export function FeeMonthTable({ studentId }: { studentId: string }) {
           <TableRow key={month.id}>
             <TableCell className="font-medium">
               {monthLabel(month.month)}
+            </TableCell>
+            <TableCell>
+              <Badge variant="outline" className="text-xs">
+                {month.feeType || "Tuition"}
+              </Badge>
             </TableCell>
             <TableCell>{formatDate(month.dueDate)}</TableCell>
             <TableCell>{pkr(month.amountDue)}</TableCell>

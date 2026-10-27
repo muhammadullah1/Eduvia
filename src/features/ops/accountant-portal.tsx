@@ -12,23 +12,7 @@ import {
   ReportPanelMessage,
 } from "@/components/app/report-layout"
 import { Button } from "@/components/ui/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card"
 import { DatePicker } from "@/components/ui/date-picker"
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -37,13 +21,12 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { studentName, useSchool } from "@/data/store"
-import { type Payment } from "@/data/types"
-import {
-  FeeMonthTable,
-  PrintReceiptButton,
-  RecordPaymentForm,
-} from "@/features/fees/components"
+import { CollectFeePage } from "@/features/fees/collect"
+import { PrintReceiptButton } from "@/features/fees/components"
+import { OfflineSyncPage } from "@/features/fees/offline-sync"
 import { feeMonthsLabel } from "@/features/fees/receipts"
+import { AccountantExpensesPage } from "@/features/finance/finance-page"
+import { FeeStructurePage, MonthlyGenerationPage } from "@/features/management/screens"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useReportDownload } from "@/hooks/use-report-download"
 import { useActor } from "@/lib/actor"
@@ -66,137 +49,11 @@ const RECEIPT_COLUMNS = [
 /** Accountant portal: record payments and see only your own receipts. No totals anywhere. */
 export function AccountantPortal({ section }: { section: string }) {
   if (section === "collections") return <MyCollections />
-  return <CollectDesk />
-}
-
-function CollectDesk() {
-  const { state, confirmPayment } = useSchool()
-  const actor = useActor()
-  const [last, setLast] = useState<Payment | null>(null)
-  const [lookup, setLookup] = useState("")
-  const pending = state.payments.filter(
-    (payment) => payment.status === "Pending"
-  )
-  const current = last
-    ? (state.payments.find((payment) => payment.ref === last.ref) ?? last)
-    : null
-
-  return (
-    <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Record payment</CardTitle>
-          <CardDescription>
-            A receipt number is generated. The oldest unpaid month is always
-            cleared first.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RecordPaymentForm onRecorded={setLast} />
-        </CardContent>
-      </Card>
-      <div className="grid content-start gap-5">
-        {current ? (
-          <Card className="border-[var(--primary-color)]/20">
-            <CardHeader>
-              <CardTitle>Receipt {current.ref}</CardTitle>
-              <CardDescription>
-                {studentName(state.students, current.studentId)} ·{" "}
-                {current.studentId}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-1 text-sm">
-              <p>
-                Fee months:{" "}
-                <span className="font-medium">{feeMonthsLabel(current)}</span>
-              </p>
-              <p>
-                Amount received:{" "}
-                <span className="font-medium">{pkr(current.amount)}</span> ·{" "}
-                {current.method}
-              </p>
-              <p className="text-muted-foreground">
-                {formatDate(current.date)} · recorded by {current.recordedBy}
-              </p>
-            </CardContent>
-            <CardFooter>
-              <PrintReceiptButton payment={current} />
-            </CardFooter>
-          </Card>
-        ) : null}
-        <Card>
-          <CardHeader>
-            <CardTitle>Student fee status</CardTitle>
-            <CardDescription>
-              Month-by-month status before you collect.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            <Select value={lookup} onValueChange={setLookup}>
-              <SelectTrigger>
-                <SelectValue placeholder="Choose student" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {state.students
-                    .filter((student) => student.status === "Active")
-                    .map((student) => (
-                      <SelectItem key={student.id} value={student.id}>
-                        {student.name} · {student.id}
-                      </SelectItem>
-                    ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-            {lookup ? (
-              <div className="max-h-72 overflow-y-auto">
-                <FeeMonthTable studentId={lookup} />
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
-        {pending.length ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>Bank transfers to confirm</CardTitle>
-              <CardDescription>
-                Confirming allocates the transfer oldest month first.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2">
-              {pending.map((payment) => (
-                <div
-                  key={payment.ref}
-                  className="flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-sm"
-                >
-                  <div>
-                    <p className="font-medium">
-                      {studentName(state.students, payment.studentId)}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {payment.ref} · {formatDate(payment.date)} ·{" "}
-                      {pkr(payment.amount)}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const message = confirmPayment(payment.ref, actor)
-                      if (message) toast.error(message)
-                      else toast.success("Transfer confirmed")
-                    }}
-                  >
-                    Confirm
-                  </Button>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        ) : null}
-      </div>
-    </div>
-  )
+  if (section === "fee-structure") return <FeeStructurePage />
+  if (section === "fee-generation") return <MonthlyGenerationPage />
+  if (section === "expenses") return <AccountantExpensesPage />
+  if (section === "offline-sync") return <OfflineSyncPage />
+  return <CollectFeePage />
 }
 
 function MyCollections() {

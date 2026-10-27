@@ -45,6 +45,8 @@ type Props = {
   onRestore?: (id: string) => void
   restoringId?: string | null
   archivedView?: boolean
+  /** When true, the parent renders search (e.g. Settings archives). */
+  hideSearch?: boolean
   pagination?: PaginationWithHandlers
 }
 
@@ -70,23 +72,26 @@ export function ClassesDataTable({
   onRestore,
   restoringId = null,
   archivedView = false,
+  hideSearch = false,
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
 
   return (
     <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]">
-      <div className="border-b border-[var(--cls-border)] px-4 py-3">
-        <div className="relative w-full max-w-sm">
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" />
-          <Input
-            value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
-            placeholder="Search classes…"
-            className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
-          />
+      {hideSearch ? null : (
+        <div className="border-b border-[var(--cls-border)] px-4 py-3">
+          <div className="relative w-full max-w-sm">
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--cls-muted)]" />
+            <Input
+              value={search}
+              onChange={(event) => onSearchChange(event.target.value)}
+              placeholder="Search classes…"
+              className="border-[var(--cls-border)] bg-[var(--page-wash)] pl-9"
+            />
+          </div>
         </div>
-      </div>
+      )}
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
