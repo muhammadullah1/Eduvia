@@ -27,7 +27,7 @@ const PANEL_METADATA: Record<
   general: {
     title: "General & Rules",
     subtitle:
-      "School profile, academic policies, attendance windows, and admission numbering.",
+      "Manage school profile, academic policies, attendance, fees, and result rules.",
   },
   calendar: {
     title: "Calendar & Holidays",
@@ -100,9 +100,9 @@ export function SettingsPage({ section }: { section?: string }) {
 
       <div
         className={
-          panel === "calendar"
-            ? "rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.06)] sm:p-6 lg:p-7"
-            : "rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.06)] sm:p-6 lg:p-8"
+          panel === "general"
+            ? "overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white shadow-[0_1px_2px_rgba(16,24,40,0.06)]"
+            : "rounded-xl border border-[var(--cls-border)] bg-white p-5 shadow-[0_1px_2px_rgba(16,24,40,0.06)] sm:p-6 lg:p-7"
         }
       >
         {panel === "general" ? <SettingsGeneralRules /> : null}
