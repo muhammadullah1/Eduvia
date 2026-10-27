@@ -283,7 +283,7 @@ describe("SettingsPage panel navigation", () => {
     expect(screen.getByRole("heading", { name: "General & Rules" })).toBeTruthy()
     expect(
       screen.getByText(
-        "School profile, academic policies, attendance windows, and admission numbering."
+        "Manage school profile, academic policies, attendance, fees, and result rules."
       )
     ).toBeTruthy()
     expect(screen.getByText("Weekly test pass criteria")).toBeTruthy()
