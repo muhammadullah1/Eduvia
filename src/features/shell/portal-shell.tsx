@@ -1,6 +1,6 @@
 import { Bell, Search } from "lucide-react"
-import { type CSSProperties,useEffect, useMemo, useState } from "react"
-import { Navigate, useNavigate, useParams } from "react-router-dom"
+import { type CSSProperties, useEffect, useMemo, useState } from "react"
+import { Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -71,6 +71,19 @@ const LEGACY_SECTION_REDIRECT: Record<string, string> = {
   absences: "substitutes",
   "weekly-tests": "daily-test-schedule",
   "results-gate": "exams",
+  "settings-academic": "settings",
+  "settings-calendar": "settings",
+  "settings-rooms": "settings",
+  "settings-archives": "settings",
+  "settings-roles": "settings",
+}
+
+const LEGACY_SECTION_QUERY: Record<string, string> = {
+  "settings-calendar": "?panel=calendar",
+  "settings-rooms": "?panel=rooms",
+  "settings-archives": "?panel=archives",
+  "settings-roles": "?panel=roles",
+  "settings-academic": "",
 }
 
 /** Sub-path appended when a legacy section moved under another section. */
@@ -106,8 +119,21 @@ export function PortalShell() {
     void syncPortalForRoute(role, section)
   }, [role, section, syncPortalForRoute])
 
+  const [searchParams] = useSearchParams()
+  const activeSection = useMemo(() => {
+    if (section === "settings") {
+      const panel = searchParams.get("panel")
+      if (panel && panel !== "general") {
+        return `settings?panel=${panel}`
+      }
+    }
+    return section
+  }, [section, searchParams])
+
   const current =
-    navigation[role].find((item) => item.id === section) ?? navigation[role][0]
+    navigation[role].find((item) => item.id === activeSection) ??
+    navigation[role].find((item) => item.id === section) ??
+    navigation[role][0]
   const { data: sessionsFromApi = [] } = useSessionsList()
   const sessionLabel = useMemo(() => {
     const sessions =
@@ -164,17 +190,22 @@ export function PortalShell() {
     roleParam !== portalPath(role).split("/")[1] ||
     (sectionParam && legacyTarget)
   ) {
+    const query = sectionParam ? LEGACY_SECTION_QUERY[rawSection] : undefined
     return (
       <Navigate
-        to={portalPath(role, section, legacyTarget ? LEGACY_SECTION_REST[rawSection] : undefined)}
+        to={`${portalPath(role, section, legacyTarget ? LEGACY_SECTION_REST[rawSection] : undefined)}${query ?? ""}`}
         replace
       />
     )
   }
 
-  function openSection(id: string) {
+  function openSection(id: string, panel?: string) {
     setNotesOpen(false)
-    navigate(portalPath(role, id))
+    if (panel) {
+      navigate(`${portalPath(role, id)}?panel=${panel}`)
+    } else {
+      navigate(portalPath(role, id))
+    }
   }
 
   function logout() {
@@ -224,7 +255,9 @@ export function PortalShell() {
     if (section === "offline-sync") return <OfflineSyncPage />
     if (section === "finance") return <Finance />
     if (section === "messages") return <MessagesDesk />
-    if (section === "settings") return <SettingsPanel />
+    if (section === "settings") {
+      return <SettingsPanel section={section} />
+    }
     if (section === "reports") return <Reports />
     if (section === "audit-log" && can(role, "audit.view")) return <AuditLogPage />
     return <ManagementDashboard onOpen={openSection} />
@@ -236,6 +269,7 @@ export function PortalShell() {
           <PortalTopbar
             role={role}
             section={section}
+            panel={searchParams.get("panel")}
             userName={signedInName}
             initials={initials}
             sessionLabel={sessionLabel}
@@ -349,7 +383,7 @@ export function PortalShell() {
         className="min-h-svh bg-[var(--page-wash)]"
         style={{ "--sidebar-width": "240px" } as CSSProperties}
       >
-        <Sidebar role={role} active={section} onNavigate={openSection} />
+        <Sidebar role={role} active={activeSection} onNavigate={openSection} />
         {/* min-w-0: wide children (e.g. the admissions pipeline) scroll inside themselves instead of widening the page. */}
         <SidebarInset className="min-h-svh min-w-0 bg-[var(--page-wash)]">
           {shell}

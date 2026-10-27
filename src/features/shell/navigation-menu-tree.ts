@@ -1,8 +1,18 @@
+import { Archive, CalendarOff, DoorOpen, Shield } from "lucide-react"
+import type { ComponentType } from "react"
+
 import type { Role } from "@/lib/auth"
 
+import { navIcons } from "./nav-icons"
 import { navigation } from "./navigation"
 
-export type NavLink = { type: "link"; id: string }
+export type NavLink = {
+  type: "link"
+  id: string
+  panel?: string
+  label?: string
+  icon?: ComponentType<{ className?: string }>
+}
 
 export type NavFolder = {
   type: "folder"
@@ -59,13 +69,56 @@ const FINANCE_FOLDER: NavFolder = {
   ],
 }
 
+const SETTINGS_FOLDER: NavFolder = {
+  type: "folder",
+  key: "settings",
+  label: "Settings",
+  defaultOpen: false,
+  children: [
+    {
+      type: "link",
+      id: "settings",
+      label: "General & Rules",
+      icon: navIcons.settings,
+    },
+    {
+      type: "link",
+      id: "settings",
+      panel: "calendar",
+      label: "Calendar & Holidays",
+      icon: CalendarOff,
+    },
+    {
+      type: "link",
+      id: "settings",
+      panel: "rooms",
+      label: "Rooms & Locations",
+      icon: DoorOpen,
+    },
+    {
+      type: "link",
+      id: "settings",
+      panel: "archives",
+      label: "Archives",
+      icon: Archive,
+    },
+    {
+      type: "link",
+      id: "settings",
+      panel: "roles",
+      label: "Roles & Permissions",
+      icon: Shield,
+    },
+  ],
+}
+
 const SUPER_ADMIN_TREE: NavNode[] = [
   { type: "link", id: "dashboard" },
   ACADEMIC_FOLDER,
   STUDENT_FOLDER,
   FINANCE_FOLDER,
   { type: "link", id: "reports" },
-  { type: "link", id: "settings" },
+  SETTINGS_FOLDER,
 ]
 
 const OPERATIONS_TREE: NavNode[] = [
@@ -73,7 +126,7 @@ const OPERATIONS_TREE: NavNode[] = [
   ACADEMIC_FOLDER,
   STUDENT_FOLDER,
   { type: "link", id: "audit-log" },
-  { type: "link", id: "settings" },
+  SETTINGS_FOLDER,
 ]
 
 /** The accountant's simple sidebar: only the sections they are allowed to use. */

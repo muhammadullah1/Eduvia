@@ -13,6 +13,7 @@ import { breadcrumbsForSection } from "./section-breadcrumbs"
 type Props = {
   role: Role
   section: string
+  panel?: string | null
   userName: string
   initials: string
   sessionLabel: string
@@ -23,6 +24,7 @@ type Props = {
 export function PortalTopbar({
   role,
   section,
+  panel,
   userName,
   initials,
   sessionLabel,
@@ -30,8 +32,8 @@ export function PortalTopbar({
   onOpenSection,
 }: Props) {
   const crumbs = useMemo(
-    () => breadcrumbsForSection(section, role),
-    [section, role]
+    () => breadcrumbsForSection(section, role, panel),
+    [section, role, panel]
   )
   const [notifOpen, setNotifOpen] = useState(false)
 

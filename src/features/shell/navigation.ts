@@ -99,6 +99,15 @@ const legacyManagementNav: { id: string; label: string; icon: Icon }[] = [
   { id: "absences", label: "Substitutes", icon: navIcons.substitutes },
   { id: "weekly-tests", label: "Daily Test Schedule", icon: navIcons.dailyTests },
   { id: "results-gate", label: "Lifecycle", icon: navIcons.lifecycle },
+  { id: "settings-academic", label: "Settings", icon: navIcons.settings },
+  { id: "settings-calendar", label: "Settings", icon: navIcons.settings },
+  { id: "settings-rooms", label: "Settings", icon: navIcons.settings },
+  { id: "settings-archives", label: "Settings", icon: navIcons.settings },
+  { id: "settings-roles", label: "Settings", icon: navIcons.settings },
+]
+
+export const settingsNav: { id: string; label: string; icon: Icon }[] = [
+  { id: "settings", label: "Settings", icon: navIcons.settings },
 ]
 
 export const navigation: Record<
@@ -110,7 +119,7 @@ export const navigation: Record<
     ...managementNav,
     { id: "finance", label: "Finance", icon: navIcons.finance },
     { id: "reports", label: "Reports", icon: navIcons.reports },
-    { id: "settings", label: "Settings", icon: navIcons.settings },
+    ...settingsNav,
     ...legacyManagementNav,
   ],
   operations_manager: [
@@ -118,7 +127,7 @@ export const navigation: Record<
     ...managementNav.filter((item) =>
       !["fees", "collect-fee", "offline-sync", "finance"].includes(item.id)
     ),
-    { id: "settings", label: "Settings", icon: navIcons.settings },
+    ...settingsNav,
     // No Reports: every report there is fee data. Ops reads the audit trail only.
     { id: "audit-log", label: "Audit log", icon: navIcons.reports },
     ...legacyManagementNav,
@@ -197,7 +206,12 @@ export const subtitles: Record<string, string> = {
   fees: "Receipts, monthly fee status and offline synchronisation.",
   finance: "Income, expenses and the operating position.",
   messages: "Approve what families are allowed to see.",
-  settings: "Configurable pass criteria and the result fee rule.",
+  settings: "Configure school-wide policies, assessment criteria, and admission numbering.",
+  "settings-academic": "Academic structure, current session details, and catalog overview.",
+  "settings-calendar": "School closures, holidays, and calendar black-out dates.",
+  "settings-rooms": "School room directory, location codes, and room capacities.",
+  "settings-archives": "Review and restore soft-deleted records across all categories.",
+  "settings-roles": "Fixed role permissions matrix and system capabilities by role.",
   reports: "Printable insight and a traceable audit history.",
   "audit-log": "Sensitive actions recorded by the school system (read-only).",
   collect: "Record a payment; it clears the oldest unpaid month first.",

@@ -19,13 +19,13 @@ export function Sidebar({
 }: {
   role: Role
   active: string
-  onNavigate: (id: string) => void
+  onNavigate: (id: string, panel?: string) => void
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const tree = navigationMenuTreeForRole(role)
 
-  function navigate(id: string) {
-    onNavigate(id)
+  function navigate(id: string, panel?: string) {
+    onNavigate(id, panel)
     if (isMobile) {
       setOpenMobile(false)
     }
