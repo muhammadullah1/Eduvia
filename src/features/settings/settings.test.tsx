@@ -84,7 +84,7 @@ vi.mock("./hooks/use-archived-counts", () => ({
   useArchivedCounts: () => ({
     classes: 2,
     subjects: 1,
-    staff: 0,
+    users: 0,
     locations: 0,
     dates: 0,
     total: 3,

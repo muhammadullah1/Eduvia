@@ -23,7 +23,7 @@ export function useArchivedCounts() {
     queryKey: ["subjects", "archived"],
     queryFn: () => subjectsService.list({ archived: true }),
   })
-  const staffQuery = useQuery({
+  const usersQuery = useQuery({
     queryKey: ["users", "archived"],
     queryFn: () => usersService.list({ archived: true, pageSize: 200 }),
   })
@@ -38,16 +38,16 @@ export function useArchivedCounts() {
 
   const classesCount = classesQuery.data?.length ?? 0
   const subjectsCount = subjectsQuery.data?.length ?? 0
-  const staffCount = staffQuery.data?.users?.length ?? 0
+  const usersCount = usersQuery.data?.users?.length ?? 0
   const locationsCount = locationsQuery.data?.length ?? 0
   const datesCount = datesQuery.data?.length ?? 0
   const total =
-    classesCount + subjectsCount + staffCount + locationsCount + datesCount
+    classesCount + subjectsCount + usersCount + locationsCount + datesCount
 
   return {
     classes: classesCount,
     subjects: subjectsCount,
-    staff: staffCount,
+    users: usersCount,
     locations: locationsCount,
     dates: datesCount,
     total,
@@ -55,7 +55,7 @@ export function useArchivedCounts() {
       sessionsQuery.isLoading ||
       classesQuery.isLoading ||
       subjectsQuery.isLoading ||
-      staffQuery.isLoading ||
+      usersQuery.isLoading ||
       locationsQuery.isLoading ||
       datesQuery.isLoading,
   }

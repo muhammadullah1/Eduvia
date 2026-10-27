@@ -14,7 +14,7 @@ vi.mock("./hooks/use-archived-counts", () => ({
   useArchivedCounts: () => ({
     classes: 4,
     subjects: 2,
-    staff: 1,
+    users: 1,
     locations: 0,
     dates: 3,
     total: 10,
@@ -287,18 +287,11 @@ describe("ArchivesHub subtabs with live counts", () => {
   it("displays sub-tab pills with counts from backend data", () => {
     wrap(<ArchivesHub />)
 
-    expect(screen.getByRole("button", { name: /Classes/i })).toBeTruthy()
-    expect(screen.getByRole("button", { name: /Subjects/i })).toBeTruthy()
-    expect(screen.getByRole("button", { name: /Staff/i })).toBeTruthy()
-    expect(screen.getByRole("button", { name: /Locations/i })).toBeTruthy()
-    expect(screen.getByRole("button", { name: /Block dates/i })).toBeTruthy()
-
-    // Counts rendered in pills
-    expect(screen.getByText("4")).toBeTruthy()
-    expect(screen.getByText("2")).toBeTruthy()
-    expect(screen.getByText("1")).toBeTruthy()
-    expect(screen.getByText("0")).toBeTruthy()
-    expect(screen.getByText("3")).toBeTruthy()
+    expect(screen.getByRole("tab", { name: /Classes/i })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: /Subjects/i })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: /Users/i })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: /Locations/i })).toBeTruthy()
+    expect(screen.getByRole("tab", { name: /Block dates/i })).toBeTruthy()
   })
 
   it("switches archive panels on click", async () => {
@@ -306,7 +299,7 @@ describe("ArchivesHub subtabs with live counts", () => {
 
     expect(screen.getByTestId("archived-classes")).toBeTruthy()
 
-    fireEvent.click(screen.getByRole("button", { name: /Subjects/i }))
+    fireEvent.click(screen.getByRole("tab", { name: /Subjects/i }))
     expect(await screen.findByText("Physics")).toBeTruthy()
   })
 })

@@ -1,12 +1,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArchiveRestore, ChevronLeft, ChevronRight } from "lucide-react"
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 
 import schoolCatalogService from "@/api/settings/school-catalog.service"
 import subjectsService from "@/api/subjects/subjects.service"
 import usersService from "@/api/users/users.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import {
   Table,
   TableBody,
@@ -16,29 +23,37 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ArchivedClassesPanel } from "@/features/management/classes/archived-classes-panel"
+import { ALL_ROLES, type Role } from "@/lib/auth"
+import { ROLE_LABELS } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
-import { useArchivedCounts } from "../hooks/use-archived-counts"
 import { SettingsSearchField } from "./settings-search-field"
 
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error ? err.message : fallback
 }
 
-type ArchiveKind = "classes" | "subjects" | "staff" | "locations" | "dates"
+function roleLabel(role: string) {
+  return ROLE_LABELS[role as Role] ?? role
+}
+
+type ArchiveKind = "classes" | "subjects" | "users" | "locations" | "dates"
 
 const PAGE_SIZE = 10
+const USER_ROLE_FILTERS: { value: "all" | Role; label: string }[] = [
+  { value: "all", label: "All roles" },
+  ...ALL_ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] })),
+]
 
 export function ArchivesHub() {
   const [kind, setKind] = useState<ArchiveKind>("classes")
-  const counts = useArchivedCounts()
-  const tabs: { id: ArchiveKind; label: string; count: number }[] = [
-    { id: "classes", label: "Classes", count: counts.classes },
-    { id: "subjects", label: "Subjects", count: counts.subjects },
-    { id: "staff", label: "Staff", count: counts.staff },
-    { id: "locations", label: "Locations", count: counts.locations },
-    { id: "dates", label: "Block dates", count: counts.dates },
+  const tabs: { id: ArchiveKind; label: string }[] = [
+    { id: "classes", label: "Classes" },
+    { id: "subjects", label: "Subjects" },
+    { id: "users", label: "Users" },
+    { id: "locations", label: "Locations" },
+    { id: "dates", label: "Block dates" },
   ]
 
   return (
@@ -47,37 +62,36 @@ export function ArchivesHub() {
         <h2 className="text-base font-semibold text-[var(--heading)]">Archives</h2>
       </div>
 
-      <div className="inline-flex w-fit max-w-full flex-wrap gap-1 rounded-full bg-[color-mix(in_srgb,var(--primary-color)_8%,white)] p-1">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            onClick={() => setKind(tab.id)}
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors",
-              kind === tab.id
-                ? "bg-white text-[var(--heading)] shadow-sm"
-                : "text-[var(--cls-muted)] hover:text-[var(--heading)]"
-            )}
-          >
-            <span>{tab.label}</span>
-            <span
+      <div
+        role="tablist"
+        aria-label="Archive categories"
+        className="inline-flex w-fit max-w-full flex-wrap items-center gap-2.5 rounded-lg bg-[color-mix(in_srgb,var(--primary-color)_10%,white)] px-2 py-1.5"
+      >
+        {tabs.map((tab) => {
+          const active = kind === tab.id
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => setKind(tab.id)}
               className={cn(
-                "rounded-full px-1.5 py-0.5 text-[10px] font-semibold leading-none",
-                kind === tab.id
-                  ? "bg-[var(--secondary-color)] text-[var(--primary-color)]"
-                  : "bg-white/70 text-[var(--cls-muted)]"
+                "inline-flex items-center justify-center rounded-md px-4 text-sm transition-colors",
+                active
+                  ? "bg-white py-1.5 font-semibold text-[var(--primary-color)] shadow-sm"
+                  : "py-2 font-medium text-[#303030] hover:text-[var(--primary-color)]"
               )}
             >
-              {tab.count}
-            </span>
-          </button>
-        ))}
+              {tab.label}
+            </button>
+          )
+        })}
       </div>
 
       {kind === "classes" ? <ArchivedClassesPanel embedded /> : null}
       {kind === "subjects" ? <ArchivedSubjects /> : null}
-      {kind === "staff" ? <ArchivedStaff /> : null}
+      {kind === "users" ? <ArchivedUsers /> : null}
       {kind === "locations" ? <ArchivedLocations /> : null}
       {kind === "dates" ? <ArchivedBlockDates /> : null}
     </div>
@@ -116,10 +130,10 @@ function ArchivedSubjects() {
       searchPlaceholder="Search subjects"
       empty="No archived subjects."
       loading={query.isLoading}
-      category="Subject"
       rows={rows.map((row) => ({
         id: row.id,
         title: row.name,
+        category: "Subject",
         meta: row.code || "—",
       }))}
       onRestore={(id) => restore.mutate(id)}
@@ -127,9 +141,10 @@ function ArchivedSubjects() {
   )
 }
 
-function ArchivedStaff() {
+function ArchivedUsers() {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState("")
+  const [roleFilter, setRoleFilter] = useState<"all" | Role>("all")
   const query = useQuery({
     queryKey: ["users", "archived"],
     queryFn: () => usersService.list({ archived: true, pageSize: 200 }),
@@ -138,35 +153,58 @@ function ArchivedStaff() {
     mutationFn: (id: number) => usersService.restore(id),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["users"] })
-      toast.success("Staff restored")
+      toast.success("User restored")
     },
     onError: (err) =>
-      toast.error(errorMessage(err, "Could not restore staff.")),
+      toast.error(errorMessage(err, "Could not restore user.")),
   })
   const rows = useMemo(() => {
     const list = query.data?.users ?? []
     const needle = search.trim().toLowerCase()
-    if (!needle) return list
-    return list.filter((row) =>
-      [`${row.firstName} ${row.lastName}`, row.email, row.role]
+    return list.filter((row) => {
+      if (roleFilter !== "all" && row.role !== roleFilter) return false
+      if (!needle) return true
+      return [`${row.firstName} ${row.lastName}`, row.email, row.role, roleLabel(row.role)]
         .join(" ")
         .toLowerCase()
         .includes(needle)
-    )
-  }, [query.data, search])
+    })
+  }, [query.data, roleFilter, search])
 
   return (
     <ArchiveTable
+      key={roleFilter}
       search={search}
       onSearchChange={setSearch}
-      searchPlaceholder="Search staff"
-      empty="No archived staff."
+      searchPlaceholder="Search users"
+      empty={
+        roleFilter === "all"
+          ? "No archived users."
+          : `No archived ${ROLE_LABELS[roleFilter].toLowerCase()} users.`
+      }
       loading={query.isLoading}
-      category="Staff"
+      filter={
+        <Select
+          value={roleFilter}
+          onValueChange={(value) => setRoleFilter(value as "all" | Role)}
+        >
+          <SelectTrigger className="h-10 w-full rounded-xl bg-white sm:w-52" aria-label="Filter by role">
+            <SelectValue placeholder="All roles" />
+          </SelectTrigger>
+          <SelectContent>
+            {USER_ROLE_FILTERS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      }
       rows={rows.map((row) => ({
         id: row.id,
         title: `${row.firstName} ${row.lastName}`,
-        meta: `${row.email} · ${row.role}`,
+        category: roleLabel(row.role),
+        meta: row.email,
       }))}
       onRestore={(id) => restore.mutate(id)}
     />
@@ -200,10 +238,10 @@ function ArchivedLocations() {
       searchPlaceholder="Search rooms"
       empty="No archived rooms."
       loading={query.isLoading}
-      category="Location"
       rows={rows.map((row) => ({
         id: row.id,
         title: row.name,
+        category: "Location",
         meta: row.locationCode || row.locationType || "Location",
       }))}
       onRestore={(id) => {
@@ -248,10 +286,10 @@ function ArchivedBlockDates() {
       searchPlaceholder="Search dates"
       empty="No archived block dates."
       loading={query.isLoading}
-      category="Block date"
       rows={rows.map((row) => ({
         id: row.id,
         title: row.name,
+        category: "Block date",
         meta: `${row.startDate} – ${row.endDate}`,
       }))}
       onRestore={(id) => {
@@ -273,19 +311,19 @@ function ArchiveTable({
   rows,
   empty,
   loading,
-  category,
   search,
   onSearchChange,
   searchPlaceholder,
+  filter,
   onRestore,
 }: {
-  rows: { id: number; title: string; meta?: string }[]
+  rows: { id: number; title: string; category: string; meta?: string }[]
   empty: string
   loading?: boolean
-  category: string
   search: string
   onSearchChange: (value: string) => void
   searchPlaceholder: string
+  filter?: ReactNode
   onRestore: (id: number) => void
 }) {
   const [page, setPage] = useState(0)
@@ -300,14 +338,18 @@ function ArchiveTable({
 
   return (
     <div className="flex flex-col gap-4">
-      <SettingsSearchField
-        value={search}
-        onChange={(value) => {
-          onSearchChange(value)
-          setPage(0)
-        }}
-        placeholder={searchPlaceholder}
-      />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <SettingsSearchField
+          value={search}
+          onChange={(value) => {
+            onSearchChange(value)
+            setPage(0)
+          }}
+          placeholder={searchPlaceholder}
+          className="flex-1"
+        />
+        {filter}
+      </div>
 
       <div className="overflow-hidden rounded-xl border border-[var(--cls-border)] bg-white">
         <Table>
@@ -351,7 +393,7 @@ function ArchiveTable({
                 </TableCell>
                 <TableCell className="px-5 py-3.5">
                   <span className="inline-flex rounded-full border border-[var(--cls-border)] bg-[var(--page-wash)] px-2.5 py-0.5 text-[11px] font-medium text-[var(--heading)]">
-                    {category}
+                    {row.category}
                   </span>
                 </TableCell>
                 <TableCell className="px-5 py-3.5 text-xs text-[var(--cls-muted)]">
