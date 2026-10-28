@@ -195,7 +195,7 @@ export async function fetchPortalCore(): Promise<
       settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
     resultVisibility:
       settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
-    fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+    fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
     attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
     admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
   }
@@ -260,7 +260,7 @@ async function fetchRequestedCore(
         settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
       resultVisibility:
         settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
-      fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+      fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
       attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
       admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
     }
@@ -1031,7 +1031,7 @@ export async function fetchBackendState(
       settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
     resultVisibility:
       settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
-    fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+    fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
     attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
     admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
   }
