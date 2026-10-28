@@ -556,57 +556,88 @@ export function SettingsGeneralRules() {
         title="Fee billing & advance limits"
         description={
           canFees
-            ? "Default monthly fee, due day, and advance bounds."
+            ? "Due dates, advance collection, fallback tuition, and whether Approved concessions apply to new bills."
             : "Set by the super admin."
         }
         badge={
           canFees ? <DirtyBadge isDirty={isFeesDirty} /> : <SuperAdminOnlyBadge />
         }
       >
-        <div className="grid items-start gap-4 sm:grid-cols-3">
-          <SettingsField label="Default monthly fee (PKR)">
-            <Input
-              className={FIELD_CONTROL}
-              disabled={!canFees}
-              value={fees.defaultMonthlyFee}
-              onChange={numberFee("defaultMonthlyFee")}
-            />
-          </SettingsField>
-          <SettingsField label="Tuition due day" hint="Day of month (1–28)">
-            <Input
-              className={FIELD_CONTROL}
-              disabled={!canFees}
-              value={fees.dueDay}
-              onChange={numberFee("dueDay")}
-            />
-          </SettingsField>
-          <SettingsField label="Max advance months" hint="0–24">
-            <Input
-              className={FIELD_CONTROL}
-              disabled={!canFees}
-              value={fees.maxAdvanceMonths}
-              onChange={numberFee("maxAdvanceMonths")}
-            />
-          </SettingsField>
-        </div>
-        <div className="mt-4 flex items-start justify-between gap-4 rounded-lg border border-[var(--cls-border)] px-3 py-3">
-          <div>
-            <p className="text-sm font-medium text-[var(--cls-ink)]">Dynamic concessions</p>
-            <p className="text-xs text-[var(--cls-muted)]">
-              When on, Approved concessions drive new bills instead of the legacy fixed monthly fee field.
-              Existing bills never change. Discount % on the student record stays unused until separately approved.
-            </p>
+        <div className="space-y-4">
+          <div className="grid items-start gap-4 sm:grid-cols-3">
+            <SettingsField
+              label="Fallback monthly tuition (PKR)"
+              hint="Used only when a class has no Tuition fee structure row"
+            >
+              <Input
+                className={FIELD_CONTROL}
+                disabled={!canFees}
+                inputMode="decimal"
+                value={fees.defaultMonthlyFee}
+                onChange={numberFee("defaultMonthlyFee")}
+                aria-label="Fallback monthly tuition"
+              />
+            </SettingsField>
+            <SettingsField label="Tuition due day" hint="Day of each billed month (1–28)">
+              <Select
+                disabled={!canFees}
+                value={String(fees.dueDay)}
+                onValueChange={(value) =>
+                  setFees({ ...fees, dueDay: Number(value) })
+                }
+              >
+                <SelectTrigger className={FIELD_CONTROL} aria-label="Tuition due day">
+                  <SelectValue placeholder="Due day" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {Array.from({ length: 28 }, (_, index) => {
+                      const day = index + 1
+                      return (
+                        <SelectItem key={day} value={String(day)}>
+                          {day}
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </SettingsField>
+            <SettingsField label="Max advance months" hint="How far ahead parents may pay (0–24)">
+              <Input
+                className={FIELD_CONTROL}
+                disabled={!canFees}
+                inputMode="numeric"
+                value={fees.maxAdvanceMonths}
+                onChange={numberFee("maxAdvanceMonths")}
+                aria-label="Max advance months"
+              />
+            </SettingsField>
           </div>
-          <Switch
-            checked={Boolean(fees.concessionsEnabled)}
-            disabled={!canFees}
-            onCheckedChange={(checked) => setFees((prev) => ({ ...prev, concessionsEnabled: checked }))}
-            aria-label="Enable dynamic concessions"
+
+          <PreferenceRow
+            title="Dynamic concessions"
+            description="When on, Approved concessions drive new bills instead of the student fixed monthly fee. Existing bills never change. Manage concessions under Fee Management."
+            control={
+              <Switch
+                checked={fees.concessionsEnabled}
+                disabled={!canFees}
+                onCheckedChange={(checked) =>
+                  setFees({ ...fees, concessionsEnabled: checked })
+                }
+                aria-label="Enable dynamic concessions"
+              />
+            }
           />
+
+          <LockedNote>
+            Class fee amounts are managed under Fee Management → Fee Structure. Session lock
+            applies once the academic session has started.
+          </LockedNote>
+          {!canFees ? (
+            <LockedNote>Only Super Admins can modify fee billing policies.</LockedNote>
+          ) : null}
         </div>
-        {!canFees ? (
-          <LockedNote>Only Super Admins can modify fee billing policies.</LockedNote>
-        ) : null}
       </PolicySection>
 
       <PolicySection

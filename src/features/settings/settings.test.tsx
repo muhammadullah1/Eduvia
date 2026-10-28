@@ -186,6 +186,24 @@ describe("SettingsGeneralRules", () => {
           defaultMonthlyFee: 9000,
           dueDay: 10,
           maxAdvanceMonths: 12,
+          concessionsEnabled: false,
+        }),
+      }),
+      expect.objectContaining({ role: "super_admin" })
+    )
+  })
+
+  it("saves dynamic concessions toggle with fee settings", async () => {
+    wrap(<SettingsGeneralRules />)
+
+    fireEvent.click(screen.getByRole("switch", { name: "Enable dynamic concessions" }))
+    fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
+    await flush()
+
+    expect(mockUpdateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fees: expect.objectContaining({
+          concessionsEnabled: true,
         }),
       }),
       expect.objectContaining({ role: "super_admin" })
