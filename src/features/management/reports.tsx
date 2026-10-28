@@ -1,6 +1,8 @@
+import { useQuery } from "@tanstack/react-query"
 import { FileBarChart2, History } from "lucide-react"
-import { useMemo } from "react"
+import { useMemo, useState } from "react"
 
+import auditService from "@/api/audit/audit.service"
 import { FEE_REPORT_KINDS } from "@/api/fees/fee-reports.service"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { EmptyState } from "@/components/app/kit"
@@ -10,13 +12,30 @@ import {
   ReportPanelMessage,
 } from "@/components/app/report-layout"
 import { Badge } from "@/components/ui/badge"
-import { useSchool } from "@/data/store"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { FeeReportsPanel } from "@/features/management/fee-reports"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useActor } from "@/lib/actor"
 import { timeAgo } from "@/lib/format"
 import { can } from "@/lib/permissions"
 import { useUrlTab } from "@/lib/use-url-tab"
+
+/** Entity types supported by GET /audit-logs (API max limit 200). */
+const AUDIT_ENTITY_FILTERS = [
+  { value: "all", label: "All entities" },
+  { value: "school_setting", label: "Settings" },
+  { value: "school_update", label: "Notices" },
+  { value: "fee_payment", label: "Fee payments" },
+  { value: "student_fee_month", label: "Fee months" },
+  { value: "exam", label: "Exams" },
+  { value: "daily_lesson", label: "Daily lessons" },
+] as const
 
 const ALL_KINDS = FEE_REPORT_KINDS.map((k) => k.kind)
 
@@ -84,16 +103,48 @@ export function AuditLogPage() {
 }
 
 function AuditTrail() {
-  const { state } = useSchool()
-  const { paginatedItems, pagination } = useClientPagination(state.audits)
+  const [entityType, setEntityType] = useState("all")
+  const auditsQuery = useQuery({
+    queryKey: ["audit-logs", entityType],
+    queryFn: () =>
+      auditService.list({
+        limit: 200,
+        entityType: entityType === "all" ? undefined : entityType,
+      }),
+  })
+  const audits = auditsQuery.data ?? []
+  const { paginatedItems, pagination } = useClientPagination(audits)
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-base font-semibold text-[var(--cls-ink)]">Security audit trail</h2>
-        <p className="mt-0.5 text-sm text-[var(--cls-muted)]">Sensitive actions recorded by the school system.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--cls-ink)]">Security audit trail</h2>
+          <p className="mt-0.5 text-sm text-[var(--cls-muted)]">
+            Sensitive actions recorded by the school system. Showing up to 200
+            newest matching events (API limit).
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select value={entityType} onValueChange={setEntityType}>
+            <SelectTrigger aria-label="Filter audit entities">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AUDIT_ENTITY_FILTERS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <ReportPanel pagination={pagination}>
-        {state.audits.length === 0 ? (
+        {auditsQuery.isLoading ? (
+          <ReportPanelMessage title="Loading audit trail…" />
+        ) : auditsQuery.isError ? (
+          <ReportPanelMessage title="Could not load audit trail" />
+        ) : audits.length === 0 ? (
           <ReportPanelMessage title="No audit events yet" />
         ) : (
           <ul className="divide-y divide-[var(--cls-border)]">

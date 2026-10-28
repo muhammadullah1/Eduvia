@@ -25,9 +25,9 @@ const PANEL_METADATA: Record<
   { title: string; subtitle: string }
 > = {
   general: {
-    title: "General & Rules",
+    title: "Rules & Config",
     subtitle:
-      "Manage school profile, academic policies, attendance, fees, and result rules.",
+      "School profile, grading reference, attendance, daily tests, fees, and result rules.",
   },
   calendar: {
     title: "Calendar & Holidays",

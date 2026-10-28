@@ -108,14 +108,6 @@ export function ManagementDashboard({
       tag: "Fees",
       section: "fees",
     },
-    {
-      count: state.updates.filter(
-        (item) => item.status === "Draft" || item.status === "Approved"
-      ).length,
-      title: "Updates to publish",
-      tag: "Messages",
-      section: "messages",
-    },
   ]
 
   return (

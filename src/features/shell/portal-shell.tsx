@@ -21,10 +21,10 @@ import {
   AuditLogPage,
   Classes,
   Examinations,
+  FamiliesPage,
   FeeManagement,
   Finance,
   ManagementDashboard,
-  MessagesDesk,
   Reports,
   Sessions,
   Subjects,
@@ -251,10 +251,10 @@ export function PortalShell() {
     if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
     if (section === "fees") return <FeeManagement query={query} />
+    if (section === "families") return <FamiliesPage />
     if (section === "collect-fee") return <CollectFeePage />
     if (section === "offline-sync") return <OfflineSyncPage />
     if (section === "finance") return <Finance />
-    if (section === "messages") return <MessagesDesk />
     if (section === "settings") {
       return <SettingsPanel section={section} />
     }

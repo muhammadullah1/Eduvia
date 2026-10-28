@@ -15,13 +15,45 @@ describe("permissions matrix", () => {
 
   it("limits accountant strictly to financial operations", () => {
     expect(can("accountant", "fees.payments.record")).toBe(true)
-    expect(can("accountant", "fees.payments.confirm")).toBe(true)
     expect(can("accountant", "fees.status.view")).toBe(true)
+    expect(can("accountant", "fees.import")).toBe(true)
+    expect(can("accountant", "fees.reports")).toBe(true)
+    expect(can("accountant", "fees.structure.view")).toBe(true)
+
+    // API fees.payments.confirm is Super Admin only — UI must not offer Confirm.
+    expect(can("accountant", "fees.payments.confirm")).toBe(false)
+    expect(can("super_admin", "fees.payments.confirm")).toBe(true)
 
     expect(can("accountant", "fees.totals")).toBe(false)
     expect(can("accountant", "fees.payments.allocate_manual")).toBe(false)
+    expect(can("accountant", "fees.structure.manage")).toBe(false)
     expect(can("accountant", "finance.manage")).toBe(false)
     expect(can("accountant", "exams.manage")).toBe(false)
+    expect(can("accountant", "settings.fees")).toBe(false)
+    expect(can("accountant", "results.override")).toBe(false)
+  })
+
+  it("keeps operations manager off fee confirm and fee settings writes", () => {
+    expect(can("operations_manager", "fees.payments.confirm")).toBe(false)
+    expect(can("operations_manager", "fees.payments.record")).toBe(false)
+    expect(can("operations_manager", "settings.fees")).toBe(false)
+    expect(can("operations_manager", "settings.results")).toBe(false)
+    expect(can("operations_manager", "settings.academic")).toBe(true)
+    expect(can("operations_manager", "lessons.review")).toBe(true)
+    expect(can("operations_manager", "tests.publish")).toBe(true)
+    expect(can("operations_manager", "audit.view")).toBe(true)
+    expect(can("operations_manager", "families.manage")).toBe(true)
+    expect(can("operations_manager", "fees.concessions.view")).toBe(false)
+  })
+
+  it("gates concessions and bill adjustments correctly", () => {
+    expect(can("super_admin", "fees.concessions.approve")).toBe(true)
+    expect(can("super_admin", "fees.months.adjust")).toBe(true)
+    expect(can("accountant", "fees.concessions.request")).toBe(true)
+    expect(can("accountant", "fees.concessions.approve")).toBe(false)
+    expect(can("accountant", "fees.months.adjust")).toBe(false)
+    expect(can("accountant", "families.view")).toBe(true)
+    expect(can("accountant", "families.manage")).toBe(false)
   })
 
   it("restricts teachers to grading and lesson submissions", () => {

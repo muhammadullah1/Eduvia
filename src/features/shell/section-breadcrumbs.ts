@@ -32,6 +32,8 @@ const GROUP_FOR_SECTION: Record<string, string> = {
   collections: "Finance",
   "fee-structure": "Finance",
   "fee-generation": "Finance",
+  "fee-concessions": "Finance",
+  families: "Student Management",
   finance: "Finance",
   expenses: "Finance",
   reports: "Reports",
@@ -42,7 +44,6 @@ const GROUP_FOR_SECTION: Record<string, string> = {
   "settings-rooms": "Settings",
   "settings-archives": "Settings",
   "settings-roles": "Settings",
-  messages: "Communication",
 }
 
 export function breadcrumbsForSection(
@@ -55,7 +56,7 @@ export function breadcrumbsForSection(
     if (panel === "rooms") return ["Settings", "Rooms & Locations"]
     if (panel === "archives") return ["Settings", "Archives"]
     if (panel === "roles") return ["Settings", "Roles & Permissions"]
-    return ["Settings", "General & Rules"]
+    return ["Settings", "Rules & Config"]
   }
   const group = GROUP_FOR_SECTION[section]
   const page = navigationLabelForSection(section, role)

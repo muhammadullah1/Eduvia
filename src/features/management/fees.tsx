@@ -1,9 +1,11 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CloudUpload, FileSpreadsheet, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { toast } from "sonner"
 
+import feesService, { type FeePaymentDto } from "@/api/fees/fees.service"
 import {
   EmptyState,
   Pager,
@@ -48,65 +50,127 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { studentName, useSchool } from "@/data/store"
-import {
-  FeeMonthTable,
-  PrintReceiptButton,
-  RecordPaymentForm,
-} from "@/features/fees/components"
-import { feeMonthsLabel } from "@/features/fees/receipts"
+import type { Payment } from "@/data/types"
+import { PrintReceiptButton } from "@/features/fees/components"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
 import { formatDate, pkr } from "@/lib/format"
+import { can } from "@/lib/permissions"
 import { useClientTable } from "@/lib/use-client-table"
 
 import { chartConfig, monthsThroughToday, queryMatch } from "./shared"
 
+const PAYMENTS_KEY = ["fees", "payments"] as const
+
+function feeMonthsLabel(payment: FeePaymentDto) {
+  return payment.feeMonths.map((m) => m.label || monthLabel(m.month)).join(", ")
+}
+
+/** Maps the fees API payment DTO onto the receipt printer's Payment shape. */
+function paymentToPrintShape(payment: FeePaymentDto): Payment {
+  return {
+    ref: payment.receiptNo,
+    studentId: String(payment.student?.id ?? ""),
+    amount: payment.amount,
+    method: payment.method,
+    status: payment.status === "Paid" ? "Paid" : "Pending",
+    date: payment.paymentDate?.slice(0, 10) ?? getToday(),
+    recordedBy: payment.recordedBy?.name ?? "School Office",
+    recordedByRole: "Accountant",
+    allocations: payment.feeMonths.map((fm) => ({
+      feeMonthId: String(fm.id),
+      month: fm.month.slice(0, 7),
+      amount: fm.amount,
+    })),
+    unallocated: Number(payment.unallocatedAmount) || 0,
+    mode: payment.allocationMode === "manual" ? "manual" : "auto",
+    note: payment.notes ?? undefined,
+  }
+}
+
 export function Fees({ query }: { query: string }) {
-  const { state, confirmPayment } = useSchool()
   const actor = useActor()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const canConfirm = can(actor.role, "fees.payments.confirm")
   const [localQuery, setLocalQuery] = useState("")
   const [status, setStatus] = useState("all")
-  const [payOpen, setPayOpen] = useState(false)
-  const [ledgerOf, setLedgerOf] = useState("")
+  const [ledgerOf, setLedgerOf] = useState<{
+    id: number
+    name: string
+  } | null>(null)
   const search = localQuery || query
-  const rows = state.payments.filter(
+
+  const paymentsQuery = useQuery({
+    queryKey: PAYMENTS_KEY,
+    queryFn: () => feesService.listPayments(),
+  })
+
+  const monthsQuery = useQuery({
+    queryKey: ["fees", "months"],
+    queryFn: () => feesService.listMonths(),
+  })
+
+  const confirmMutation = useMutation({
+    mutationFn: (id: number) => feesService.confirmPayment(id),
+    onSuccess: async () => {
+      toast.success("Payment confirmed and allocated")
+      await queryClient.invalidateQueries({ queryKey: PAYMENTS_KEY })
+      await queryClient.invalidateQueries({ queryKey: ["fees", "months"] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Could not confirm payment")
+    },
+  })
+
+  const ledgerStudentId = ledgerOf?.id
+  const ledgerQuery = useQuery({
+    queryKey: ["fees", "ledger", ledgerStudentId],
+    queryFn: () => {
+      if (typeof ledgerStudentId !== "number") {
+        throw new Error("Student id required")
+      }
+      return feesService.studentLedger(ledgerStudentId)
+    },
+    enabled: typeof ledgerStudentId === "number",
+  })
+
+  const payments = paymentsQuery.data ?? []
+  const rows = payments.filter(
     (payment) =>
       (status === "all" || payment.status === status) &&
       queryMatch(search, [
-        payment.ref,
-        payment.studentId,
-        studentName(state.students, payment.studentId),
+        payment.receiptNo,
+        String(payment.student?.id ?? ""),
+        payment.student?.name ?? "",
+        payment.student?.admissionNo ?? "",
         feeMonthsLabel(payment),
-        payment.recordedBy,
+        payment.recordedBy?.name ?? "",
       ])
   )
-  const table = useClientTable(rows, `${search}|${status}`)
-  const feeData = useMemo(
-    () =>
-      monthsThroughToday(
-        state.sessions.find((session) => session.current)?.start || getToday()
-      ).map((key) => ({
-        month: monthLabel(key).slice(0, 3),
-        collection: Math.round(
-          state.payments
-            .filter(
-              (payment) =>
-                payment.date.startsWith(key) && payment.status === "Paid"
-            )
-            .reduce((sum, payment) => sum + payment.amount, 0) / 1000
-        ),
-        target: Math.round(
-          state.feeMonths
-            .filter((month) => month.month === key)
-            .reduce((sum, month) => sum + month.amountDue, 0) / 1000
-        ),
-      })),
-    [state.feeMonths, state.payments, state.sessions]
-  )
+  const table = useClientTable(rows, `${search}|${status}|${payments.length}`)
+
+  const feeData = useMemo(() => {
+    const start = getToday().slice(0, 7)
+    return monthsThroughToday(`${start.slice(0, 4)}-01-01`).map((key) => ({
+      month: monthLabel(key).slice(0, 3),
+      collection: Math.round(
+        payments
+          .filter(
+            (payment) =>
+              payment.paymentDate?.startsWith(key) && payment.status === "Paid"
+          )
+          .reduce((sum, payment) => sum + payment.amount, 0) / 1000
+      ),
+      target: Math.round(
+        (monthsQuery.data ?? [])
+          .filter((month) => month.month?.startsWith(key))
+          .reduce((sum, month) => sum + (Number(month.amountDue) || 0), 0) / 1000
+      ),
+    }))
+  }, [monthsQuery.data, payments])
 
   return (
     <div className="grid gap-5">
@@ -170,7 +234,9 @@ export function Fees({ query }: { query: string }) {
                 Every receipt, who recorded it and the fee months it cleared.
               </CardDescription>
             </div>
-            <Button onClick={() => setPayOpen(true)}>
+            <Button
+              onClick={() => navigate(portalPath(actor.role, "collect-fee"))}
+            >
               <Plus data-icon="inline-start" />
               Record payment
             </Button>
@@ -198,7 +264,14 @@ export function Fees({ query }: { query: string }) {
           </div>
         </CardHeader>
         <CardContent>
-          {table.total === 0 ? (
+          {paymentsQuery.isLoading ? (
+            <EmptyState title="Loading payments…" detail="Fetching the ledger." />
+          ) : paymentsQuery.isError ? (
+            <EmptyState
+              title="Could not load payments"
+              detail="Check your connection and try again."
+            />
+          ) : table.total === 0 ? (
             <EmptyState
               title="No payments"
               detail="Record a payment or change the filter."
@@ -219,52 +292,59 @@ export function Fees({ query }: { query: string }) {
               </TableHeader>
               <TableBody>
                 {table.slice.map((payment) => (
-                  <TableRow key={payment.ref}>
+                  <TableRow key={payment.id}>
                     <TableCell className="font-mono text-xs">
-                      {payment.ref}
+                      {payment.receiptNo}
                     </TableCell>
                     <TableCell>
                       <button
                         className="text-left font-medium hover:underline"
-                        onClick={() => setLedgerOf(payment.studentId)}
+                        onClick={() =>
+                          payment.student
+                            ? setLedgerOf({
+                                id: payment.student.id,
+                                name: payment.student.name,
+                              })
+                            : undefined
+                        }
                       >
-                        {studentName(state.students, payment.studentId)}
+                        {payment.student?.name ?? "—"}
                       </button>
                       <p className="text-xs text-muted-foreground">
-                        {payment.studentId}
+                        {payment.student?.admissionNo ?? ""}
                       </p>
                     </TableCell>
-                    <TableCell>{formatDate(payment.date)}</TableCell>
                     <TableCell>
-                      {feeMonthsLabel(payment)}
-                      {payment.mode === "manual" ? (
+                      {formatDate(payment.paymentDate?.slice(0, 10) ?? "")}
+                    </TableCell>
+                    <TableCell>
+                      {feeMonthsLabel(payment) || "—"}
+                      {payment.allocationMode === "manual" ? (
                         <Badge variant="secondary" className="ml-2">
                           manual
                         </Badge>
                       ) : null}
                     </TableCell>
                     <TableCell>{pkr(payment.amount)}</TableCell>
-                    <TableCell>{payment.recordedBy}</TableCell>
+                    <TableCell>{payment.recordedBy?.name ?? "—"}</TableCell>
                     <TableCell>
                       <StatusBadge value={payment.status} />
                     </TableCell>
                     <TableCell>
-                      {payment.status === "Pending" ? (
+                      {payment.status === "Pending" && canConfirm ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => {
-                            const message = confirmPayment(payment.ref, actor)
-                            if (message) toast.error(message)
-                            else
-                              toast.success("Payment confirmed and allocated")
-                          }}
+                          disabled={confirmMutation.isPending}
+                          onClick={() => confirmMutation.mutate(payment.id)}
                         >
                           Confirm
                         </Button>
-                      ) : (
-                        <PrintReceiptButton payment={payment} />
-                      )}
+                      ) : payment.status === "Paid" ? (
+                        <PrintReceiptButton
+                          payment={paymentToPrintShape(payment)}
+                        />
+                      ) : null}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -274,31 +354,72 @@ export function Fees({ query }: { query: string }) {
         </CardContent>
         <Pager {...table} onPage={table.setPage} />
       </Card>
-      <Dialog open={payOpen} onOpenChange={setPayOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>Record fee payment</DialogTitle>
-            <DialogDescription>
-              A receipt number is generated. The oldest unpaid month is cleared
-              first unless you record an explicit allocation.
-            </DialogDescription>
-          </DialogHeader>
-          <RecordPaymentForm onRecorded={() => setPayOpen(false)} />
-        </DialogContent>
-      </Dialog>
       <Dialog
         open={Boolean(ledgerOf)}
-        onOpenChange={(value) => !value && setLedgerOf("")}
+        onOpenChange={(value) => !value && setLedgerOf(null)}
       >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{studentName(state.students, ledgerOf)}</DialogTitle>
+            <DialogTitle>{ledgerOf?.name ?? "Student"}</DialogTitle>
             <DialogDescription>
-              Monthly fee records for {ledgerOf}
+              Monthly fee records
+              {ledgerOf ? ` for ${ledgerOf.name}` : ""}
             </DialogDescription>
           </DialogHeader>
           <div className="max-h-[60vh] overflow-y-auto">
-            <FeeMonthTable studentId={ledgerOf} />
+            {ledgerQuery.isLoading ? (
+              <p className="text-sm text-muted-foreground">Loading ledger…</p>
+            ) : ledgerQuery.isError ? (
+              <p className="text-sm text-muted-foreground">
+                Could not load this student&apos;s ledger.
+              </p>
+            ) : !(ledgerQuery.data?.months?.length) ? (
+              <p className="text-sm text-muted-foreground">
+                No fee months generated yet.
+              </p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Month</TableHead>
+                    <TableHead>Fee type</TableHead>
+                    <TableHead>Due</TableHead>
+                    <TableHead>Paid</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {ledgerQuery.data.months.flatMap((month) =>
+                    (month.bills?.length
+                      ? month.bills
+                      : [
+                          {
+                            id: Number(month.month.replace(/\D/g, "")) || 0,
+                            feeType: "Tuition",
+                            due: month.due,
+                            paid: month.paid,
+                            outstanding: month.outstanding,
+                            status: month.status,
+                            dueDate: null,
+                          },
+                        ]
+                    ).map((bill) => (
+                      <TableRow key={`${month.month}-${bill.id}`}>
+                        <TableCell>
+                          {month.label || monthLabel(month.month.slice(0, 7))}
+                        </TableCell>
+                        <TableCell>{bill.feeType}</TableCell>
+                        <TableCell>{pkr(bill.due)}</TableCell>
+                        <TableCell>{pkr(bill.paid)}</TableCell>
+                        <TableCell>
+                          <StatusBadge value={bill.status} />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            )}
           </div>
         </DialogContent>
       </Dialog>

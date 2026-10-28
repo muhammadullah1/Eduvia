@@ -1,10 +1,20 @@
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ShieldAlert } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
-import examsService from "@/api/exams/exams.service"
-import { ClsEmpty, clsHeadRowClass, ClsPanel, ClsPanelHeader, clsRowClass, ClsTh } from "@/components/app/cls-panel"
+import examsService, {
+  type ExamSummary,
+  type ResultOverrideDto,
+} from "@/api/exams/exams.service"
+import {
+  ClsEmpty,
+  clsHeadRowClass,
+  ClsPanel,
+  ClsPanelHeader,
+  clsRowClass,
+  ClsTh,
+} from "@/components/app/cls-panel"
 import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
 import {
@@ -16,49 +26,109 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { Textarea } from "@/components/ui/textarea"
-import { studentName, useSchool } from "@/data/store"
 import { FEE_RULE_LABELS } from "@/features/ops/fee-rule-labels"
-import { activeOverride, resultVisibility } from "@/lib/academics"
-import { useActor } from "@/lib/actor"
-import { getToday } from "@/lib/dates"
+import type { ResultFeeRule } from "@/data/types"
 import { monthLabel } from "@/lib/fees"
-import { classLabel, timeAgo } from "@/lib/format"
+import { timeAgo } from "@/lib/format"
 
 const MIN_REASON = 3
 
+function studentLabel(row: {
+  firstName: string
+  lastName: string
+  admissionNo?: string | null
+}) {
+  return `${row.firstName} ${row.lastName}`.trim()
+}
+
+function grantedByLabel(row: ResultOverrideDto) {
+  if (!row.grantedBy) return "Staff"
+  return `${row.grantedBy.firstName} ${row.grantedBy.lastName}`.trim()
+}
+
 /**
- * Result visibility (SRS addendum §8, UR-07, BR-09/10): whether a parent can see a
- * published result under the fee rule, and audited per-student overrides.
- * The result itself never changes; an override needs a reason (D9).
+ * Result visibility (SRS addendum §8): whether a parent can see a published
+ * result under the fee rule, plus audited per-student overrides.
  */
 export function ResultVisibilityPanel() {
-  const { state, grantResultOverride, revokeResultOverride } = useSchool()
-  const actor = useActor()
-  const exams = [...new Map(state.sheets.map((sheet) => [sheet.examId, sheet])).values()]
+  const queryClient = useQueryClient()
   const [picked, setPicked] = useState("")
-  const examId =
-    picked || (exams.find((sheet) => sheet.status === "Published")?.examId ?? exams[0]?.examId ?? "")
-  const [granting, setGranting] = useState<string | null>(null)
+  const [granting, setGranting] = useState<{
+    studentId: number
+    name: string
+  } | null>(null)
   const [reason, setReason] = useState("")
   const [touched, setTouched] = useState(false)
-  const rule = state.settings.resultVisibility.feeRule
-  const sheets = state.sheets.filter((sheet) => sheet.examId === examId)
-  const exam = sheets[0]
-  const studentIds = [...new Set(sheets.flatMap((sheet) => sheet.rows.map((row) => row.studentId)))]
-  const today = getToday()
-  const context = { feeMonths: state.feeMonths, overrides: state.resultOverrides, rule, today }
-  // Fee status comes from the API as a yes/no flag (the Operations Manager has no fee
-  // months to work it out from, and must never receive amounts).
+
+  const examsQuery = useQuery({
+    queryKey: ["exams", "summaries"],
+    queryFn: () => examsService.summaries(),
+  })
+
+  const exams = useMemo(() => {
+    const list = examsQuery.data?.exams ?? []
+    return list.filter((exam) =>
+      exam.sheets.some((sheet) => sheet.status === "Published" || sheet.entered > 0)
+    )
+  }, [examsQuery.data])
+
+  const examId = picked || (exams[0] ? String(exams[0].id) : "")
+  const selectedExam: ExamSummary | undefined = exams.find(
+    (exam) => String(exam.id) === examId
+  )
+
   const gateQuery = useQuery({
     queryKey: ["exam-gate", examId],
     queryFn: () => examsService.gateStatus(Number(examId)),
     enabled: /^\d+$/.test(examId),
   })
-  const gate = new Map((gateQuery.data?.rows ?? []).map((row) => [String(row.student.id), row]))
-  const reasonError = reason.trim().length < MIN_REASON ? `Give a reason of at least ${MIN_REASON} characters.` : null
+
+  const overridesQuery = useQuery({
+    queryKey: ["exam-overrides", examId],
+    queryFn: () => examsService.listOverrides({ examId: Number(examId) }),
+    enabled: /^\d+$/.test(examId),
+  })
+
+  const grantMutation = useMutation({
+    mutationFn: () =>
+      examsService.grantOverride(Number(examId), granting!.studentId, reason.trim()),
+    onSuccess: async () => {
+      toast.success("Result released to the parent")
+      close()
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["exam-gate", examId] }),
+        queryClient.invalidateQueries({ queryKey: ["exam-overrides", examId] }),
+      ])
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not grant override"),
+  })
+
+  const revokeMutation = useMutation({
+    mutationFn: (overrideId: number) => examsService.revokeOverride(overrideId),
+    onSuccess: async () => {
+      toast.success("Override revoked")
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["exam-gate", examId] }),
+        queryClient.invalidateQueries({ queryKey: ["exam-overrides", examId] }),
+      ])
+    },
+    onError: (error: Error) => toast.error(error.message || "Could not revoke override"),
+  })
+
+  const feeRule = (gateQuery.data?.feeRule ?? "all_due") as ResultFeeRule
+  const reasonError =
+    reason.trim().length < MIN_REASON
+      ? `Give a reason of at least ${MIN_REASON} characters.`
+      : null
 
   function close() {
     setGranting(null)
@@ -69,25 +139,36 @@ export function ResultVisibilityPanel() {
   function grant() {
     setTouched(true)
     if (!granting || reasonError) return
-    const message = grantResultOverride(examId, granting, reason, actor)
-    if (message) toast.error(message)
-    else {
-      toast.success("Result released to the parent")
-      close()
-    }
+    grantMutation.mutate()
+  }
+
+  if (examsQuery.isLoading) {
+    return (
+      <ClsPanel>
+        <ClsPanelHeader title="Result visibility" description="Loading exams…" />
+        <ClsEmpty title="Loading">Fetching examination results.</ClsEmpty>
+      </ClsPanel>
+    )
   }
 
   if (!exams.length) {
     return (
       <ClsPanel>
-        <ClsPanelHeader title="Result visibility" description={`Fee rule: ${FEE_RULE_LABELS[rule]}`} />
+        <ClsPanelHeader
+          title="Result visibility"
+          description={`Fee rule: ${FEE_RULE_LABELS[feeRule] ?? feeRule}`}
+        />
         <ClsEmpty title="No exam results yet">
-          Once an exam has marks, each student appears here with whether their parent can see the result under the fee
-          rule. You can release a withheld result with an audited override; marks and fees are never changed.
+          Once an exam has marks, each student appears here with whether their parent
+          can see the result under the fee rule. You can release a withheld result with
+          an audited override; marks and fees are never changed.
         </ClsEmpty>
       </ClsPanel>
     )
   }
+
+  const rows = gateQuery.data?.rows ?? []
+  const overrides = overridesQuery.data ?? []
 
   return (
     <div className="flex flex-col gap-4">
@@ -96,86 +177,89 @@ export function ResultVisibilityPanel() {
           title="Result visibility"
           description={
             <>
-              Fee rule: {FEE_RULE_LABELS[rule]}
-              {exam?.feeMonth ? ` (${monthLabel(exam.feeMonth)})` : ""}. Checked when the parent opens results; the
-              result itself never changes.
+              Fee rule: {FEE_RULE_LABELS[feeRule] ?? feeRule}
+              {gateQuery.data?.exam.feeMonth
+                ? ` (${monthLabel(gateQuery.data.exam.feeMonth)})`
+                : ""}
+              . Checked when the parent opens results; the result itself never changes.
             </>
           }
           actions={
             <Select value={examId} onValueChange={setPicked}>
-              <SelectTrigger size="sm" className="w-64 border-[var(--cls-border)]" aria-label="Exam">
+              <SelectTrigger
+                size="sm"
+                className="w-64 border-[var(--cls-border)]"
+                aria-label="Exam"
+              >
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {exams.map((sheet) => (
-                  <SelectItem key={sheet.examId} value={sheet.examId}>
-                    {sheet.examName}
+                {exams.map((exam) => (
+                  <SelectItem key={exam.id} value={String(exam.id)}>
+                    {exam.name}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           }
         />
-        {!studentIds.length ? (
+        {gateQuery.isLoading ? (
+          <ClsEmpty title="Checking fee clearance…">Loading visibility gate.</ClsEmpty>
+        ) : !rows.length ? (
           <ClsEmpty title="No students in this exam">Pick another exam.</ClsEmpty>
         ) : (
           <Table className="table-fixed">
             <TableHeader>
               <TableRow className={clsHeadRowClass}>
-                <ClsTh className="w-[20%]">Student</ClsTh>
-                <ClsTh className="w-[14%]">Class</ClsTh>
-                <ClsTh className="w-[10%]">Published</ClsTh>
-                <ClsTh className="w-[10%]">Fees cleared</ClsTh>
+                <ClsTh className="w-[22%]">Student</ClsTh>
+                <ClsTh className="w-[16%]">Admission</ClsTh>
+                <ClsTh className="w-[12%]">Published</ClsTh>
+                <ClsTh className="w-[12%]">Fees cleared</ClsTh>
                 <ClsTh>Override</ClsTh>
                 <ClsTh className="w-[12%]">Parent sees</ClsTh>
                 <ClsTh className="w-[110px]" />
               </TableRow>
             </TableHeader>
             <TableBody>
-              {studentIds.map((studentId) => {
-                const own = sheets.filter((sheet) => sheet.rows.some((row) => row.studentId === studentId))
-                const published = own.filter((sheet) => sheet.status === "Published")
-                const cleared = gate.get(studentId)?.feeCleared
-                const override = activeOverride(state.resultOverrides, examId, studentId)
-                const visible =
-                  gate.get(studentId)?.visibleToParent ??
-                  published.some((sheet) => resultVisibility(sheet, studentId, context).visible)
+              {rows.map((row) => {
+                const name = studentLabel(row.student)
+                const override = row.override
+                const published =
+                  (gateQuery.data?.publishedSheets ?? 0) > 0
                 return (
-                  <TableRow key={studentId} className={clsRowClass}>
+                  <TableRow key={row.student.id} className={clsRowClass}>
                     <TableCell className="truncate text-sm font-medium text-[var(--cls-ink)]">
-                      {studentName(state.students, studentId)}
+                      {name}
                     </TableCell>
                     <TableCell className="truncate text-sm text-[var(--cls-muted)]">
-                      {classLabel(state.classes, own[0]?.classId ?? "")}
+                      {row.student.admissionNo || "—"}
                     </TableCell>
                     <TableCell className="text-sm text-[var(--cls-muted)]">
-                      {published.length}/{own.length}
+                      {gateQuery.data
+                        ? `${gateQuery.data.publishedSheets}/${gateQuery.data.totalSheets}`
+                        : "—"}
                     </TableCell>
                     <TableCell>
-                      {cleared == null ? (
-                        <StatusChip>{gateQuery.isLoading ? "Checking…" : "—"}</StatusChip>
-                      ) : (
-                        <StatusChip tone={cleared ? "success" : "warning"} showDot>
-                          {cleared ? "Cleared" : "Not cleared"}
-                        </StatusChip>
-                      )}
+                      <StatusChip tone={row.feeCleared ? "success" : "warning"} showDot>
+                        {row.feeCleared ? "Cleared" : "Not cleared"}
+                      </StatusChip>
                     </TableCell>
                     <TableCell className="text-xs whitespace-normal text-[var(--cls-muted)]">
                       {override ? (
-                        <span className="line-clamp-2">
-                          <span className="font-medium text-[var(--cls-ink)]">{override.grantedBy}:</span>{" "}
-                          {override.reason}
-                        </span>
+                        <span className="line-clamp-2">{override.reason}</span>
                       ) : (
                         "—"
                       )}
                     </TableCell>
                     <TableCell>
-                      {!published.length ? (
+                      {!published ? (
                         <StatusChip>Not published</StatusChip>
                       ) : (
-                        <StatusChip tone={visible ? "success" : "danger"} showDot>
-                          {visible ? "Visible" : "Withheld"}
+                        <StatusChip
+                          tone={row.visibleToParent ? "success" : "danger"}
+                          showDot
+                        >
+                          {row.visibleToParent ? "Visible" : "Withheld"}
                         </StatusChip>
                       )}
                     </TableCell>
@@ -184,16 +268,19 @@ export function ResultVisibilityPanel() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => {
-                            const message = revokeResultOverride(override.id, actor)
-                            if (message) toast.error(message)
-                            else toast.success("Override revoked")
-                          }}
+                          disabled={revokeMutation.isPending}
+                          onClick={() => revokeMutation.mutate(override.id)}
                         >
                           Revoke
                         </Button>
-                      ) : !cleared ? (
-                        <Button size="sm" variant="outline" onClick={() => setGranting(studentId)}>
+                      ) : !row.feeCleared ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() =>
+                            setGranting({ studentId: row.student.id, name })
+                          }
+                        >
                           Override
                         </Button>
                       ) : null}
@@ -207,23 +294,33 @@ export function ResultVisibilityPanel() {
       </ClsPanel>
 
       <ClsPanel>
-        <ClsPanelHeader title="Override history" description="Who released which result, when and why." />
-        {state.resultOverrides.length === 0 ? (
+        <ClsPanelHeader
+          title="Override history"
+          description="Who released which result, when and why."
+        />
+        {overridesQuery.isLoading ? (
+          <p className="px-4 py-6 text-sm text-[var(--cls-muted)]">Loading…</p>
+        ) : overrides.length === 0 ? (
           <p className="px-4 py-6 text-sm text-[var(--cls-muted)]">No overrides yet.</p>
         ) : (
           <ul className="divide-y divide-[var(--cls-border)]">
-            {state.resultOverrides.map((row) => (
-              <li key={row.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+            {overrides.map((row) => (
+              <li
+                key={row.id}
+                className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
+              >
                 <span className="min-w-0">
-                  <span className="font-medium text-[var(--cls-ink)]">{studentName(state.students, row.studentId)}</span>
+                  <span className="font-medium text-[var(--cls-ink)]">
+                    {row.student ? studentLabel(row.student) : `Student #${row.fkStudentId}`}
+                  </span>
                   <span className="text-[var(--cls-muted)]">
                     {" "}
-                    · {state.sheets.find((sheet) => sheet.examId === row.examId)?.examName} — {row.reason}
+                    · {row.exam?.name ?? selectedExam?.name ?? "Exam"} — {row.reason}
                   </span>
                 </span>
                 <span className="text-xs text-[var(--cls-muted)]">
-                  {row.grantedBy} · {timeAgo(row.grantedAt)}
-                  {row.revokedAt ? ` · revoked by ${row.revokedBy}` : ""}
+                  {grantedByLabel(row)} · {timeAgo(row.grantedAt)}
+                  {row.revokedAt ? " · revoked" : ""}
                 </span>
               </li>
             ))}
@@ -234,9 +331,12 @@ export function ResultVisibilityPanel() {
       <Dialog open={Boolean(granting)} onOpenChange={(value) => !value && close()}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Release result for {granting ? studentName(state.students, granting) : ""}</DialogTitle>
+            <DialogTitle>
+              Release result for {granting?.name ?? ""}
+            </DialogTitle>
             <DialogDescription>
-              Visibility only — marks, grades and fee records are not changed. This is audited.
+              Visibility only — marks, grades and fee records are not changed. This is
+              audited.
             </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-1.5">
@@ -251,13 +351,18 @@ export function ResultVisibilityPanel() {
               maxLength={500}
               aria-invalid={touched && Boolean(reasonError)}
             />
-            {touched && reasonError ? <p className="text-xs text-red-600">{reasonError}</p> : null}
+            {touched && reasonError ? (
+              <p className="text-xs text-red-600">{reasonError}</p>
+            ) : null}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={close}>
               Cancel
             </Button>
-            <Button onClick={grant} disabled={!reason.trim()}>
+            <Button
+              onClick={grant}
+              disabled={!reason.trim() || grantMutation.isPending}
+            >
               <ShieldAlert data-icon="inline-start" />
               Release result
             </Button>

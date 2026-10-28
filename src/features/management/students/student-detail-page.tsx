@@ -14,6 +14,7 @@ import { can } from "@/lib/permissions"
 
 import { ChangeStatusDialog, PromoteDialog } from "../lifecycle"
 import { EVENT_LABELS, EVENT_TONES, eventDetail } from "../lifecycle/lifecycle-rules"
+import { StudentConcessionsPanel } from "./student-concessions-panel"
 import { StudentStatusChip } from "./student-status-chip"
 
 type Props = {
@@ -158,9 +159,15 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
           label="Admitted on"
           value={student.admissionDate ? formatDate(student.admissionDate) : "—"}
         />
-        <ClsStatCard label="Fee discount" value={`${Number(student.discountPercent ?? 0)}%`} />
+        <ClsStatCard
+          label="Legacy discount %"
+          value={`${Number(student.discountPercent ?? 0)}%`}
+          hint="Not applied to billing"
+        />
         <ClsStatCard label="Guardians" value={parents.length} />
       </div>
+
+      <StudentConcessionsPanel studentId={id} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ClsPanel>

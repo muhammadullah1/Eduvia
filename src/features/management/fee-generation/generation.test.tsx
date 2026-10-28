@@ -159,7 +159,8 @@ describe("StudentLedgerView", () => {
     expect(screen.getByText("PKR 4,000")).toBeTruthy()
     expect(screen.getByText("PKR 1,500")).toBeTruthy()
     expect(screen.getByTestId("credit-balance").textContent).toMatch(/Credit balance PKR 200.*net due PKR 1,300/)
-    expect(screen.getAllByText("Tuition 2,500 + Exam 500").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Tuition 2,500/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Exam 500/).length).toBeGreaterThan(0)
     expect(screen.getAllByText("Partially Paid").length).toBeGreaterThan(0)
   })
 

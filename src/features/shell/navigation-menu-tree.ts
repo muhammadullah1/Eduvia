@@ -37,6 +37,7 @@ const ACADEMIC_FOLDER: NavFolder = {
     { type: "link", id: "timetable" },
     { type: "link", id: "substitutes" },
     { type: "link", id: "lesson-plan" },
+    { type: "link", id: "lesson-review" },
     { type: "link", id: "daily-test-schedule" },
     { type: "link", id: "exams" },
   ],
@@ -78,7 +79,7 @@ const SETTINGS_FOLDER: NavFolder = {
     {
       type: "link",
       id: "settings",
-      label: "General & Rules",
+      label: "Rules & Config",
       icon: navIcons.settings,
     },
     {
@@ -125,6 +126,7 @@ const OPERATIONS_TREE: NavNode[] = [
   { type: "link", id: "overview" },
   ACADEMIC_FOLDER,
   STUDENT_FOLDER,
+  { type: "link", id: "families" },
   { type: "link", id: "audit-log" },
   SETTINGS_FOLDER,
 ]
@@ -135,6 +137,8 @@ const ACCOUNTANT_TREE: NavNode[] = [
   { type: "link", id: "collections" },
   { type: "link", id: "fee-structure" },
   { type: "link", id: "fee-generation" },
+  { type: "link", id: "fee-concessions" },
+  { type: "link", id: "families" },
   { type: "link", id: "expenses" },
   { type: "link", id: "offline-sync" },
 ]

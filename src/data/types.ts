@@ -362,6 +362,8 @@ export type FeeSettings = {
   defaultMonthlyFee: number
   dueDay: number
   maxAdvanceMonths: number
+  /** When true, Approved concessions replace students.fixedMonthlyFee for new bills. */
+  concessionsEnabled?: boolean
 }
 
 export type AttendanceSettings = {
@@ -486,6 +488,7 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
     defaultMonthlyFee: 8500,
     dueDay: 10,
     maxAdvanceMonths: 12,
+    concessionsEnabled: false,
   },
   attendance: {
     editWindowDays: 7,

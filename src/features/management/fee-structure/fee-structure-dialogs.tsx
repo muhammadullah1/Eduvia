@@ -13,7 +13,6 @@ import feeStructureService, {
 } from "@/api/fees/fee-structure.service"
 import { StatusChip, type StatusChipTone } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
-import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -30,7 +29,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 import { formatDate } from "@/lib/format"
 
-import { amountError, errorText, formatAmount, FREQUENCY_LABEL, nextMonthStart } from "./fee-structure-rules"
+import { amountError, errorText, formatAmount, FREQUENCY_LABEL } from "./fee-structure-rules"
 
 const CONTENT = "max-w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg"
 const HEADER = "border-b border-[var(--cls-border)] px-6 py-4 text-left"
@@ -57,7 +56,6 @@ export function AddFeeDialog({
 }) {
   const [feeType, setFeeType] = useState<FeeType | "">(initialType ?? "")
   const [amount, setAmount] = useState("")
-  const [effectiveFrom, setEffectiveFrom] = useState(nextMonthStart)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -68,12 +66,12 @@ export function AddFeeDialog({
     if (!feeType) next.feeType = "Choose a fee type."
     const amountMsg = amountError(amount)
     if (amountMsg) next.amount = amountMsg
-    if (!effectiveFrom) next.effectiveFrom = "Choose the date this amount starts."
     setErrors(next)
     if (Object.keys(next).length || !feeType) return
     setServerError(null)
     try {
-      await onSubmit({ feeType, amount: Number(amount), effectiveFrom })
+      // Server always uses the academic session start date as effective_from.
+      await onSubmit({ feeType, amount: Number(amount) })
     } catch (err) {
       setServerError(errorText(err))
     }
@@ -87,7 +85,8 @@ export function AddFeeDialog({
             {existing ? `Change ${existing.feeType} amount` : "Add fee type"}
           </DialogTitle>
           <DialogDescription className="text-sm text-[var(--cls-muted)]">
-            Amounts are never overwritten: each change starts on its effective date and stays in history.
+            Amounts apply from the academic session start. After the session begins, class fees are locked
+            (missing types may still be bootstrapped once).
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 px-6 py-5">
@@ -114,43 +113,25 @@ export function AddFeeDialog({
               </p>
             ) : null}
           </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="fee-amount" className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
-                Amount (PKR) <span className="text-destructive">*</span>
-              </Label>
-              <Input
-                id="fee-amount"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="e.g. 2500"
-                aria-invalid={Boolean(errors.amount)}
-              />
-              {errors.amount ? <p className="mt-1 text-xs text-destructive">{errors.amount}</p> : null}
-            </div>
-            <div>
-              <Label htmlFor="fee-effective" className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
-                Effective date <span className="text-destructive">*</span>
-              </Label>
-              <DatePicker
-                id="fee-effective"
-                value={effectiveFrom}
-                onChange={setEffectiveFrom}
-                defaultMonthKind="today"
-                popoverClassName="z-[100]"
-                aria-invalid={Boolean(errors.effectiveFrom)}
-                aria-label="Effective date"
-              />
-              {errors.effectiveFrom ? <p className="mt-1 text-xs text-destructive">{errors.effectiveFrom}</p> : null}
-            </div>
+          <div>
+            <Label htmlFor="fee-amount" className="mb-1.5 block text-sm font-medium text-[var(--cls-ink)]">
+              Amount (PKR) <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="fee-amount"
+              inputMode="decimal"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="e.g. 2500"
+              aria-invalid={Boolean(errors.amount)}
+            />
+            {errors.amount ? <p className="mt-1 text-xs text-destructive">{errors.amount}</p> : null}
           </div>
           <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
             <Info className="mt-0.5 size-4 shrink-0" aria-hidden />
             <p>
-              This will affect all students in <strong>{classLabel}</strong>
-              {effectiveFrom ? <> for fee months starting on or after {formatDate(effectiveFrom)}</> : null}. Months
-              already generated keep their amounts.
+              This will affect all students in <strong>{classLabel}</strong> for months billed from the session
+              start onward. Months already generated keep their amounts.
             </p>
           </div>
           {serverError ? (

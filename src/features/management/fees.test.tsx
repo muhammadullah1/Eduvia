@@ -1,111 +1,152 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import type { ReactNode } from "react"
 import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import type { FeeMonth, Payment, SchoolState, Student } from "@/data/types"
+import type { FeePaymentDto, StudentLedgerDto } from "@/api/fees/fees.service"
 
 import { Fees } from "./fees"
 
-const mockActor = vi.hoisted(() => ({ role: "super_admin", name: "Admin User" }))
-const mockConfirm = vi.hoisted(() => vi.fn())
-const mockRecord = vi.hoisted(() => vi.fn())
-
-const mockState = vi.hoisted(() => ({
-  sessions: [
-    { id: "1", name: "2026-2027", start: "2026-04-01", end: "2027-03-31", current: true },
-  ],
-  classes: [
-    { id: "1", label: "Class 1", section: "A" },
-  ],
-  students: [
-    {
-      id: "101",
-      admissionNo: "CLS-001",
-      name: "Ahmed Ali",
-      classId: "1",
-      guardian: "Ali Father",
-      phone: "03001234567",
-      status: "Active",
-      dob: "2015-05-10",
-      gender: "Male",
-      admittedOn: "2026-04-01",
-    },
-    {
-      id: "102",
-      admissionNo: "CLS-002",
-      name: "Fatima Noor",
-      classId: "1",
-      guardian: "Noor Father",
-      phone: "03007654321",
-      status: "Active",
-      dob: "2016-08-12",
-      gender: "Female",
-      admittedOn: "2026-04-01",
-    },
-  ] as Student[],
-  feeMonths: [
-    {
-      id: "fm-1",
-      studentId: "101",
-      month: "2026-09",
-      feeType: "Tuition",
-      amountDue: 5000,
-      amountPaid: 5000,
-      dueDate: "2026-09-10",
-    },
-    {
-      id: "fm-2",
-      studentId: "101",
-      month: "2026-10",
-      feeType: "Tuition",
-      amountDue: 5000,
-      amountPaid: 2500,
-      dueDate: "2026-10-10",
-    },
-  ] as FeeMonth[],
-  payments: [
-    {
-      ref: "RCPT-202610-001",
-      studentId: "101",
-      amount: 5000,
-      method: "Cash",
-      status: "Paid",
-      date: "2026-09-05",
-      recordedBy: "Accountant User",
-      recordedByRole: "Accountant",
-      allocations: [{ feeMonthId: "fm-1", month: "2026-09", amount: 5000 }],
-      unallocated: 0,
-      mode: "auto",
-    },
-    {
-      ref: "RCPT-202610-002",
-      studentId: "101",
-      amount: 2500,
-      method: "Bank transfer",
-      status: "Pending",
-      date: "2026-10-05",
-      recordedBy: "Accountant User",
-      recordedByRole: "Accountant",
-      allocations: [{ feeMonthId: "fm-2", month: "2026-10", amount: 2500 }],
-      unallocated: 0,
-      mode: "manual",
-    },
-  ] as Payment[],
+const mockActor = vi.hoisted(() => ({
+  role: "super_admin" as string,
+  name: "Admin User",
 }))
+const mockNavigate = vi.hoisted(() => vi.fn())
+const mockConfirmPayment = vi.hoisted(() => vi.fn())
+const mockListPayments = vi.hoisted(() => vi.fn())
+const mockListMonths = vi.hoisted(() => vi.fn())
+const mockStudentLedger = vi.hoisted(() => vi.fn())
+
+const PAYMENTS: FeePaymentDto[] = [
+  {
+    id: 1,
+    receiptNo: "RCPT-202610-001",
+    paymentDate: "2026-09-05",
+    status: "Paid",
+    method: "Cash",
+    amount: 5000,
+    unallocatedAmount: 0,
+    allocationMode: "auto",
+    feeMonths: [
+      {
+        id: 11,
+        month: "2026-09-01",
+        label: "Sept 2026",
+        feeType: "Tuition",
+        amount: 5000,
+      },
+    ],
+    student: { id: 101, name: "Ahmed Ali", admissionNo: "CLS-001" },
+    recordedBy: { id: 9, name: "Accountant User" },
+    notes: null,
+  },
+  {
+    id: 2,
+    receiptNo: "RCPT-202610-002",
+    paymentDate: "2026-10-05",
+    status: "Pending",
+    method: "Bank transfer",
+    amount: 2500,
+    unallocatedAmount: 0,
+    allocationMode: "manual",
+    feeMonths: [
+      {
+        id: 12,
+        month: "2026-10-01",
+        label: "Oct 2026",
+        feeType: "Tuition",
+        amount: 2500,
+      },
+    ],
+    student: { id: 101, name: "Ahmed Ali", admissionNo: "CLS-001" },
+    recordedBy: { id: 9, name: "Accountant User" },
+    notes: null,
+  },
+]
+
+const LEDGER: StudentLedgerDto = {
+  student: {
+    id: 101,
+    name: "Ahmed Ali",
+    admissionNo: "CLS-001",
+    status: "Active",
+    class: { id: 1, label: "Class 1 – A" },
+  },
+  months: [
+    {
+      month: "2026-09-01",
+      label: "Sept 2026",
+      due: 5000,
+      paid: 5000,
+      outstanding: 0,
+      status: "Paid",
+      bills: [
+        {
+          id: 11,
+          feeType: "Tuition",
+          due: 5000,
+          paid: 5000,
+          outstanding: 0,
+          status: "Paid",
+          dueDate: "2026-09-10",
+        },
+      ],
+    },
+    {
+      month: "2026-10-01",
+      label: "Oct 2026",
+      due: 5000,
+      paid: 2500,
+      outstanding: 2500,
+      status: "Partially Paid",
+      bills: [
+        {
+          id: 12,
+          feeType: "Tuition",
+          due: 5000,
+          paid: 2500,
+          outstanding: 2500,
+          status: "Partially Paid",
+          dueDate: "2026-10-10",
+        },
+      ],
+    },
+  ],
+}
 
 vi.mock("@/lib/actor", () => ({ useActor: () => mockActor }))
 vi.mock("@/data/store", () => ({
   useSchool: () => ({
-    state: mockState as unknown as SchoolState,
-    confirmPayment: mockConfirm,
-    recordPayment: mockRecord,
+    state: {
+      students: [
+        {
+          id: "101",
+          admissionNo: "CLS-001",
+          name: "Ahmed Ali",
+          classId: "1",
+        },
+      ],
+      classes: [{ id: "1", label: "Class 1", section: "A" }],
+      feeMonths: [],
+      payments: [],
+    },
   }),
-  studentName: (students: Student[], id: string) =>
-    students.find((s) => s.id === id || s.admissionNo === id)?.name ?? id,
+}))
+vi.mock("react-router-dom", async (orig) => {
+  const actual = await orig<typeof import("react-router-dom")>()
+  return { ...actual, useNavigate: () => mockNavigate }
+})
+vi.mock("@/api/fees/fees.service", () => ({
+  default: {
+    listPayments: (...args: unknown[]) => mockListPayments(...args),
+    listMonths: (...args: unknown[]) => mockListMonths(...args),
+    confirmPayment: (...args: unknown[]) => mockConfirmPayment(...args),
+    studentLedger: (...args: unknown[]) => mockStudentLedger(...args),
+    summary: vi.fn(),
+  },
 }))
 
-// Recharts container uses ResizeObserver
 globalThis.ResizeObserver ??= class {
   observe() {}
   unobserve() {}
@@ -113,27 +154,42 @@ globalThis.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver
 
 function wrap(ui: ReactNode) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>)
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  })
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </QueryClientProvider>
+  )
 }
 
 beforeEach(() => {
-  mockConfirm.mockReset()
-  mockRecord.mockReset()
   mockActor.role = "super_admin"
+  mockNavigate.mockReset()
+  mockConfirmPayment.mockReset()
+  mockListPayments.mockReset()
+  mockListMonths.mockReset()
+  mockStudentLedger.mockReset()
+  mockListPayments.mockResolvedValue(PAYMENTS)
+  mockListMonths.mockResolvedValue([])
+  mockConfirmPayment.mockResolvedValue({ ...PAYMENTS[1], status: "Paid" })
+  mockStudentLedger.mockResolvedValue(LEDGER)
 })
 afterEach(cleanup)
 
 describe("Fees (Fee Ledger Tab)", () => {
-  it("renders collection against target chart and offline fee desk card", () => {
+  it("renders collection against target chart and offline fee desk card", async () => {
     wrap(<Fees query="" />)
     expect(screen.getByText("Collection against target")).toBeTruthy()
     expect(screen.getByText("Offline fee desk")).toBeTruthy()
     expect(screen.getByText("Ledger")).toBeTruthy()
+    await waitFor(() => expect(mockListPayments).toHaveBeenCalled())
   })
 
-  it("displays receipts table with payment data, student names, and status badges", () => {
+  it("displays receipts table with payment data, student names, and status badges", async () => {
     wrap(<Fees query="" />)
-    expect(screen.getByText("RCPT-202610-001")).toBeTruthy()
+    expect(await screen.findByText("RCPT-202610-001")).toBeTruthy()
     expect(screen.getByText("RCPT-202610-002")).toBeTruthy()
     expect(screen.getAllByText("Ahmed Ali").length).toBeGreaterThan(0)
     expect(screen.getByText("Paid")).toBeTruthy()
@@ -141,47 +197,56 @@ describe("Fees (Fee Ledger Tab)", () => {
     expect(screen.getByText("manual")).toBeTruthy()
   })
 
-  it("filters ledger records by search query", () => {
+  it("filters ledger records by search query", async () => {
     wrap(<Fees query="" />)
-    const searchInput = screen.getByPlaceholderText("Search receipt, student or month")
+    expect(await screen.findByText("RCPT-202610-001")).toBeTruthy()
+    const searchInput = screen.getByPlaceholderText(
+      "Search receipt, student or month"
+    )
     fireEvent.change(searchInput, { target: { value: "RCPT-202610-002" } })
     expect(screen.getByText("RCPT-202610-002")).toBeTruthy()
     expect(screen.queryByText("RCPT-202610-001")).toBeNull()
   })
 
-  it("filters ledger records by status", () => {
+  it("filters ledger records by status", async () => {
     wrap(<Fees query="" />)
-    // Both are initially visible
-    expect(screen.getByText("RCPT-202610-001")).toBeTruthy()
+    expect(await screen.findByText("RCPT-202610-001")).toBeTruthy()
     expect(screen.getByText("RCPT-202610-002")).toBeTruthy()
   })
 
   it("allows clicking a student to open their monthly fee ledger modal with balances", async () => {
     wrap(<Fees query="" />)
+    expect(await screen.findByText("RCPT-202610-001")).toBeTruthy()
     const studentButtons = screen.getAllByRole("button", { name: "Ahmed Ali" })
     fireEvent.click(studentButtons[0])
 
-    // Dialog title
     expect(await screen.findByRole("heading", { name: "Ahmed Ali" })).toBeTruthy()
-    expect(screen.getByText(/Monthly fee records for 101/)).toBeTruthy()
-
-    // FeeMonthTable shows fee records
-    expect(screen.getAllByText("Tuition").length).toBeGreaterThan(0)
+    expect(screen.getByText(/Monthly fee records for Ahmed Ali/)).toBeTruthy()
+    expect(await screen.findAllByText("Tuition")).toHaveLength(2)
     expect(screen.getAllByText("Sept 2026").length).toBeGreaterThan(0)
     expect(screen.getAllByText("Oct 2026").length).toBeGreaterThan(0)
+    expect(mockStudentLedger).toHaveBeenCalledWith(101)
   })
 
-  it("shows Confirm button for Pending payment and calls confirmPayment on click", () => {
+  it("shows Confirm for Pending payments for super admin and calls the fees API", async () => {
     wrap(<Fees query="" />)
-    const confirmButton = screen.getByRole("button", { name: "Confirm" })
+    const confirmButton = await screen.findByRole("button", { name: "Confirm" })
     fireEvent.click(confirmButton)
-    expect(mockConfirm).toHaveBeenCalledWith("RCPT-202610-002", mockActor)
+    await waitFor(() => expect(mockConfirmPayment).toHaveBeenCalledWith(2))
   })
 
-  it("opens record payment form dialog when clicking Record payment", async () => {
+  it("hides Confirm for accountants because the API forbids payment confirmation", async () => {
+    mockActor.role = "accountant"
     wrap(<Fees query="" />)
-    const recordBtn = screen.getByRole("button", { name: /Record payment/i })
-    fireEvent.click(recordBtn)
-    expect(await screen.findByText("A receipt number is generated. The oldest unpaid month is cleared first unless you record an explicit allocation.")).toBeTruthy()
+    expect(await screen.findByText("RCPT-202610-002")).toBeTruthy()
+    expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull()
+    expect(mockConfirmPayment).not.toHaveBeenCalled()
+  })
+
+  it("navigates to Collect Fee when Record payment is clicked", async () => {
+    wrap(<Fees query="" />)
+    expect(await screen.findByText("Ledger")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: /Record payment/i }))
+    expect(mockNavigate).toHaveBeenCalledWith("/admin/collect-fee")
   })
 })

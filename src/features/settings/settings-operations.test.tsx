@@ -144,7 +144,7 @@ describe("BlockDatesPanel modal and actions", () => {
   it("renders block dates list and Add block date button", async () => {
     wrap(<BlockDatesPanel />)
 
-    expect(screen.getByRole("button", { name: /Add Block Date\(s\)/i })).toBeTruthy()
+    expect(screen.getByRole("button", { name: /^Add Block Date$/i })).toBeTruthy()
     expect(await screen.findByText("Winter Break")).toBeTruthy()
     expect(screen.getByText(/Dec 24, 2026 – Jan 2, 2027/i)).toBeTruthy()
   })
@@ -152,7 +152,7 @@ describe("BlockDatesPanel modal and actions", () => {
   it("opens modal on Add block date, cancels properly", async () => {
     wrap(<BlockDatesPanel />)
 
-    fireEvent.click(screen.getByRole("button", { name: /Add Block Date\(s\)/i }))
+    fireEvent.click(screen.getByRole("button", { name: /^Add Block Date$/i }))
 
     expect(await screen.findByRole("dialog")).toBeTruthy()
     expect(
@@ -174,7 +174,7 @@ describe("BlockDatesPanel modal and actions", () => {
 
     expect(await screen.findByRole("dialog")).toBeTruthy()
     expect(
-      screen.getByRole("heading", { name: "Edit Block Date(s)" })
+      screen.getByRole("heading", { name: "Edit Block Date" })
     ).toBeTruthy()
     expect(screen.getByDisplayValue("Winter Break")).toBeTruthy()
     expect(screen.getByDisplayValue("School holiday")).toBeTruthy()

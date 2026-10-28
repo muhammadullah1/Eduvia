@@ -8,7 +8,8 @@ import type { Role } from "@/lib/auth"
 const PERMISSIONS = {
   "fees.totals": ["super_admin"],
   "fees.payments.record": ["super_admin", "accountant"],
-  "fees.payments.confirm": ["super_admin", "accountant"],
+  /** API `fees.payments.confirm` — Super Admin only (accountant records; SA confirms). */
+  "fees.payments.confirm": ["super_admin"],
   "fees.payments.allocate_manual": ["super_admin"],
   "fees.import": ["super_admin", "accountant"],
   "fees.status.view": ["super_admin", "operations_manager", "accountant"],
@@ -39,6 +40,12 @@ const PERMISSIONS = {
   /** Fee structure: Accountant reads, only Super Admin changes it (API fees.structure.*). */
   "fees.structure.view": ["super_admin", "accountant"],
   "fees.structure.manage": ["super_admin"],
+  "fees.concessions.view": ["super_admin", "accountant", "parent"],
+  "fees.concessions.request": ["super_admin", "accountant"],
+  "fees.concessions.approve": ["super_admin"],
+  "fees.months.adjust": ["super_admin"],
+  "families.view": ["super_admin", "operations_manager", "accountant"],
+  "families.manage": ["super_admin", "operations_manager"],
 } as const satisfies Record<string, readonly Role[]>
 
 export type Permission = keyof typeof PERMISSIONS

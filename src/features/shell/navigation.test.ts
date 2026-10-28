@@ -6,11 +6,17 @@ import { can } from "@/lib/permissions"
 import { navigation, sectionIds } from "./navigation"
 import { type NavFolder,navigationMenuTreeForRole } from "./navigation-menu-tree"
 
-const FEE_SECTIONS = ["fees", "collect-fee", "offline-sync", "finance", "reports", "collect", "collections", "fee-structure", "fee-generation", "expenses"]
+const FEE_SECTIONS = ["fees", "collect-fee", "offline-sync", "finance", "reports", "collect", "collections", "fee-structure", "fee-generation", "fee-concessions", "expenses"]
 
 describe("Operations Manager navigation", () => {
   it("has no fee, finance or fee-report sections, so the route guard refuses them", () => {
     for (const id of FEE_SECTIONS) expect(sectionIds.operations_manager.has(id)).toBe(false)
+  })
+
+  it("can manage families (sibling links) without fee sections", () => {
+    expect(sectionIds.operations_manager.has("families")).toBe(true)
+    expect(can("operations_manager", "families.manage")).toBe(true)
+    expect(can("operations_manager", "fees.concessions.view")).toBe(false)
   })
 
   it("offers a read-only audit log backed by the audit permission and slice", () => {
@@ -57,7 +63,7 @@ describe("Settings primary sidebar folder", () => {
       expect(settingsFolder).toBeDefined()
       expect(settingsFolder?.label).toBe("Settings")
       expect(settingsFolder?.children.map((c) => c.label)).toEqual([
-        "General & Rules",
+        "Rules & Config",
         "Calendar & Holidays",
         "Rooms & Locations",
         "Archives",

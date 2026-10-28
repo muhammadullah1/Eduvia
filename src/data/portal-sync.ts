@@ -71,10 +71,9 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   "student-attendance": ["attendance", "students"],
   "collect-fee": ["students", "feeMonths", "payments"],
   "offline-sync": ["students", "feeMonths", "payments"],
-  /** Examination UI is not integrated. Do not preload portal datasets. */
+  /** Exam list/marks load via React Query (`examsService`). */
   exams: [],
   "results-gate": ["resultOverrides", "students", "feeMonths"],
-  messages: ["updates"],
   settings: [],
   /** Fee reports load from /fees/reports; only the SA audit trail comes from the store. */
   reports: ["audits"],

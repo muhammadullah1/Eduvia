@@ -37,6 +37,11 @@ vi.mock("@/data/store", () => ({
   }),
 }))
 
+async function flush() {
+  await Promise.resolve()
+  await Promise.resolve()
+}
+
 vi.mock("@/api/sessions/sessions.service", () => ({
   default: {
     list: vi.fn().mockResolvedValue([
@@ -118,76 +123,67 @@ describe("SettingsGeneralRules", () => {
   beforeEach(() => {
     currentRole = "super_admin"
     mockUpdateSettings.mockReset()
+    mockUpdateSettings.mockResolvedValue(null)
     mockSyncPortalForRoute.mockReset()
   })
 
   afterEach(cleanup)
 
-  it("renders all 5 setting cards grouped into Academic & Financial sections", () => {
+  it("renders Rules & Config sections aligned with API-backed settings", () => {
     wrap(<SettingsGeneralRules />)
 
-    // Grouping section headers
-    expect(screen.getByText("Academic & assessment policies")).toBeTruthy()
-    expect(screen.getByText("Financial & result policies")).toBeTruthy()
-
-    // 5 cards
-    expect(screen.getByText("Weekly test pass criteria")).toBeTruthy()
-    expect(screen.getByText("Result fee & rank rules")).toBeTruthy()
+    expect(screen.getByText("Grading Scale")).toBeTruthy()
+    expect(screen.getByText("Rank & Tie Rules")).toBeTruthy()
+    expect(screen.getByText("Attendance")).toBeTruthy()
+    expect(screen.getByText("Daily Test")).toBeTruthy()
+    expect(screen.getByText("Result Visibility & Fee Condition")).toBeTruthy()
     expect(screen.getByText("Fee billing & advance limits")).toBeTruthy()
-    expect(screen.getByText("Attendance policies")).toBeTruthy()
     expect(screen.getByText("Student admission format")).toBeTruthy()
-
-    // Live preview
     expect(screen.getByText("CLS0001")).toBeTruthy()
-
-    // Save buttons for all 5 cards
-    expect(screen.getByRole("button", { name: "Save criteria" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Save result rules" })).toBeTruthy()
-    expect(screen.getByRole("button", { name: "Save fee settings" })).toBeTruthy()
     expect(
-      screen.getByRole("button", { name: "Save attendance settings" })
-    ).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: "Save admission format" })
+      screen.getByRole("button", { name: "Save Configuration" })
     ).toBeTruthy()
   })
 
   it("shows unsaved changes indicator when a field is edited", () => {
     wrap(<SettingsGeneralRules />)
 
-    // Before editing, no "Unsaved changes" indicator
     expect(screen.queryByText("Unsaved changes")).toBeNull()
 
-    // Edit pass mark (default value is 40)
     const passInput = screen.getByDisplayValue("40")
     fireEvent.change(passInput, { target: { value: "55" } })
 
-    // "Unsaved changes" badge appears
     expect(screen.getAllByText("Unsaved changes").length).toBeGreaterThanOrEqual(1)
   })
 
-  it("calls updateSettings when clicking Save criteria", () => {
+  it("saves dirty daily-test rules only after Save Configuration and awaits API success", async () => {
     wrap(<SettingsGeneralRules />)
 
-    fireEvent.click(screen.getByRole("button", { name: "Save criteria" }))
+    fireEvent.change(screen.getByDisplayValue("40"), { target: { value: "55" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
+    await flush()
+
     expect(mockUpdateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
-        dailyTestRules: expect.objectContaining({
-          passPercent: 40,
-        }),
+        dailyTestRules: expect.objectContaining({ passPercent: 55 }),
       }),
       expect.objectContaining({ role: "super_admin" })
     )
   })
 
-  it("calls updateSettings when clicking Save fee settings", () => {
+  it("saves fee settings when fee fields are dirty", async () => {
     wrap(<SettingsGeneralRules />)
 
-    fireEvent.click(screen.getByRole("button", { name: "Save fee settings" }))
+    fireEvent.change(screen.getByDisplayValue("8500"), {
+      target: { value: "9000" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
+    await flush()
+
     expect(mockUpdateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         fees: expect.objectContaining({
-          defaultMonthlyFee: 8500,
+          defaultMonthlyFee: 9000,
           dueDay: 10,
           maxAdvanceMonths: 12,
         }),
@@ -196,16 +192,17 @@ describe("SettingsGeneralRules", () => {
     )
   })
 
-  it("calls updateSettings when clicking Save attendance settings", () => {
+  it("saves attendance settings when attendance fields are dirty", async () => {
     wrap(<SettingsGeneralRules />)
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save attendance settings" })
-    )
+    fireEvent.change(screen.getByDisplayValue("7"), { target: { value: "5" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
+    await flush()
+
     expect(mockUpdateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         attendance: expect.objectContaining({
-          editWindowDays: 7,
+          editWindowDays: 5,
           lowThreshold: 75,
         }),
       }),
@@ -213,16 +210,19 @@ describe("SettingsGeneralRules", () => {
     )
   })
 
-  it("calls updateSettings when clicking Save admission format", () => {
+  it("saves admission format when admission fields are dirty", async () => {
     wrap(<SettingsGeneralRules />)
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save admission format" })
-    )
+    fireEvent.change(screen.getByDisplayValue("CLS"), {
+      target: { value: "EDU" },
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
+    await flush()
+
     expect(mockUpdateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         admission: expect.objectContaining({
-          prefix: "CLS",
+          prefix: "EDU",
           digits: 4,
         }),
       }),
@@ -230,34 +230,30 @@ describe("SettingsGeneralRules", () => {
     )
   })
 
-  it("enforces role-based permissions for Operations Manager (fees and results read-only with Super Admin Only badge)", () => {
+  it("keeps fee and result controls locked for Operations Manager", () => {
     currentRole = "operations_manager"
     wrap(<SettingsGeneralRules />)
 
-    // Academic controls are editable
-    expect(screen.getByRole("button", { name: "Save criteria" })).toBeTruthy()
     expect(
-      screen.getByRole("button", { name: "Save attendance settings" })
+      screen.getByRole("button", { name: "Save Configuration" })
     ).toBeTruthy()
-    expect(
-      screen.getByRole("button", { name: "Save admission format" })
-    ).toBeTruthy()
-
-    // Fee and result write buttons are hidden
-    expect(
-      screen.queryByRole("button", { name: "Save fee settings" })
-    ).toBeNull()
-    expect(
-      screen.queryByRole("button", { name: "Save result rules" })
-    ).toBeNull()
-
-    // "Set by the super admin." note is shown
-    const notes = screen.getAllByText("Set by the super admin.")
-    expect(notes.length).toBeGreaterThanOrEqual(2)
-
-    // "Super Admin Only" badge is displayed
     const badges = screen.getAllByText("Super Admin Only")
     expect(badges.length).toBeGreaterThanOrEqual(2)
+    expect(
+      screen.getByLabelText("Block result access when fees are outstanding")
+    ).toBeDisabled()
+  })
+
+  it("preserves unsaved form values when the API save fails", async () => {
+    mockUpdateSettings.mockResolvedValue("Server rejected the update.")
+    wrap(<SettingsGeneralRules />)
+
+    fireEvent.change(screen.getByDisplayValue("40"), { target: { value: "61" } })
+    fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
+    await flush()
+
+    expect(screen.getByDisplayValue("61")).toBeTruthy()
+    expect(screen.getAllByText("Unsaved changes").length).toBeGreaterThanOrEqual(1)
   })
 
   it("renders school profile card with details from API", async () => {
@@ -278,28 +274,28 @@ describe("SettingsPage panel navigation", () => {
 
   afterEach(cleanup)
 
-  it("renders General & Rules header and content by default", () => {
+  it("renders Rules & Config header and content by default", () => {
     wrap(<SettingsPage section="settings" />, ["/admin/settings"])
-    expect(screen.getByRole("heading", { name: "General & Rules" })).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "Rules & Config" })).toBeTruthy()
     expect(
       screen.getByText(
-        "Manage school profile, academic policies, attendance, fees, and result rules."
+        "School profile, grading reference, attendance, daily tests, fees, and result rules."
       )
     ).toBeTruthy()
-    expect(screen.getByText("Weekly test pass criteria")).toBeTruthy()
+    expect(screen.getByText("Daily Test")).toBeTruthy()
   })
 
-  it("safely handles redundant academic panel and section by defaulting to General & Rules", async () => {
+  it("safely handles redundant academic panel and section by defaulting to Rules & Config", async () => {
     wrap(<SettingsPage section="settings-academic" />, [
       "/admin/settings-academic",
     ])
-    expect(screen.getByRole("heading", { name: "General & Rules" })).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "Rules & Config" })).toBeTruthy()
 
     cleanup()
     wrap(<SettingsPage section="settings" />, [
       "/admin/settings?panel=academic",
     ])
-    expect(screen.getByRole("heading", { name: "General & Rules" })).toBeTruthy()
+    expect(screen.getByRole("heading", { name: "Rules & Config" })).toBeTruthy()
   })
 
   it("renders Calendar & Holidays when section=settings-calendar or panel=calendar", () => {

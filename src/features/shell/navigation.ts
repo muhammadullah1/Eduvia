@@ -1,4 +1,5 @@
 import {
+  BadgePercent,
   Bell,
   BookOpen,
   Building2,
@@ -10,6 +11,7 @@ import {
   ReceiptText,
   ShieldCheck,
   UserRound,
+  Users2,
   Wallet,
 } from "lucide-react"
 import { type ComponentType } from "react"
@@ -69,6 +71,7 @@ const managementNav: { id: string; label: string; icon: Icon }[] = [
   { id: "timetable", label: "Timetable", icon: navIcons.timetable },
   { id: "substitutes", label: "Substitutes", icon: navIcons.substitutes },
   { id: "lesson-plan", label: "Lesson Plan", icon: navIcons.lessonPlan },
+  { id: "lesson-review", label: "Lesson Review", icon: navIcons.dailyTests },
   {
     id: "daily-test-schedule",
     label: "Daily Test Schedule",
@@ -87,14 +90,12 @@ const managementNav: { id: string; label: string; icon: Icon }[] = [
   { id: "fees", label: "Fee Management", icon: navIcons.fees },
   { id: "collect-fee", label: "Collect Fee", icon: navIcons.collectFee },
   { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline },
-  { id: "messages", label: "Communication", icon: MessageSquareText },
 ]
 
 /** Legacy section ids kept for deep links and redirects. */
 const legacyManagementNav: { id: string; label: string; icon: Icon }[] = [
   { id: "academic", label: "Sessions", icon: navIcons.sessions },
   { id: "curriculum", label: "Lesson Plan", icon: navIcons.lessonPlan },
-  { id: "lesson-review", label: "Lesson review", icon: navIcons.dailyTests },
   { id: "people", label: "Students", icon: navIcons.students },
   { id: "absences", label: "Substitutes", icon: navIcons.substitutes },
   { id: "weekly-tests", label: "Daily Test Schedule", icon: navIcons.dailyTests },
@@ -127,6 +128,8 @@ export const navigation: Record<
     ...managementNav.filter((item) =>
       !["fees", "collect-fee", "offline-sync", "finance"].includes(item.id)
     ),
+    // Families are sibling links only — no fee amounts. Ops owns verify/manage.
+    { id: "families", label: "Families", icon: Users2 },
     ...settingsNav,
     // No Reports: every report there is fee data. Ops reads the audit trail only.
     { id: "audit-log", label: "Audit log", icon: navIcons.reports },
@@ -137,6 +140,8 @@ export const navigation: Record<
     { id: "collections", label: "My daily receipts", icon: ReceiptText },
     { id: "fee-structure", label: "Fee structure", icon: Layers },
     { id: "fee-generation", label: "Monthly generation", icon: CalendarRange },
+    { id: "fee-concessions", label: "Concessions", icon: BadgePercent },
+    { id: "families", label: "Families", icon: Users2 },
     { id: "expenses", label: "Expenses", icon: Receipt },
     { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline },
   ],
@@ -204,8 +209,9 @@ export const subtitles: Record<string, string> = {
   "results-gate":
     "Published results, the fee rule at view time and audited overrides.",
   fees: "Receipts, monthly fee status and offline synchronisation.",
+  "fee-concessions": "Request, approve and revoke student fee concessions.",
+  families: "Link siblings explicitly for sibling concessions — verify before use.",
   finance: "Income, expenses and the operating position.",
-  messages: "Approve what families are allowed to see.",
   settings: "Configure school-wide policies, assessment criteria, and admission numbering.",
   "settings-academic": "Academic structure, current session details, and catalog overview.",
   "settings-calendar": "School closures, holidays, and calendar black-out dates.",

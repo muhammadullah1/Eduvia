@@ -239,7 +239,11 @@ type SchoolContextValue = {
     actor: Actor
   ) => Result
   revokeResultOverride: (overrideId: string, actor: Actor) => Result
-  updateSettings: (patch: Partial<SchoolSettings>, actor: Actor) => Result
+  /** Persists settings via API first; local state updates only after success. */
+  updateSettings: (
+    patch: Partial<SchoolSettings>,
+    actor: Actor
+  ) => Promise<Result>
 }
 
 const SchoolContext = createContext<SchoolContextValue | null>(null)
@@ -1687,11 +1691,13 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         return "Could not match this class and subject on the server."
       }
       try {
-        await api.put("/daily-tests/schedules", {
+        const { default: examsService } = await import(
+          "@/api/exams/exams.service"
+        )
+        await examsService.saveSchedule({
           classId: classNumId,
           subjectId: subNumId,
           weekday: input.weekday,
-          periodIndex: input.periodIndex,
           maxScore: input.max,
         })
         const partial = await fetchSchoolDataSlices(["testSchedules"])
@@ -1717,7 +1723,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         return "This schedule is not saved on the server."
       }
       try {
-        await api.delete(`/daily-tests/schedules/${numericId}`)
+        const { default: examsService } = await import(
+          "@/api/exams/exams.service"
+        )
+        await examsService.deactivateSchedule(numericId)
         const partial = await fetchSchoolDataSlices(["testSchedules"])
         commit((current) => ({ next: { ...current, ...partial } }))
         return null
@@ -2129,85 +2138,77 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   )
 
   const updateSettings = useCallback(
-    (patch: Partial<SchoolSettings>, actor: Actor) =>
-      simple((current) => {
-        if (patch.resultVisibility && !can(actor.role, "settings.results"))
-          return {
-            error: "Only the super admin can change the result fee rule.",
-          }
-        if (patch.fees && !can(actor.role, "settings.fees"))
-          return {
-            error: "Only the super admin can change fee settings.",
-          }
-        if (patch.fees) {
-          if (patch.fees.defaultMonthlyFee < 0)
-            return { error: "Default monthly fee cannot be negative." }
-          if (patch.fees.dueDay < 1 || patch.fees.dueDay > 28)
-            return { error: "Due day must be between 1 and 28." }
-          if (patch.fees.maxAdvanceMonths < 0 || patch.fees.maxAdvanceMonths > 24)
-            return { error: "Advance months must be between 0 and 24." }
-        }
-        if (patch.dailyTestRules) {
-          const blocked = denied(actor, "settings.academic")
-          if (blocked) return { error: blocked }
-          const rules = patch.dailyTestRules
-          if (
-            rules.passPercent <= 0 ||
-            rules.passPercent > 100 ||
-            rules.lowMarksBelowPercent <= 0 ||
-            rules.lowMarksBelowPercent > 100
-          )
-            return { error: "Percentages must be between 1 and 100." }
-          if (rules.maxFailsPerMonth < 0 || rules.lowMarksMinPassed < 0)
-            return { error: "Counts cannot be negative." }
-        }
-        if (patch.attendance) {
-          const blocked = denied(actor, "settings.academic")
-          if (blocked) return { error: blocked }
-          if (patch.attendance.editWindowDays < 0 || patch.attendance.editWindowDays > 31)
-            return { error: "Edit window must be between 0 and 31 days." }
-          if (patch.attendance.lowThreshold < 1 || patch.attendance.lowThreshold > 100)
-            return { error: "Low attendance threshold must be between 1% and 100%." }
-        }
-        if (patch.admission) {
-          const blocked = denied(actor, "settings.academic")
-          if (blocked) return { error: blocked }
-          if (patch.admission.digits < 1 || patch.admission.digits > 8)
-            return { error: "Digits must be between 1 and 8." }
-        }
-        const settings = { ...current.settings, ...patch }
+    async (
+      patch: Partial<SchoolSettings>,
+      actor: Actor
+    ): Promise<Result> => {
+      if (patch.resultVisibility && !can(actor.role, "settings.results")) {
+        return "Only the super admin can change the result fee rule."
+      }
+      if (patch.fees && !can(actor.role, "settings.fees")) {
+        return "Only the super admin can change fee settings."
+      }
+      if (patch.fees) {
+        if (patch.fees.defaultMonthlyFee < 0)
+          return "Default monthly fee cannot be negative."
+        if (patch.fees.dueDay < 1 || patch.fees.dueDay > 28)
+          return "Due day must be between 1 and 28."
+        if (patch.fees.maxAdvanceMonths < 0 || patch.fees.maxAdvanceMonths > 24)
+          return "Advance months must be between 0 and 24."
+      }
+      if (patch.dailyTestRules) {
+        const blocked = denied(actor, "settings.academic")
+        if (blocked) return blocked
+        const rules = patch.dailyTestRules
+        if (
+          rules.passPercent <= 0 ||
+          rules.passPercent > 100 ||
+          rules.lowMarksBelowPercent <= 0 ||
+          rules.lowMarksBelowPercent > 100
+        )
+          return "Percentages must be between 1 and 100."
+        if (rules.maxFailsPerMonth < 0 || rules.lowMarksMinPassed < 0)
+          return "Counts cannot be negative."
+      }
+      if (patch.attendance) {
+        const blocked = denied(actor, "settings.academic")
+        if (blocked) return blocked
+        if (patch.attendance.editWindowDays < 0 || patch.attendance.editWindowDays > 31)
+          return "Edit window must be between 0 and 31 days."
+        if (patch.attendance.lowThreshold < 1 || patch.attendance.lowThreshold > 100)
+          return "Low attendance threshold must be between 1% and 100%."
+      }
+      if (patch.admission) {
+        const blocked = denied(actor, "settings.academic")
+        if (blocked) return blocked
+        if (patch.admission.digits < 1 || patch.admission.digits > 8)
+          return "Digits must be between 1 and 8."
+      }
 
+      try {
         if (patch.dailyTestRules) {
-          api
-            .put("/settings/dailyTestRules", patch.dailyTestRules)
-            .then(syncBackend)
-            .catch(console.error)
+          await api.put("/settings/dailyTestRules", patch.dailyTestRules)
         }
         if (patch.resultVisibility) {
-          api
-            .put("/settings/resultVisibility", patch.resultVisibility)
-            .then(syncBackend)
-            .catch(console.error)
+          await api.put("/settings/resultVisibility", patch.resultVisibility)
         }
         if (patch.fees) {
-          api
-            .put("/settings/fees", patch.fees)
-            .then(syncBackend)
-            .catch(console.error)
+          await api.put("/settings/fees", patch.fees)
         }
         if (patch.attendance) {
-          api
-            .put("/settings/attendance", patch.attendance)
-            .then(syncBackend)
-            .catch(console.error)
+          await api.put("/settings/attendance", patch.attendance)
         }
         if (patch.admission) {
-          api
-            .put("/settings/admission", patch.admission)
-            .then(syncBackend)
-            .catch(console.error)
+          await api.put("/settings/admission", patch.admission)
         }
+      } catch (err) {
+        if (err instanceof ApiHttpError) return err.message
+        if (err instanceof Error && err.message) return err.message
+        return "Could not save settings. Check your connection and try again."
+      }
 
+      simple((current) => {
+        const settings = { ...current.settings, ...patch }
         return {
           next: withAudit(
             { ...current, settings },
@@ -2216,7 +2217,10 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             "school_setting"
           ),
         }
-      }),
+      })
+      void Promise.resolve(syncBackend()).catch(console.error)
+      return null
+    },
     [simple, syncBackend]
   )
 

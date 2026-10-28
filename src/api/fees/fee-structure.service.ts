@@ -22,6 +22,10 @@ export type FeeStructureFee = {
 export type FeeStructure = {
   class: { id: number; label: string; sessionId: number; sessionName: string | null }
   asOf: string
+  sessionStartDate?: string
+  sessionLocked?: boolean
+  editable?: boolean
+  bootstrapEligible?: FeeType[]
   fees: FeeStructureFee[]
   upcoming: FeeStructureFee[]
   monthlyTotal: number
@@ -41,7 +45,7 @@ export type FeeHistoryEntry = FeeStructureFee & {
 
 export type FeeHistory = { feeType: FeeType; entries: FeeHistoryEntry[] }
 
-export type AddFeeInput = { feeType: FeeType; amount: number; effectiveFrom: string }
+export type AddFeeInput = { feeType: FeeType; amount: number; effectiveFrom?: string }
 
 export const FEE_STRUCTURE_QUERY_KEY = "fee-structure"
 

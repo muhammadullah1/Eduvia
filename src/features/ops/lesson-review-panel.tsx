@@ -1,6 +1,10 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useState } from "react"
 import { toast } from "sonner"
 
+import dailyLessonsService, {
+  type DailyLessonDto,
+} from "@/api/lessons/daily-lessons.service"
 import { EmptyState, SectionHeading, StatusBadge } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,31 +23,64 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { useSchool } from "@/data/store"
 import { type ReviewStatus } from "@/data/types"
-import { useActor } from "@/lib/actor"
-import { classLabel, formatDate } from "@/lib/format"
+import { formatDate } from "@/lib/format"
 
-// ---- lesson review (UR-04) ------------------------------------------------------------
+const LESSONS_KEY = ["daily-lessons"] as const
+
+function teacherName(row: DailyLessonDto) {
+  const user = row.teacher?.user
+  if (!user) return "Teacher"
+  return `${user.firstName} ${user.lastName}`.trim()
+}
 
 export function LessonReviewPanel() {
-  const { state, reviewDailyLesson } = useSchool()
-  const actor = useActor()
+  const queryClient = useQueryClient()
   const [filter, setFilter] = useState<ReviewStatus | "all">("Submitted")
   const [notes, setNotes] = useState<Record<string, string>>({})
-  const rows = state.dailyLessons
-    .filter((row) => filter === "all" || row.reviewStatus === filter)
-    .sort((a, b) => b.date.localeCompare(a.date))
 
-  function decide(id: string, decision: "Approved" | "Rejected") {
-    const message = reviewDailyLesson(id, decision, notes[id] ?? "", actor)
-    if (message) toast.error(message)
-    else
+  const lessonsQuery = useQuery({
+    queryKey: [...LESSONS_KEY, filter],
+    queryFn: () =>
+      dailyLessonsService.list(
+        filter === "all" ? undefined : { reviewStatus: filter }
+      ),
+  })
+
+  const reviewMutation = useMutation({
+    mutationFn: ({
+      id,
+      decision,
+      note,
+    }: {
+      id: number
+      decision: "Approved" | "Rejected"
+      note: string
+    }) => dailyLessonsService.review(id, { decision, note }),
+    onSuccess: (_data, vars) => {
       toast.success(
-        decision === "Approved"
+        vars.decision === "Approved"
           ? "Approved — now visible to parents"
           : "Returned to the teacher"
       )
+      void queryClient.invalidateQueries({ queryKey: LESSONS_KEY })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || "Could not review update")
+    },
+  })
+
+  const rows = [...(lessonsQuery.data ?? [])].sort((a, b) =>
+    b.date.localeCompare(a.date)
+  )
+
+  function decide(id: number, decision: "Approved" | "Rejected") {
+    const note = notes[String(id)] ?? ""
+    if (decision === "Rejected" && !note.trim()) {
+      toast.error("Tell the teacher why the update is rejected.")
+      return
+    }
+    reviewMutation.mutate({ id, decision, note })
   }
 
   return (
@@ -76,87 +113,77 @@ export function LessonReviewPanel() {
           </div>
         }
       />
-      {rows.length === 0 ? (
+      {lessonsQuery.isLoading ? (
+        <EmptyState title="Loading…" detail="Fetching daily updates." />
+      ) : lessonsQuery.isError ? (
+        <EmptyState
+          title="Could not load updates"
+          detail="Check your connection and try again."
+        />
+      ) : rows.length === 0 ? (
         <EmptyState
           title="Nothing here"
           detail="No daily updates match this filter."
         />
       ) : (
-        rows.map((row) => {
-          const chapter = state.plannedChapters.find(
-            (item) => item.id === row.chapterId
-          )
-          return (
-            <Card key={row.id}>
-              <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <StatusBadge value={row.reviewStatus} />
-                    <span className="text-sm font-medium">
-                      {row.teacherName}
-                    </span>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {classLabel(state.classes, row.classId)} · {row.subject} ·{" "}
-                    {formatDate(row.date)}
-                  </span>
+        rows.map((row) => (
+          <Card key={row.id}>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <StatusBadge value={row.reviewStatus} />
+                  <span className="text-sm font-medium">{teacherName(row)}</span>
                 </div>
-                <CardTitle className="text-base">
-                  {chapter?.title ?? "Unknown chapter"}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="grid gap-2 text-sm">
-                {row.classwork ? (
-                  <p>
-                    <span className="text-muted-foreground">Classwork:</span>{" "}
-                    {row.classwork}
-                  </p>
-                ) : null}
-                {row.homework ? (
-                  <p>
-                    <span className="text-muted-foreground">Homework:</span>{" "}
-                    {row.homework}
-                  </p>
-                ) : null}
-                {row.remarks ? (
-                  <p>
-                    <span className="text-muted-foreground">Remarks:</span>{" "}
-                    {row.remarks}
-                  </p>
-                ) : null}
-                {row.reviewedBy ? (
-                  <p className="text-xs text-muted-foreground">
-                    Reviewed by {row.reviewedBy}
-                    {row.reviewNote ? ` — ${row.reviewNote}` : ""}
-                  </p>
-                ) : null}
-                {row.reviewStatus === "Submitted" ? (
-                  <Textarea
-                    value={notes[row.id] ?? ""}
-                    onChange={(event) =>
-                      setNotes({ ...notes, [row.id]: event.target.value })
-                    }
-                    placeholder="Note to the teacher (required to reject)"
-                  />
-                ) : null}
-              </CardContent>
-              {row.reviewStatus === "Submitted" ? (
-                <CardFooter className="gap-2">
-                  <Button size="sm" onClick={() => decide(row.id, "Approved")}>
+                <span className="text-xs text-muted-foreground">
+                  {row.class?.label ?? `Class #${row.fkClassId}`} ·{" "}
+                  {row.subject?.name ?? "Subject"} · {formatDate(row.date)}
+                </span>
+              </div>
+              <CardTitle className="text-base">
+                {row.chapter?.title || row.title || "Daily update"}
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-2 text-sm text-muted-foreground">
+              {row.classwork ? <p>Classwork: {row.classwork}</p> : null}
+              {row.homework ? <p>Homework: {row.homework}</p> : null}
+              {row.remarks ? <p>Remarks: {row.remarks}</p> : null}
+              {row.reviewNote ? (
+                <p className="text-[var(--cls-ink)]">Review note: {row.reviewNote}</p>
+              ) : null}
+            </CardContent>
+            {row.reviewStatus === "Submitted" ? (
+              <CardFooter className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
+                <Textarea
+                  value={notes[String(row.id)] ?? ""}
+                  onChange={(e) =>
+                    setNotes((prev) => ({
+                      ...prev,
+                      [String(row.id)]: e.target.value,
+                    }))
+                  }
+                  placeholder="Optional note (required to reject)"
+                  className="min-h-20"
+                />
+                <div className="flex shrink-0 gap-2">
+                  <Button
+                    variant="outline"
+                    disabled={reviewMutation.isPending}
+                    onClick={() => decide(row.id, "Approved")}
+                  >
                     Approve
                   </Button>
                   <Button
-                    size="sm"
                     variant="destructive"
+                    disabled={reviewMutation.isPending}
                     onClick={() => decide(row.id, "Rejected")}
                   >
                     Reject
                   </Button>
-                </CardFooter>
-              ) : null}
-            </Card>
-          )
-        })
+                </div>
+              </CardFooter>
+            ) : null}
+          </Card>
+        ))
       )}
     </div>
   )

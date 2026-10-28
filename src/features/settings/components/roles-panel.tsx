@@ -17,9 +17,10 @@ export function RolesPanel() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="max-w-xl text-sm text-[var(--cls-muted)]">
-          CLS uses fixed school roles. The API enforces this matrix. Attendance is a
-          product permission, not a settings page. Fine-grained per-user grants from
-          ASAMAN are not part of this product.
+          CLS uses fixed school roles. This matrix is the product capability view —
+          the API enforces the same rules at every endpoint. Attendance is a product
+          permission, not a settings page. Fine-grained per-user grants are not part
+          of this product.
         </p>
         <div className="w-full sm:w-72">
           <Input

@@ -26,6 +26,8 @@ import { PrintReceiptButton } from "@/features/fees/components"
 import { OfflineSyncPage } from "@/features/fees/offline-sync"
 import { feeMonthsLabel } from "@/features/fees/receipts"
 import { AccountantExpensesPage } from "@/features/finance/finance-page"
+import { FamiliesPage } from "@/features/management/families/families-page"
+import { FeeConcessionsPage } from "@/features/management/fee-concessions/fee-concessions-page"
 import { FeeStructurePage, MonthlyGenerationPage } from "@/features/management/screens"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useReportDownload } from "@/hooks/use-report-download"
@@ -51,6 +53,8 @@ export function AccountantPortal({ section }: { section: string }) {
   if (section === "collections") return <MyCollections />
   if (section === "fee-structure") return <FeeStructurePage />
   if (section === "fee-generation") return <MonthlyGenerationPage />
+  if (section === "fee-concessions") return <FeeConcessionsPage />
+  if (section === "families") return <FamiliesPage />
   if (section === "expenses") return <AccountantExpensesPage />
   if (section === "offline-sync") return <OfflineSyncPage />
   return <CollectFeePage />

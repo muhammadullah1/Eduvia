@@ -18,20 +18,18 @@ vi.mock("@/features/management/fee-reports", () => ({
   FeeReportsPanel: () => <div data-testid="fee-reports-panel">Fee Reports Panel Content</div>,
 }))
 
-vi.mock("@/data/store", () => ({
-  useSchool: () => ({
-    state: {
-      audits: [
-        {
-          id: "audit-1",
-          actor: "Super Admin",
-          action: "updated setting fees",
-          at: new Date().toISOString(),
-          entity: "school_setting",
-        },
-      ],
-    },
-  }),
+vi.mock("@/api/audit/audit.service", () => ({
+  default: {
+    list: vi.fn().mockResolvedValue([
+      {
+        id: "audit-1",
+        actor: "Super Admin",
+        action: "updated setting fees",
+        at: new Date().toISOString(),
+        entity: "school_setting",
+      },
+    ]),
+  },
 }))
 
 function wrap(node: ReactNode, initialEntries = ["/admin/reports"]) {
@@ -59,14 +57,14 @@ describe("Reports Component", () => {
     expect(screen.getByTestId("fee-reports-panel")).toBeTruthy()
   })
 
-  it("switches to Audit trail when clicked and back to Fee reports seamlessly", () => {
+  it("switches to Audit trail when clicked and back to Fee reports seamlessly", async () => {
     wrap(<Reports />)
 
     const auditTab = screen.getByRole("tab", { name: "Audit trail" })
     fireEvent.click(auditTab)
 
     expect(screen.getByText("Security audit trail")).toBeTruthy()
-    expect(screen.getByText("updated setting fees")).toBeTruthy()
+    expect(await screen.findByText("updated setting fees")).toBeTruthy()
     expect(screen.queryByTestId("fee-reports-panel")).toBeNull()
 
     const feesTab = screen.getByRole("tab", { name: "Fee reports" })
@@ -84,10 +82,10 @@ describe("AuditLogPage", () => {
 
   afterEach(cleanup)
 
-  it("renders the read-only audit log page", () => {
+  it("renders the read-only audit log page", async () => {
     wrap(<AuditLogPage />)
     expect(screen.getByText("Audit log")).toBeTruthy()
     expect(screen.getByText("Security audit trail")).toBeTruthy()
-    expect(screen.getByText("updated setting fees")).toBeTruthy()
+    expect(await screen.findByText("updated setting fees")).toBeTruthy()
   })
 })

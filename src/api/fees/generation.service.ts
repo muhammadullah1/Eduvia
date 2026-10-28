@@ -19,6 +19,14 @@ export type GenerationClass = {
 
 export type GenerationTotals = Omit<GenerationClass, "classId" | "label" | "byType" | "sampleStudentId">
 
+export type ConcessionConflict = {
+  studentId: number
+  feeType?: string
+  month?: string
+  conflict?: boolean
+  conflictIds?: number[]
+}
+
 export type GenerationResult = {
   month: string
   label: string
@@ -29,6 +37,7 @@ export type GenerationResult = {
   totals: GenerationTotals
   /** True when the server withheld school-wide money totals (Accountant). */
   amountsHidden?: boolean
+  concessionConflicts?: ConcessionConflict[]
 }
 
 export type LedgerBill = {
@@ -39,6 +48,9 @@ export type LedgerBill = {
   outstanding: number
   status: string
   dueDate: string | null
+  originalNet?: number
+  adjustmentTotal?: number
+  discountAmount?: number
 }
 
 export type LedgerMonth = {

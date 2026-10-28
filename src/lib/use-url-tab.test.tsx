@@ -48,6 +48,15 @@ describe("useUrlTab", () => {
 describe("accountant sidebar", () => {
   it("lists only the accountant's own sections, flat", () => {
     const ids = navigationMenuTreeForRole("accountant").map((n) => (n.type === "link" ? n.id : n.key))
-    expect(ids).toEqual(["collect", "collections", "fee-structure", "fee-generation", "expenses", "offline-sync"])
+    expect(ids).toEqual([
+      "collect",
+      "collections",
+      "fee-structure",
+      "fee-generation",
+      "fee-concessions",
+      "families",
+      "expenses",
+      "offline-sync",
+    ])
   })
 })

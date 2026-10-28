@@ -63,7 +63,7 @@ export function FeeStructurePage() {
     onSuccess: async (_data, input) => {
       await refresh()
       setAddOpen(false)
-      toast.success(`${input.feeType} set to PKR ${formatAmount(input.amount)} from ${formatDate(input.effectiveFrom)}`)
+      toast.success(`${input.feeType} set to PKR ${formatAmount(input.amount)}`)
     },
   })
   const remove = useMutation({
@@ -128,21 +128,46 @@ export function FeeStructurePage() {
             </Select>
           </div>
         </div>
-        {canManage ? (
+        {canManage && structure.data && !structure.data.sessionLocked ? (
           <Button
             className="w-full bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)] sm:w-auto"
-            disabled={!structure.data}
             onClick={() => openAdd()}
           >
             <Plus data-icon="inline-start" />
             Add Fee Type
           </Button>
-        ) : (
+        ) : canManage && structure.data?.sessionLocked && (structure.data.bootstrapEligible?.length ?? 0) > 0 ? (
+          <Button
+            className="w-full bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)] sm:w-auto"
+            onClick={() => openAdd(structure.data?.bootstrapEligible?.[0])}
+          >
+            <Plus data-icon="inline-start" />
+            Bootstrap missing fee
+          </Button>
+        ) : canManage && structure.data?.sessionLocked ? (
+          <p className="inline-flex items-center gap-1.5 text-xs text-[var(--cls-muted)]">
+            <Lock className="size-3.5" aria-hidden /> Session fees are locked. Configure the next session&apos;s classes
+            instead.
+          </p>
+        ) : !canManage ? (
           <p className="inline-flex items-center gap-1.5 text-xs text-[var(--cls-muted)]">
             <Lock className="size-3.5" aria-hidden /> Read only — only a Super Admin can change fees.
           </p>
-        )}
+        ) : null}
       </div>
+
+      {structure.data?.sessionLocked ? (
+        <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+          <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p>
+            This session started on {formatDate(structure.data.sessionStartDate || structure.data.asOf)}. Class fee
+            amounts are locked.{" "}
+            {(structure.data.bootstrapEligible?.length ?? 0) > 0
+              ? `You may still set up missing types once: ${structure.data.bootstrapEligible?.join(", ")}.`
+              : "Configure fees on classes for a future academic session."}
+          </p>
+        </div>
+      ) : null}
 
       {filterError ? (
         <LoadError message={errorText(filterError)} onRetry={() => void (sessions.error ? sessions.refetch() : classes.refetch())} />
@@ -162,7 +187,9 @@ export function FeeStructurePage() {
           />
           <StructureTable
             data={structure.data}
-            canManage={canManage}
+            canManage={Boolean(canManage && !structure.data.sessionLocked)}
+            canBootstrap={Boolean(canManage && structure.data.sessionLocked)}
+            bootstrapEligible={structure.data.bootstrapEligible ?? []}
             onAdd={() => openAdd()}
             onChange={(type) => openAdd(type)}
             onHistory={setHistoryOf}
@@ -235,6 +262,8 @@ function SummaryBanner({ data, sessionLabel }: { data: FeeStructure; sessionLabe
 function StructureTable({
   data,
   canManage,
+  canBootstrap = false,
+  bootstrapEligible = [],
   onAdd,
   onChange,
   onHistory,
@@ -242,6 +271,8 @@ function StructureTable({
 }: {
   data: FeeStructure
   canManage: boolean
+  canBootstrap?: boolean
+  bootstrapEligible?: FeeType[]
   onAdd: () => void
   onChange: (type: FeeType) => void
   onHistory: (type: FeeType) => void
@@ -262,11 +293,11 @@ function StructureTable({
     return (
       <ClsPanel>
         <ClsEmpty title="No fees set for this class">
-          {canManage ? (
+          {canManage || (canBootstrap && bootstrapEligible.length > 0) ? (
             <div className="grid justify-items-center gap-3">
               <p>Add tuition and any admission, exam or annual fees.</p>
               <Button size="sm" variant="outline" onClick={onAdd}>
-                <Plus data-icon="inline-start" /> Add Fee Type
+                <Plus data-icon="inline-start" /> {canBootstrap ? "Bootstrap fee type" : "Add Fee Type"}
               </Button>
             </div>
           ) : (

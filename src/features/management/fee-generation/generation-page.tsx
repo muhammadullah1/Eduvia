@@ -17,6 +17,7 @@ import { toast } from "sonner"
 
 import generationService, {
   GENERATION_QUERY_KEY,
+  type ConcessionConflict,
   type GenerationInput,
   type GenerationResult,
   LEDGER_QUERY_KEY,
@@ -228,10 +229,11 @@ function RulesNote() {
     <details className="rounded-lg border border-[var(--cls-border)] bg-[var(--page-wash)]/60 px-3 py-2 text-xs text-[var(--cls-muted)]">
       <summary className="cursor-pointer font-medium text-[var(--cls-ink)]">What gets billed</summary>
       <ul className="mt-2 grid list-disc gap-1 pl-4">
-        <li>Tuition: the class fee in force for each month (a student&apos;s fixed fee takes priority). Missing earlier months are filled in.</li>
+        <li>Tuition: class fee in force for each month. Approved concessions apply when enabled; otherwise a student&apos;s fixed monthly fee still wins.</li>
         <li>Annual: once per session, in the first month generated while an Annual fee is set.</li>
         <li>Exam: in the month an Exam fee takes effect (mid-month dates bill the following month).</li>
         <li>Admission: once, in the admission month, for students admitted after the fee was set.</li>
+        <li>Overlapping non-stackable concessions block that student&apos;s new bill until resolved.</li>
         <li>Existing records are never changed or billed twice.</li>
       </ul>
     </details>
@@ -291,6 +293,7 @@ function PreviewStep({
       </div>
 
       {hidden ? <HiddenAmountsNote /> : null}
+      <ConcessionConflictsNote conflicts={data.concessionConflicts} />
 
       {!data.classes.length ? (
         <ClsPanel>
@@ -455,6 +458,7 @@ function ConfirmStep({
           <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           This action cannot be undone. Existing records are skipped, so no student is billed twice{t.skippedStudents ? ` (${plural(t.skippedStudents, "student")} already billed)` : ""}.
         </p>
+        <ConcessionConflictsNote conflicts={data.concessionConflicts} />
         {error ? <ErrorNote message={error} onRetry={onGenerate} /> : null}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" className="bg-white" onClick={onBack} disabled={saving}>
@@ -505,6 +509,9 @@ function DoneStep({
         {changed ? (
           <p className="text-xs text-amber-800">Some records were created by another user after your preview, so the final count differs.</p>
         ) : null}
+        <div className="w-full text-left">
+          <ConcessionConflictsNote conflicts={data.concessionConflicts} />
+        </div>
         <div className="mt-2 flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
           <Button variant="outline" className="bg-white" onClick={onAnother}>
             Generate Another Month
@@ -520,5 +527,36 @@ function DoneStep({
         </div>
       </div>
     </ClsPanel>
+  )
+}
+
+function ConcessionConflictsNote({ conflicts }: { conflicts?: ConcessionConflict[] }) {
+  if (!conflicts?.length) return null
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+      data-testid="concession-conflicts"
+    >
+      <p className="inline-flex items-center gap-2 font-medium">
+        <AlertTriangle className="size-4 shrink-0" aria-hidden />
+        {conflicts.length} concession conflict
+        {conflicts.length === 1 ? "" : "s"} — overlapping non-stackable concessions.
+      </p>
+      <p className="mt-1 text-xs text-amber-900/80">
+        Those students are skipped for the conflicting fee type until you revoke or resolve the extra
+        concession under Concessions. Other students still generate normally.
+      </p>
+      <ul className="mt-2 max-h-28 space-y-0.5 overflow-y-auto text-xs">
+        {conflicts.slice(0, 12).map((c, i) => (
+          <li key={`${c.studentId}-${c.feeType}-${i}`}>
+            Student #{c.studentId}
+            {c.feeType ? ` · ${c.feeType}` : ""}
+            {c.month ? ` · ${c.month}` : ""}
+            {c.conflictIds?.length ? ` · concessions #${c.conflictIds.join(", #")}` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
