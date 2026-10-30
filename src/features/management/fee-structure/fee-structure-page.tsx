@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarClock, History, Lock, Plus, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import feeStructureService, {
@@ -16,9 +17,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
-import { useActor } from "@/lib/actor"
+import { useCan } from "@/lib/access"
 import { formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 import { useClassesList } from "../classes/hooks/use-classes"
@@ -29,19 +29,36 @@ import { FeeTypePill } from "./fee-type-pill"
 
 /** Fee Structure tab: what each class pays, by fee type, with dated changes and full history. */
 export function FeeStructurePage() {
-  const { role } = useActor()
-  const canManage = can(role, "fees.structure.manage")
+  const can = useCan()
+  const canManage = can("fees.structure.update")
   const queryClient = useQueryClient()
 
   const sessions = useSessionsList()
+  const [searchParams, setSearchParams] = useSearchParams()
   // Selections fall back to the current session and its first class until the user picks.
   const [pickedSession, setSessionId] = useState("")
-  const [pickedClass, setClassId] = useState("")
+  const [pickedClass, setPickedClass] = useState("")
   const sessionId =
     pickedSession || (sessions.data?.find((s) => s.current) ?? sessions.data?.[0])?.id || ""
 
   const classes = useClassesList(sessionId ? Number(sessionId) : undefined)
-  const classId = classes.data?.some((c) => c.id === pickedClass) ? pickedClass : (classes.data?.[0]?.id ?? "")
+  const preferredClass = pickedClass || searchParams.get("classId") || ""
+  const classId = classes.data?.some((c) => c.id === preferredClass)
+    ? preferredClass
+    : (classes.data?.[0]?.id ?? "")
+
+  function setClassId(next: string) {
+    setPickedClass(next)
+    setSearchParams(
+      (prev) => {
+        const out = new URLSearchParams(prev)
+        if (next) out.set("classId", next)
+        else out.delete("classId")
+        return out
+      },
+      { replace: true }
+    )
+  }
 
   const numericClassId = Number(classId)
   const structure = useQuery({
@@ -295,7 +312,7 @@ function StructureTable({
         <ClsEmpty title="No fees set for this class">
           {canManage || (canBootstrap && bootstrapEligible.length > 0) ? (
             <div className="grid justify-items-center gap-3">
-              <p>Add tuition and any admission, exam or annual fees.</p>
+              <p>Add tuition and any admission, exam, annual or promotion fees.</p>
               <Button size="sm" variant="outline" onClick={onAdd}>
                 <Plus data-icon="inline-start" /> {canBootstrap ? "Bootstrap fee type" : "Add Fee Type"}
               </Button>
@@ -310,6 +327,9 @@ function StructureTable({
 
   const row = (fee: FeeStructureFee, scheduled = false) => {
     const next = scheduled ? undefined : upcoming.get(fee.feeType)
+    const canBootstrapThis = canBootstrap && bootstrapEligible.includes(fee.feeType)
+    const canChange = !scheduled && (canManage || canBootstrapThis)
+    const canRemove = canManage && !scheduled
     return (
       <TableRow key={`${fee.feeType}-${fee.id}`} className={clsRowClass}>
         <TableCell className="pl-4 sm:pl-5">
@@ -323,8 +343,8 @@ function StructureTable({
           <span className="font-semibold text-[var(--cls-ink)] tabular-nums">
             {scheduled ? "—" : formatAmount(fee.amount)}
           </span>
-          {!scheduled && fee.feeType === "Tuition" && fee.amount === 0 ? (
-            <span className="mt-0.5 block text-[11px] text-[var(--cls-muted)]">School default applies</span>
+          {!scheduled && fee.amount === 0 ? (
+            <span className="mt-0.5 block text-[11px] text-amber-800">Not configured</span>
           ) : null}
           {next || scheduled ? (
             <span className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-sky-700">
@@ -347,27 +367,27 @@ function StructureTable({
             >
               <History className="size-3.5" aria-hidden /> <span className="hidden sm:inline">History</span>
             </Button>
-            {canManage && !scheduled ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="hidden h-8 px-2 md:inline-flex"
-                  aria-label={`Change ${fee.feeType}`}
-                  onClick={() => onChange(fee.feeType)}
-                >
-                  Change
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-2 text-red-600 hover:text-red-700"
-                  aria-label={`Remove ${fee.feeType}`}
-                  onClick={() => onRemove(fee)}
-                >
-                  <Trash2 className="size-3.5" aria-hidden /> <span className="hidden sm:inline">Remove</span>
-                </Button>
-              </>
+            {canChange ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="hidden h-8 px-2 md:inline-flex"
+                aria-label={`Change ${fee.feeType}`}
+                onClick={() => onChange(fee.feeType)}
+              >
+                Change
+              </Button>
+            ) : null}
+            {canRemove ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 px-2 text-red-600 hover:text-red-700"
+                aria-label={`Remove ${fee.feeType}`}
+                onClick={() => onRemove(fee)}
+              >
+                <Trash2 className="size-3.5" aria-hidden /> <span className="hidden sm:inline">Remove</span>
+              </Button>
             ) : null}
           </div>
         </TableCell>

@@ -2,7 +2,7 @@ import { Bell, ChevronRight } from "lucide-react"
 import { useMemo, useState } from "react"
 
 import { Button } from "@/components/ui/button"
-import type { Role } from "@/lib/auth"
+import { portalForRole, type Role } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
 import { ClsMenuTrigger } from "./cls-menu-trigger"
@@ -32,7 +32,7 @@ export function PortalTopbar({
   onOpenSection,
 }: Props) {
   const crumbs = useMemo(
-    () => breadcrumbsForSection(section, role, panel),
+    () => breadcrumbsForSection(section, portalForRole(role), panel),
     [section, role, panel]
   )
   const [notifOpen, setNotifOpen] = useState(false)

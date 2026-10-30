@@ -29,3 +29,4 @@ Working contract for Creative Leaders School. These files sit beside `Eduvia-Api
 | [08-fees-finance-and-sync.md](rules/08-fees-finance-and-sync.md) | Fees, UR-08, UR-09, BR-11, BR-12, finance, offline sync |
 | [09-security-audit-reports.md](rules/09-security-audit-reports.md) | Audit, privacy, reports, dashboards |
 | [10-code-alignment.md](rules/10-code-alignment.md) | What the API and frontend actually do today |
+| [11-dynamic-roles-and-permissions.md](rules/11-dynamic-roles-and-permissions.md) | SRS role summary, current implementation, gaps, target per-school dynamic permissions |

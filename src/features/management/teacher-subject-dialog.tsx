@@ -23,9 +23,9 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { useSchool } from "@/data/store"
 import { type Staff } from "@/data/types"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
 
 /** Change a teacher's single active subject; the previous assignment is closed, never rewritten (UR-02). */
 export function TeacherSubjectDialog({
@@ -42,7 +42,8 @@ export function TeacherSubjectDialog({
   const current = teacher
     ? (state.staff.find((person) => person.id === teacher.id) ?? teacher)
     : null
-  const allowed = can(actor.role, "teachers.subject.change")
+  const can = useCan()
+  const allowed = can("teachers.manage")
 
   function close() {
     setSubject("")

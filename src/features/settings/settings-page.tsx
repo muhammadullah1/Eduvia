@@ -10,7 +10,6 @@ import {
   ArchivesHub,
   BlockDatesPanel,
   LocationsPanel,
-  RolesPanel,
 } from "./settings-operations"
 
 export type SettingsPanelId =
@@ -18,7 +17,6 @@ export type SettingsPanelId =
   | "calendar"
   | "rooms"
   | "archives"
-  | "roles"
 
 const PANEL_METADATA: Record<
   SettingsPanelId,
@@ -42,26 +40,31 @@ const PANEL_METADATA: Record<
     subtitle:
       "Review and restore soft-deleted classes, subjects, staff, rooms, and block dates.",
   },
-  roles: {
-    title: "Roles & Permissions",
-    subtitle: "School permission matrix and system capabilities by role.",
-  },
+}
+
+const SETTINGS_PANELS: readonly SettingsPanelId[] = [
+  "general",
+  "calendar",
+  "rooms",
+  "archives",
+]
+
+function isSettingsPanel(value: string): value is SettingsPanelId {
+  return SETTINGS_PANELS.some((panel) => panel === value)
 }
 
 function resolvePanel(
   section?: string,
   searchPanel?: string | null
 ): SettingsPanelId {
-  // Safe backward compatibility for legacy section values
   if (section === "settings-calendar") return "calendar"
   if (section === "settings-rooms") return "rooms"
   if (section === "settings-archives") return "archives"
-  if (section === "settings-roles") return "roles"
   if (
     searchPanel &&
-    ["general", "calendar", "rooms", "archives", "roles"].includes(searchPanel)
+    isSettingsPanel(searchPanel)
   ) {
-    return searchPanel as SettingsPanelId
+    return searchPanel
   }
   return "general"
 }
@@ -73,8 +76,11 @@ export function SettingsPage({ section }: { section?: string }) {
   const [searchParams] = useSearchParams()
   const searchPanel = searchParams.get("panel")
 
-  // Safe redirect if a user hits the removed / redundant academic panel
   useEffect(() => {
+    if (searchPanel === "roles" || section === "settings-roles") {
+      navigate(portalPath(actor.role, "roles"), { replace: true })
+      return
+    }
     if (searchPanel === "academic" || section === "settings-academic") {
       navigate(portalPath(actor.role, "settings"), { replace: true })
     }
@@ -109,7 +115,6 @@ export function SettingsPage({ section }: { section?: string }) {
         {panel === "calendar" ? <BlockDatesPanel /> : null}
         {panel === "rooms" ? <LocationsPanel /> : null}
         {panel === "archives" ? <ArchivesHub /> : null}
-        {panel === "roles" ? <RolesPanel /> : null}
       </div>
     </div>
   )

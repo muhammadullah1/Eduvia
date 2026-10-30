@@ -52,12 +52,12 @@ import {
 } from "@/components/ui/table"
 import type { Payment } from "@/data/types"
 import { PrintReceiptButton } from "@/features/fees/components"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
 import { monthLabel } from "@/lib/fees"
 import { formatDate, pkr } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { useClientTable } from "@/lib/use-client-table"
 
 import { chartConfig, monthsThroughToday, queryMatch } from "./shared"
@@ -94,7 +94,8 @@ export function Fees({ query }: { query: string }) {
   const actor = useActor()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canConfirm = can(actor.role, "fees.payments.confirm")
+  const can = useCan()
+  const canConfirm = can("fees.payments.confirm")
   const [localQuery, setLocalQuery] = useState("")
   const [status, setStatus] = useState("all")
   const [ledgerOf, setLedgerOf] = useState<{

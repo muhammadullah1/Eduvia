@@ -7,7 +7,6 @@ import {
   ArchivesHub,
   BlockDatesPanel,
   LocationsPanel,
-  RolesPanel,
 } from "./settings-operations"
 
 vi.mock("./hooks/use-archived-counts", () => ({
@@ -238,46 +237,6 @@ describe("LocationsPanel modal and actions", () => {
     expect(screen.getByDisplayValue("Room 101")).toBeTruthy()
     expect(screen.getByDisplayValue("30")).toBeTruthy()
     expect(screen.queryByDisplayValue("R-101")).toBeNull()
-  })
-})
-
-describe("RolesPanel capability search", () => {
-  afterEach(cleanup)
-
-  it("renders search input, capability count, and full permission matrix by default", () => {
-    wrap(<RolesPanel />)
-
-    const searchInput = screen.getByPlaceholderText(/Search capabilities/i)
-    expect(searchInput).toBeTruthy()
-
-    expect(screen.getByText(/Showing \d+ of \d+ capabilities/i)).toBeTruthy()
-    expect(screen.getByText("Super Admin")).toBeTruthy()
-    expect(screen.getByText("Operations Manager")).toBeTruthy()
-  })
-
-  it("filters capability rows dynamically by search query", () => {
-    wrap(<RolesPanel />)
-
-    const searchInput = screen.getByPlaceholderText(/Search capabilities/i)
-    fireEvent.change(searchInput, { target: { value: "fees.totals" } })
-
-    expect(screen.getByText("fees.totals")).toBeTruthy()
-    expect(screen.queryByText("attendance.take")).toBeNull()
-  })
-
-  it("shows empty state and allows clearing search filter", () => {
-    wrap(<RolesPanel />)
-
-    const searchInput = screen.getByPlaceholderText(/Search capabilities/i)
-    fireEvent.change(searchInput, { target: { value: "nonexistent_xyz" } })
-
-    expect(screen.getByText(/No capabilities match/i)).toBeTruthy()
-
-    const clearBtn = screen.getByRole("button", { name: /Clear filter/i })
-    fireEvent.click(clearBtn)
-
-    expect(searchInput).toHaveValue("")
-    expect(screen.queryByText(/No capabilities match/i)).toBeNull()
   })
 })
 

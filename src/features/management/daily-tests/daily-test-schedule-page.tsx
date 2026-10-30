@@ -26,10 +26,10 @@ import {
 import { useSchool } from "@/data/store"
 import type { TestSchedule } from "@/data/types"
 import { WEEKDAYS } from "@/lib/academics"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import type { ApiSchedule } from "@/lib/api-types"
 import { classLabel } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 const SCHEDULES_KEY = ["daily-test-schedules"] as const
@@ -74,7 +74,8 @@ export function DailyTestSchedulePage() {
   const { state, saveTestSchedule, removeTestSchedule } = useSchool()
   const actor = useActor()
   const queryClient = useQueryClient()
-  const canManage = can(actor.role, "tests.schedule")
+  const can = useCan()
+  const canManage = can("tests.schedule")
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)

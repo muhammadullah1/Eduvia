@@ -13,10 +13,9 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
-import type { Role } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
-import { navigation } from "./navigation"
+import type { NavItem } from "./navigation"
 import {
   folderContainsSection,
   type NavFolder,
@@ -31,16 +30,16 @@ const folderTriggerClass =
   "h-8 w-full justify-between rounded-md px-3.5 text-[11px] font-semibold tracking-[0.06em] text-white/50 uppercase hover:bg-white/5 hover:text-white/70"
 
 type Props = {
-  role: Role
+  items: readonly NavItem[]
   nodes: NavNode[]
   active: string
   onNavigate: (id: string, panel?: string) => void
 }
 
-export function SidebarNavTree({ role, nodes, active, onNavigate }: Props) {
+export function SidebarNavTree({ items, nodes, active, onNavigate }: Props) {
   const itemsById = useMemo(
-    () => new Map(navigation[role].map((item) => [item.id, item])),
-    [role]
+    () => new Map(items.map((item) => [item.id, item])),
+    [items]
   )
 
   return (
@@ -81,7 +80,7 @@ function NavLinkItem({
 }: {
   link: NavLink
   active: string
-  itemsById: Map<string, (typeof navigation)[Role][number]>
+  itemsById: Map<string, NavItem>
   onNavigate: (id: string, panel?: string) => void
   nested: boolean
 }) {
@@ -155,7 +154,7 @@ function NavFolderBlock({
 }: {
   folder: NavFolder
   active: string
-  itemsById: Map<string, (typeof navigation)[Role][number]>
+  itemsById: Map<string, NavItem>
   onNavigate: (id: string, panel?: string) => void
 }) {
   const activeBase = active.split(":")[0].split("?")[0]

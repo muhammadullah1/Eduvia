@@ -10,6 +10,7 @@ export type AuditLogDto = {
   createdAt?: string | null
   entityType?: string | null
   entityId?: number | null
+  metadata?: Record<string, unknown> | null
 }
 
 export type AuditEventView = {
@@ -18,6 +19,7 @@ export type AuditEventView = {
   action: string
   at: string
   entity?: string
+  metadata: Record<string, unknown>
 }
 
 function mapAudit(row: AuditLogDto): AuditEventView {
@@ -27,6 +29,7 @@ function mapAudit(row: AuditLogDto): AuditEventView {
     action: row.action,
     at: row.at || row.createdAt || row.created_at || new Date().toISOString(),
     entity: row.entityType ?? undefined,
+    metadata: row.metadata ?? {},
   }
 }
 

@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { FeePaymentDto, StudentLedgerDto } from "@/api/fees/fees.service"
+import { grantRoleDefaults } from "@/test/permissions"
 
 import { Fees } from "./fees"
 
@@ -166,6 +167,7 @@ function wrap(ui: ReactNode) {
 
 beforeEach(() => {
   mockActor.role = "super_admin"
+  grantRoleDefaults("super_admin")
   mockNavigate.mockReset()
   mockConfirmPayment.mockReset()
   mockListPayments.mockReset()
@@ -237,6 +239,7 @@ describe("Fees (Fee Ledger Tab)", () => {
 
   it("hides Confirm for accountants because the API forbids payment confirmation", async () => {
     mockActor.role = "accountant"
+    grantRoleDefaults("accountant")
     wrap(<Fees query="" />)
     expect(await screen.findByText("RCPT-202610-002")).toBeTruthy()
     expect(screen.queryByRole("button", { name: "Confirm" })).toBeNull()

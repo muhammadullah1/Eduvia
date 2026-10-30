@@ -39,9 +39,9 @@ import {
   type AcademicFocusTab,
   academicPortalSectionForTab,
 } from "@/features/shell/academic-section"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
-import { can } from "@/lib/permissions"
 
 import { AcademicSetupTimetablePanel } from "./academic-setup-timetable-panel"
 import { TeacherSubjectDialog } from "./teacher-subject-dialog"
@@ -61,6 +61,7 @@ export function AcademicSetup({
     setClassPeriodCount,
   } = useSchool()
   const actor = useActor()
+  const can = useCan()
   const navigate = useNavigate()
   const params = useParams()
   const splat = params["*"] ?? ""
@@ -77,8 +78,8 @@ export function AcademicSetup({
     section: "",
     room: "",
     periodCount: "8",
-    monthlyFee: "8500",
   })
+  const [lastCreatedClassLabel, setLastCreatedClassLabel] = useState("")
   const [subjectForm, setSubjectForm] = useState({ name: "", code: "" })
   const [teacherForm, setTeacherForm] = useState({
     name: "",
@@ -271,47 +272,51 @@ export function AcademicSetup({
                 placeholder="8"
               />
             </Field>
-            {can(actor.role, "settings.fees") ? (
-              <Field
-                label="Monthly fee (PKR)"
-                hint="Used when monthly fee records are generated."
-              >
-                <Input
-                  value={classForm.monthlyFee}
-                  onChange={(event) =>
-                    setClassForm({ ...classForm, monthlyFee: event.target.value })
-                  }
-                  placeholder="8500"
-                />
-              </Field>
-            ) : null}
           </CardContent>
-          <CardFooter>
+          <CardFooter className="flex flex-wrap items-center gap-3">
             <Button
               onClick={() => {
+                const grade = classForm.grade.trim()
+                const section = classForm.section.trim()
                 const message = addClass(
                   {
                     ...classForm,
                     periodCount: Number(classForm.periodCount) || 8,
-                    monthlyFee: Number(classForm.monthlyFee) || 0,
+                    monthlyFee: 0,
                   },
                   actor.name
                 )
                 if (message) toast.error(message)
                 else {
                   toast.success("Class section added")
+                  const label =
+                    section === "Main" || section === "General" || !section
+                      ? grade
+                      : `${grade} · ${section}`
+                  setLastCreatedClassLabel(label)
                   setClassForm({
                     grade: "",
                     section: "",
                     room: "",
                     periodCount: "8",
-                    monthlyFee: "8500",
                   })
                 }
               }}
             >
               Add class
             </Button>
+            {lastCreatedClassLabel && can("fees.structure.update") ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  navigate(portalPath(actor.role, "fee-structure"))
+                  setLastCreatedClassLabel("")
+                }}
+              >
+                Set fees
+              </Button>
+            ) : null}
           </CardFooter>
         </Card>
         <Card>

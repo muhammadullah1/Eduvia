@@ -19,11 +19,10 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useActor } from "@/lib/actor"
+import { useCan } from "@/lib/access"
+import { ApiHttpError } from "@/lib/api"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 import { formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
-import { ApiHttpError } from "@/lib/api"
 
 const BRAND = "bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
 const CONTENT = "max-w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg"
@@ -36,8 +35,8 @@ function errText(err: unknown) {
 
 /** Explicit school families for sibling concessions — verified before use. */
 export function FamiliesPage() {
-  const { role } = useActor()
-  const canManage = can(role, "families.manage")
+  const can = useCan()
+  const canManage = can("families.manage")
   const queryClient = useQueryClient()
   const [createOpen, setCreateOpen] = useState(false)
   const [detail, setDetail] = useState<Family | null>(null)
@@ -54,7 +53,10 @@ export function FamiliesPage() {
   })
   const suggestions = useQuery({
     queryKey: [FAMILIES_QUERY_KEY, "suggest", detail?.id],
-    queryFn: () => familiesService.suggest(detail!.id),
+    queryFn: () => {
+      if (!detail) return Promise.reject(new Error("No family"))
+      return familiesService.suggest(detail.id)
+    },
     enabled: Boolean(detail?.id),
   })
 

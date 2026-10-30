@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { Role } from "@/lib/auth"
+import { grantRoleDefaults } from "@/test/permissions"
 
 import { AuditLogPage, Reports } from "./reports"
 
@@ -44,6 +45,7 @@ function wrap(node: ReactNode, initialEntries = ["/admin/reports"]) {
 describe("Reports Component", () => {
   beforeEach(() => {
     currentRole = "super_admin"
+    grantRoleDefaults("super_admin")
   })
 
   afterEach(cleanup)
@@ -78,6 +80,7 @@ describe("Reports Component", () => {
 describe("AuditLogPage", () => {
   beforeEach(() => {
     currentRole = "operations_manager"
+    grantRoleDefaults("operations_manager")
   })
 
   afterEach(cleanup)

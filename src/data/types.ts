@@ -358,12 +358,17 @@ export type DailyTestRules = {
 
 export type ResultFeeRule = "all_due_paid" | "exam_month_paid" | "disabled"
 
+export type ConcessionPolicy = {
+  allowedModes: Array<"percent" | "fixed_discount" | "waiver">
+  approvalRule: "none" | "always" | "threshold"
+  approvalPercentAbove: number | null
+  approvalAmountAbove: number | null
+}
+
 export type FeeSettings = {
-  defaultMonthlyFee: number
   dueDay: number
   maxAdvanceMonths: number
-  /** When true, Approved concessions drive new bills instead of fixed_monthly_fee. */
-  concessionsEnabled: boolean
+  concessionPolicy: ConcessionPolicy
 }
 
 export type AttendanceSettings = {
@@ -485,10 +490,14 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
     rankTie: "shared",
   },
   fees: {
-    defaultMonthlyFee: 8500,
     dueDay: 10,
     maxAdvanceMonths: 12,
-    concessionsEnabled: false,
+    concessionPolicy: {
+      allowedModes: ["percent", "fixed_discount", "waiver"],
+      approvalRule: "none",
+      approvalPercentAbove: null,
+      approvalAmountAbove: null,
+    },
   },
   attendance: {
     editWindowDays: 7,

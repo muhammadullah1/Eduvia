@@ -1,6 +1,6 @@
 import { api } from "@/lib/api"
 
-export const FEE_TYPES = ["Tuition", "Admission", "Exam", "Annual"] as const
+export const FEE_TYPES = ["Tuition", "Admission", "Exam", "Annual", "Promotion"] as const
 export type FeeType = (typeof FEE_TYPES)[number]
 export type FeeFrequency = "Monthly" | "OneTime" | "Yearly"
 
@@ -9,6 +9,7 @@ export const FEE_TYPE_FREQUENCY: Record<FeeType, FeeFrequency> = {
   Admission: "OneTime",
   Exam: "Yearly",
   Annual: "Yearly",
+  Promotion: "OneTime",
 }
 
 export type FeeStructureFee = {

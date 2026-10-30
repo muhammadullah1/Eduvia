@@ -35,10 +35,10 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { useSchool } from "@/data/store"
 import { StudentLedgerView } from "@/features/management/screens"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
 import { formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { printDocument } from "@/lib/print"
 import { cn } from "@/lib/utils"
 
@@ -83,11 +83,11 @@ function useDebounced<T>(value: T, ms = 250) {
  * payment, preview the exact server allocation (oldest month first), confirm, print.
  */
 export function CollectFeePage() {
-  const { role } = useActor()
   const [studentId, setStudentId] = useState<number | null>(null)
   const [ledgerOf, setLedgerOf] = useState<number | null>(null)
   const overview = useQuery({ queryKey: [COLLECT_QUERY_KEY, "overview"], queryFn: collectService.overview })
-  const seesTotals = can(role, "fees.totals")
+  const can = useCan()
+  const seesTotals = can("fees.totals")
 
   if (ledgerOf) return <StudentLedgerView studentId={ledgerOf} onBack={() => setLedgerOf(null)} backLabel="Back to Collect Fee" />
 

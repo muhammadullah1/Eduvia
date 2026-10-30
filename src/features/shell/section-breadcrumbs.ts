@@ -1,10 +1,9 @@
-import type { Role } from "@/lib/auth"
+import type { PortalSlug } from "@/lib/auth"
 
 import { navigationLabelForSection } from "./navigation"
 
 const GROUP_FOR_SECTION: Record<string, string> = {
   dashboard: "Dashboard",
-  overview: "Operations",
   sessions: "Academic Management",
   classes: "Academic Management",
   subjects: "Academic Management",
@@ -16,7 +15,6 @@ const GROUP_FOR_SECTION: Record<string, string> = {
   exams: "Academic Management",
   academic: "Academic Management",
   curriculum: "Academic Management",
-  "lesson-review": "Academic Management",
   admissions: "Student Management",
   students: "Student Management",
   "enrollment-promotion": "Student Management",
@@ -28,7 +26,6 @@ const GROUP_FOR_SECTION: Record<string, string> = {
   fees: "Finance",
   "collect-fee": "Finance",
   "offline-sync": "Finance",
-  collect: "Finance",
   collections: "Finance",
   "fee-structure": "Finance",
   "fee-generation": "Finance",
@@ -39,30 +36,26 @@ const GROUP_FOR_SECTION: Record<string, string> = {
   reports: "Reports",
   "audit-log": "Reports",
   settings: "Settings",
+  roles: "Settings",
   "settings-academic": "Settings",
   "settings-calendar": "Settings",
   "settings-rooms": "Settings",
   "settings-archives": "Settings",
-  "settings-roles": "Settings",
 }
 
 export function breadcrumbsForSection(
   section: string,
-  role: Role,
+  portal: PortalSlug,
   panel?: string | null
 ) {
   if (section === "settings") {
     if (panel === "calendar") return ["Settings", "Calendar & Holidays"]
     if (panel === "rooms") return ["Settings", "Rooms & Locations"]
     if (panel === "archives") return ["Settings", "Archives"]
-    if (panel === "roles") return ["Settings", "Roles & Permissions"]
     return ["Settings", "Rules & Config"]
   }
   const group = GROUP_FOR_SECTION[section]
-  const page = navigationLabelForSection(section, role)
-  if (section === "dashboard" && role === "operations_manager") {
-    return ["Operations", "Overview"]
-  }
+  const page = navigationLabelForSection(section, portal)
   if (group && group !== page) {
     return [group, page]
   }

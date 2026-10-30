@@ -37,9 +37,6 @@ export function OperationsOverview({
   const pendingCover = state.teacherAbsences.filter(
     (row) => row.date === today && row.status === "Pending"
   ).length
-  const toReview = state.dailyLessons.filter(
-    (row) => row.reviewStatus === "Submitted"
-  ).length
   const toPublish = state.weeklyTests.filter(
     (test) => test.status === "MarksEntered"
   ).length
@@ -53,11 +50,6 @@ export function OperationsOverview({
       count: pendingCover,
       title: "Absent periods without cover today",
       section: "absences",
-    },
-    {
-      count: toReview,
-      title: "Daily updates awaiting review",
-      section: "lesson-review",
     },
     {
       count: toPublish,

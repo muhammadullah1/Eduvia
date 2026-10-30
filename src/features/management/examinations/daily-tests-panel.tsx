@@ -9,10 +9,10 @@ import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
-import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 
 import { DailyMarksDialog } from "./daily-marks-dialog"
@@ -53,9 +53,10 @@ export function DailyTestsPanel() {
   const [tab, setTab] = useState<Tab>("tests")
   const [month, setMonth] = useState(currentMonth)
   const [marking, setMarking] = useState<DailyTestDto | null>(null)
-  const canSchedule = can(actor.role, "tests.schedule")
-  const canMark = can(actor.role, "tests.marks")
-  const canPublish = can(actor.role, "tests.publish")
+  const can = useCan()
+  const canSchedule = can("tests.schedule")
+  const canMark = can("tests.marks")
+  const canPublish = can("tests.publish")
   const months = useMemo(() => monthOptions(), [])
 
   const tests = useQuery({
@@ -351,11 +352,11 @@ function OutcomeTag({ outcome }: { outcome: { status: string; flaggedForFollowUp
 }
 
 function FlaggedList({ month }: { month: string }) {
-  const actor = useActor()
+  const can = useCan()
   const flagged = useQuery({
     queryKey: ["daily-tests", "flagged", month],
     queryFn: () => examsService.dailyFlagged(month),
-    enabled: can(actor.role, "tests.schedule"),
+    enabled: can("tests.schedule"),
   })
   const rows = flagged.data ?? []
   return (

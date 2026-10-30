@@ -1,10 +1,10 @@
-import { Archive, CalendarOff, DoorOpen, Shield } from "lucide-react"
+import { Archive, CalendarOff, DoorOpen } from "lucide-react"
 import type { ComponentType } from "react"
 
-import type { Role } from "@/lib/auth"
+import type { PortalSlug } from "@/lib/auth"
 
 import { navIcons } from "./nav-icons"
-import { navigation } from "./navigation"
+import type { NavItem } from "./navigation"
 
 export type NavLink = {
   type: "link"
@@ -37,7 +37,6 @@ const ACADEMIC_FOLDER: NavFolder = {
     { type: "link", id: "timetable" },
     { type: "link", id: "substitutes" },
     { type: "link", id: "lesson-plan" },
-    { type: "link", id: "lesson-review" },
     { type: "link", id: "daily-test-schedule" },
     { type: "link", id: "exams" },
   ],
@@ -65,6 +64,11 @@ const FINANCE_FOLDER: NavFolder = {
   children: [
     { type: "link", id: "fees" },
     { type: "link", id: "collect-fee" },
+    { type: "link", id: "collections" },
+    { type: "link", id: "fee-structure" },
+    { type: "link", id: "fee-generation" },
+    { type: "link", id: "fee-concessions" },
+    { type: "link", id: "expenses" },
     { type: "link", id: "offline-sync" },
     { type: "link", id: "finance" },
   ],
@@ -103,44 +107,18 @@ const SETTINGS_FOLDER: NavFolder = {
       label: "Archives",
       icon: Archive,
     },
-    {
-      type: "link",
-      id: "settings",
-      panel: "roles",
-      label: "Roles & Permissions",
-      icon: Shield,
-    },
+    { type: "link", id: "roles" },
   ],
 }
 
-const SUPER_ADMIN_TREE: NavNode[] = [
+const STAFF_TREE: NavNode[] = [
   { type: "link", id: "dashboard" },
   ACADEMIC_FOLDER,
   STUDENT_FOLDER,
   FINANCE_FOLDER,
   { type: "link", id: "reports" },
-  SETTINGS_FOLDER,
-]
-
-const OPERATIONS_TREE: NavNode[] = [
-  { type: "link", id: "overview" },
-  ACADEMIC_FOLDER,
-  STUDENT_FOLDER,
-  { type: "link", id: "families" },
   { type: "link", id: "audit-log" },
   SETTINGS_FOLDER,
-]
-
-/** The accountant's simple sidebar: only the sections they are allowed to use. */
-const ACCOUNTANT_TREE: NavNode[] = [
-  { type: "link", id: "collect" },
-  { type: "link", id: "collections" },
-  { type: "link", id: "fee-structure" },
-  { type: "link", id: "fee-generation" },
-  { type: "link", id: "fee-concessions" },
-  { type: "link", id: "families" },
-  { type: "link", id: "expenses" },
-  { type: "link", id: "offline-sync" },
 ]
 
 const TEACHER_TREE: NavNode[] = [
@@ -179,10 +157,8 @@ const PARENT_TREE: NavNode[] = [
   },
 ]
 
-const TREE_BY_ROLE: Partial<Record<Role, NavNode[]>> = {
-  super_admin: SUPER_ADMIN_TREE,
-  operations_manager: OPERATIONS_TREE,
-  accountant: ACCOUNTANT_TREE,
+const TREE_BY_PORTAL: Record<PortalSlug, NavNode[]> = {
+  admin: STAFF_TREE,
   teacher: TEACHER_TREE,
   parent: PARENT_TREE,
 }
@@ -220,10 +196,7 @@ export function treeContainsSection(nodes: NavNode[], sectionId: string): boolea
   return false
 }
 
-export function navigationMenuTreeForRole(role: Role): NavNode[] {
-  const allowed = new Set(navigation[role].map((item) => item.id))
-  const tree = TREE_BY_ROLE[role] ?? [
-    ...navigation[role].map((item) => ({ type: "link" as const, id: item.id })),
-  ]
-  return filterTree(tree, allowed)
+/** The sidebar tree for a portal, keeping only the sections in `allowed`. */
+export function navigationMenuTree(portal: PortalSlug, allowed: readonly NavItem[]): NavNode[] {
+  return filterTree(TREE_BY_PORTAL[portal], new Set(allowed.map((item) => item.id)))
 }

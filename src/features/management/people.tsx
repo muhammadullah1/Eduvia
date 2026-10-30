@@ -38,9 +38,9 @@ import {
 } from "@/components/ui/table"
 import { useSchool } from "@/data/store"
 import { type Staff } from "@/data/types"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { classLabel } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { useClientTable } from "@/lib/use-client-table"
 
 import { queryMatch } from "./shared"
@@ -49,7 +49,8 @@ import { TeacherSubjectDialog } from "./teacher-subject-dialog"
 export function People({ query }: { query: string }) {
   const { state, addStaff } = useSchool()
   const actor = useActor()
-  const roleOptions = can(actor.role, "staff.create.any")
+  const can = useCan()
+  const roleOptions = can("roles.manage")
     ? ["Teacher", "Operations Manager", "Accountant"]
     : ["Teacher"]
   const [localQuery, setLocalQuery] = useState("")

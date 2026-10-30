@@ -1,13 +1,12 @@
-import { BookOpenText, ClipboardCheck, Plus } from "lucide-react"
-import { useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { useNavigate } from "react-router-dom"
+import { BookOpenText, Plus } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 
+import { classDisplayName } from "@/api/classes/map-class"
 import plannedChaptersService, {
   type ChapterStatus,
   type PlannedChapterDto,
 } from "@/api/lessons/planned-chapters.service"
-import { classDisplayName } from "@/api/classes/map-class"
 import { ConfirmDialog } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import { DatePicker } from "@/components/ui/date-picker"
@@ -30,9 +29,7 @@ import {
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
-import { useActor } from "@/lib/actor"
-import { portalPath } from "@/lib/auth"
-import { can } from "@/lib/permissions"
+import { useCan } from "@/lib/access"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
@@ -66,9 +63,8 @@ function statusBadge(status: ChapterStatus) {
 }
 
 export function LessonPlanPage() {
-  const actor = useActor()
-  const canManage = can(actor.role, "chapters.manage")
-  const navigate = useNavigate()
+  const can = useCan()
+  const canManage = can("chapters.manage")
   const queryClient = useQueryClient()
   const { data: sessions = [] } = useSessionsList()
   const currentSession = sessions.find((session) => session.current)
@@ -212,15 +208,6 @@ export function LessonPlanPage() {
           </p>
         </div>
         {canManage ? (
-          <div className="flex flex-wrap gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => navigate(portalPath(actor.role, "lesson-review"))}
-          >
-            <ClipboardCheck data-icon="inline-start" />
-            Review daily updates
-          </Button>
           <Button
             type="button"
             className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
@@ -230,7 +217,6 @@ export function LessonPlanPage() {
             <Plus data-icon="inline-start" />
             Add Chapter
           </Button>
-          </div>
         ) : null}
       </div>
 

@@ -23,8 +23,8 @@ import {
   type SchoolSettings,
 } from "@/data/types"
 import { FEE_RULE_LABELS } from "@/features/ops/fee-rule-labels"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
-import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
@@ -175,9 +175,10 @@ export function SettingsGeneralRules() {
   )
   const [saving, setSaving] = useState(false)
 
-  const canAcademic = can(actor.role, "settings.academic")
-  const canResults = can(actor.role, "settings.results")
-  const canFees = can(actor.role, "settings.fees")
+  const can = useCan()
+  const canAcademic = can("settings.academic.update")
+  const canResults = can("settings.fees.update")
+  const canFees = can("settings.fees.update")
 
   useEffect(() => {
     setRules(state.settings.dailyTestRules)
@@ -556,7 +557,7 @@ export function SettingsGeneralRules() {
         title="Fee billing & advance limits"
         description={
           canFees
-            ? "Due dates, advance collection, fallback tuition, and whether Approved concessions apply to new bills."
+            ? "Due dates, advance collection, and whether Approved concessions apply to new bills. Class amounts are set under Fee Structure — there is no school-wide tuition."
             : "Set by the super admin."
         }
         badge={
@@ -564,20 +565,7 @@ export function SettingsGeneralRules() {
         }
       >
         <div className="space-y-4">
-          <div className="grid items-start gap-4 sm:grid-cols-3">
-            <SettingsField
-              label="Fallback monthly tuition (PKR)"
-              hint="Used only when a class has no Tuition fee structure row"
-            >
-              <Input
-                className={FIELD_CONTROL}
-                disabled={!canFees}
-                inputMode="decimal"
-                value={fees.defaultMonthlyFee}
-                onChange={numberFee("defaultMonthlyFee")}
-                aria-label="Fallback monthly tuition"
-              />
-            </SettingsField>
+          <div className="grid items-start gap-4 sm:grid-cols-2">
             <SettingsField label="Tuition due day" hint="Day of each billed month (1–28)">
               <Select
                 disabled={!canFees}
@@ -615,24 +603,85 @@ export function SettingsGeneralRules() {
             </SettingsField>
           </div>
 
-          <PreferenceRow
-            title="Dynamic concessions"
-            description="When on, Approved concessions drive new bills instead of the student fixed monthly fee. Existing bills never change. Manage concessions under Fee Management."
-            control={
-              <Switch
-                checked={fees.concessionsEnabled}
-                disabled={!canFees}
-                onCheckedChange={(checked) =>
-                  setFees({ ...fees, concessionsEnabled: checked })
-                }
-                aria-label="Enable dynamic concessions"
-              />
-            }
-          />
+          <SettingsField
+            label="Concession approval"
+            hint="When a new student concession needs Super Admin approval"
+          >
+            <Select
+              value={fees.concessionPolicy?.approvalRule ?? "none"}
+              disabled={!canFees}
+              onValueChange={(value) =>
+                setFees({
+                  ...fees,
+                  concessionPolicy: {
+                    ...(fees.concessionPolicy ?? {
+                      allowedModes: ["percent", "fixed_discount", "waiver"],
+                      approvalPercentAbove: null,
+                      approvalAmountAbove: null,
+                    }),
+                    approvalRule: value as "none" | "always" | "threshold",
+                  },
+                })
+              }
+            >
+              <SelectTrigger className={FIELD_CONTROL} aria-label="Concession approval rule">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  <SelectItem value="none">Never — apply immediately</SelectItem>
+                  <SelectItem value="always">Always require approval</SelectItem>
+                  <SelectItem value="threshold">Only above a % or PKR amount</SelectItem>
+                </SelectGroup>
+              </SelectContent>
+            </Select>
+          </SettingsField>
+          {(fees.concessionPolicy?.approvalRule ?? "none") === "threshold" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <SettingsField label="Approve above %" hint="Percent concessions above this need approval">
+                <Input
+                  className={FIELD_CONTROL}
+                  disabled={!canFees}
+                  inputMode="numeric"
+                  value={fees.concessionPolicy?.approvalPercentAbove ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim()
+                    setFees({
+                      ...fees,
+                      concessionPolicy: {
+                        ...fees.concessionPolicy,
+                        approvalPercentAbove: raw === "" ? null : Number(raw),
+                      },
+                    })
+                  }}
+                  aria-label="Approval percent threshold"
+                />
+              </SettingsField>
+              <SettingsField label="Approve above PKR" hint="Fixed discounts above this need approval">
+                <Input
+                  className={FIELD_CONTROL}
+                  disabled={!canFees}
+                  inputMode="numeric"
+                  value={fees.concessionPolicy?.approvalAmountAbove ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value.trim()
+                    setFees({
+                      ...fees,
+                      concessionPolicy: {
+                        ...fees.concessionPolicy,
+                        approvalAmountAbove: raw === "" ? null : Number(raw),
+                      },
+                    })
+                  }}
+                  aria-label="Approval amount threshold"
+                />
+              </SettingsField>
+            </div>
+          ) : null}
 
           <LockedNote>
-            Class fee amounts are managed under Fee Management → Fee Structure. Session lock
-            applies once the academic session has started.
+            Assign concessions on each student&apos;s Fee concession section. Reasons are managed
+            under Concessions. Tuition and other fee amounts come from Fee Management → Fee Structure only.
           </LockedNote>
           {!canFees ? (
             <LockedNote>Only Super Admins can modify fee billing policies.</LockedNote>

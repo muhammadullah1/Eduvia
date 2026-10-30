@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { useSchool } from "@/data/store"
 import type { Payment } from "@/data/types"
 import { feeMonthsLabel } from "@/features/fees/receipts"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
 import {
@@ -26,7 +27,6 @@ import {
   planOldestFirst,
 } from "@/lib/fees"
 import { classLabel, pkr } from "@/lib/format"
-import { can } from "@/lib/permissions"
 
 function newKey() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -55,7 +55,8 @@ export function RecordPaymentForm({
   const [lines, setLines] = useState<Record<string, string>>({})
   const [key, setKey] = useState(newKey)
   const [error, setError] = useState("")
-  const canManual = can(actor.role, "fees.payments.allocate_manual")
+  const can = useCan()
+  const canManual = can("fees.payments.allocate_manual")
   const students = state.students.filter(
     (student) => student.status === "Active"
   )
@@ -148,7 +149,7 @@ export function RecordPaymentForm({
             onChange={(event) =>
               setAmount(event.target.value.replace(/[^0-9]/g, ""))
             }
-            placeholder="8500"
+            placeholder="Amount"
           />
         </Field>
         <Field label="Payment date">

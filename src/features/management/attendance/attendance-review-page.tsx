@@ -3,9 +3,8 @@ import { useState } from "react"
 import { useSearchParams } from "react-router-dom"
 
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
-import { useActor } from "@/lib/actor"
+import { useCan } from "@/lib/access"
 import { getToday } from "@/lib/dates"
-import { can } from "@/lib/permissions"
 
 import { AbsenteePanel } from "./absentee-panel"
 import { ChangeHistoryPanel } from "./change-history-panel"
@@ -30,7 +29,6 @@ const TAB_VALUES = TABS.map((tab) => tab.value)
 
 /** /admin/student-attendance: management review of the attendance teachers record (SRS 6.3). */
 export function AttendanceReviewPage() {
-  const actor = useActor()
   const [params, setParams] = useSearchParams()
   const tab = TAB_VALUES.includes(params.get("tab") ?? "") ? (params.get("tab") as string) : "today"
   const today = getToday()
@@ -40,7 +38,8 @@ export function AttendanceReviewPage() {
   const [month, setMonth] = useState(today.slice(0, 7))
   const classId = pickedClass || classes.find((klass) => klass.status === "Active")?.id || classes[0]?.id || ""
 
-  if (!can(actor.role, "attendance.review")) {
+  const can = useCan()
+  if (!can("attendance.review")) {
     return (
       <div className="rounded-xl border border-[var(--cls-border)] bg-white px-6 py-14 text-center text-sm text-[var(--cls-muted)]">
         Attendance review is available to the Super Admin and the Operations Manager.

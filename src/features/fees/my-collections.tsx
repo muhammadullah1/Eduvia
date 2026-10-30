@@ -21,14 +21,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { studentName, useSchool } from "@/data/store"
-import { CollectFeePage } from "@/features/fees/collect"
 import { PrintReceiptButton } from "@/features/fees/components"
-import { OfflineSyncPage } from "@/features/fees/offline-sync"
 import { feeMonthsLabel } from "@/features/fees/receipts"
-import { AccountantExpensesPage } from "@/features/finance/finance-page"
-import { FamiliesPage } from "@/features/management/families/families-page"
-import { FeeConcessionsPage } from "@/features/management/fee-concessions/fee-concessions-page"
-import { FeeStructurePage, MonthlyGenerationPage } from "@/features/management/screens"
 import { useClientPagination } from "@/hooks/use-client-pagination"
 import { useReportDownload } from "@/hooks/use-report-download"
 import { useActor } from "@/lib/actor"
@@ -46,21 +40,8 @@ const RECEIPT_COLUMNS = [
   { key: "receipt", label: "Receipt no." },
 ]
 
-// ---- accountant (UR-08 / §9) ----------------------------------------------------
-
-/** Accountant portal: record payments and see only your own receipts. No totals anywhere. */
-export function AccountantPortal({ section }: { section: string }) {
-  if (section === "collections") return <MyCollections />
-  if (section === "fee-structure") return <FeeStructurePage />
-  if (section === "fee-generation") return <MonthlyGenerationPage />
-  if (section === "fee-concessions") return <FeeConcessionsPage />
-  if (section === "families") return <FamiliesPage />
-  if (section === "expenses") return <AccountantExpensesPage />
-  if (section === "offline-sync") return <OfflineSyncPage />
-  return <CollectFeePage />
-}
-
-function MyCollections() {
+/** The signed-in collector's own confirmed receipts for one day; no totals. */
+export function MyCollections() {
   const { state } = useSchool()
   const actor = useActor()
   const [day, setDay] = useState(getToday)

@@ -1,13 +1,9 @@
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
-import type { Role } from "@/lib/auth"
-import { can } from "@/lib/permissions"
+import type { Can } from "@/lib/access"
 
-export function canResendStaffInvitation(
-  viewerRole: Role,
-  staff: StaffDirectoryRow
-) {
+export function canResendStaffInvitation(can: Can, staff: StaffDirectoryRow) {
   if (staff.role === "teacher") {
-    return can(viewerRole, "staff.create.teacher")
+    return can("users.create")
   }
-  return can(viewerRole, "staff.create.any")
+  return can("roles.manage")
 }

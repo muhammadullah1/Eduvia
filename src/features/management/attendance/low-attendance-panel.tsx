@@ -10,9 +10,9 @@ import { Button } from "@/components/ui/button"
 import { MonthPicker } from "@/components/ui/month-picker"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { portalPath } from "@/lib/auth"
-import { can } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 import { FILTER_TRIGGER_CLASS, guardianLine, monthLabel, THRESHOLDS } from "./attendance-rules"
@@ -34,7 +34,8 @@ export function LowAttendancePanel({ month, onMonthChange }: Props) {
   })
   const data = query.data
   const active = threshold ?? data?.threshold ?? 75
-  const canSaveDefault = can(actor.role, "settings.academic") && data != null && active !== data.defaultThreshold
+  const can = useCan()
+  const canSaveDefault = can("settings.academic.update") && data != null && active !== data.defaultThreshold
   const saveDefault = useMutation({
     mutationFn: () => attendanceReviewService.saveThreshold(active),
     onSuccess: async () => {

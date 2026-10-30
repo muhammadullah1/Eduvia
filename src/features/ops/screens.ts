@@ -1,7 +1,5 @@
 export { AbsencesPanel } from "./absences-panel"
-export { AccountantPortal } from "./accountant-portal"
 export { CurriculumPanel } from "./curriculum-panel"
-export { LessonReviewPanel } from "./lesson-review-panel"
 export { MarksDialog } from "./marks-dialog"
 export { OperationsOverview } from "./operations-overview"
 export { SettingsPanel } from "./settings-panel"

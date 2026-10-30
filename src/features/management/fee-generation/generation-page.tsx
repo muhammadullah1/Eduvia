@@ -16,11 +16,12 @@ import { useNavigate } from "react-router-dom"
 import { toast } from "sonner"
 
 import generationService, {
-  GENERATION_QUERY_KEY,
   type ConcessionConflict,
+  GENERATION_QUERY_KEY,
   type GenerationInput,
   type GenerationResult,
   LEDGER_QUERY_KEY,
+  type MissingFeeStructure,
 } from "@/api/fees/generation.service"
 import { ClsEmpty, clsHeadRowClass, ClsPanel, clsRowClass, ClsTh } from "@/components/app/cls-panel"
 import { Button } from "@/components/ui/button"
@@ -233,6 +234,7 @@ function RulesNote() {
         <li>Annual: once per session, in the first month generated while an Annual fee is set.</li>
         <li>Exam: in the month an Exam fee takes effect (mid-month dates bill the following month).</li>
         <li>Admission: once, in the admission month, for students admitted after the fee was set.</li>
+        <li>Promotion: once, when a student is promoted into a class that has a Promotion fee configured.</li>
         <li>Overlapping non-stackable concessions block that student&apos;s new bill until resolved.</li>
         <li>Existing records are never changed or billed twice.</li>
       </ul>
@@ -294,6 +296,7 @@ function PreviewStep({
 
       {hidden ? <HiddenAmountsNote /> : null}
       <ConcessionConflictsNote conflicts={data.concessionConflicts} />
+      <MissingStructuresNote rows={data.missingStructures} />
 
       {!data.classes.length ? (
         <ClsPanel>
@@ -328,7 +331,16 @@ function PreviewStep({
                     <TableCell className="text-right tabular-nums">{c.students}</TableCell>
                     <TableCell className="text-right tabular-nums">
                       {c.bills}
-                      {c.skippedStudents ? <span className="block text-[11px] text-[var(--cls-muted)]">{c.skippedStudents} already billed</span> : null}
+                      {c.skippedStudents ? (
+                        <span className="block text-[11px] text-[var(--cls-muted)]">
+                          {c.skippedStudents} already billed
+                        </span>
+                      ) : null}
+                      {c.missingStructureStudents ? (
+                        <span className="block text-[11px] text-amber-800">
+                          {c.missingStructureStudents} no fee structure
+                        </span>
+                      ) : null}
                     </TableCell>
                     {!hidden ? <TableCell className="text-right font-semibold tabular-nums">{formatPkr(c.totalDue)}</TableCell> : null}
                     {!hidden ? (
@@ -409,7 +421,12 @@ function PreviewStep({
         <Button variant="outline" className="bg-white" onClick={onBack}>
           Back
         </Button>
-        <Button className={brandButton} onClick={onConfirm} disabled={nothing}>
+        <Button
+          className={brandButton}
+          onClick={onConfirm}
+          disabled={nothing || data.canConfirm === false}
+          data-testid="confirm-generation"
+        >
           Confirm Generation
         </Button>
       </div>
@@ -459,12 +476,17 @@ function ConfirmStep({
           This action cannot be undone. Existing records are skipped, so no student is billed twice{t.skippedStudents ? ` (${plural(t.skippedStudents, "student")} already billed)` : ""}.
         </p>
         <ConcessionConflictsNote conflicts={data.concessionConflicts} />
+        <MissingStructuresNote rows={data.missingStructures} />
         {error ? <ErrorNote message={error} onRetry={onGenerate} /> : null}
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
           <Button variant="outline" className="bg-white" onClick={onBack} disabled={saving}>
             Back
           </Button>
-          <Button className={brandButton} onClick={onGenerate} disabled={saving}>
+          <Button
+            className={brandButton}
+            onClick={onGenerate}
+            disabled={saving || data.canConfirm === false}
+          >
             {saving ? <Loader2 data-icon="inline-start" className="animate-spin" /> : null}
             {saving ? "Generating…" : "Generate Records"}
           </Button>
@@ -527,6 +549,35 @@ function DoneStep({
         </div>
       </div>
     </ClsPanel>
+  )
+}
+
+function MissingStructuresNote({ rows }: { rows?: MissingFeeStructure[] }) {
+  if (!rows?.length) return null
+  return (
+    <div
+      role="alert"
+      className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-950"
+      data-testid="missing-fee-structures"
+    >
+      <p className="inline-flex items-center gap-2 font-medium">
+        <AlertTriangle className="size-4 shrink-0" aria-hidden />
+        {rows.length} fee structure
+        {rows.length === 1 ? "" : "s"} missing — those rows will not be billed.
+      </p>
+      <p className="mt-1 text-xs text-amber-900/80">
+        Set amounts under Fee Management → Fee Structure. Confirm stays available only when at least
+        one other record can still be generated.
+      </p>
+      <ul className="mt-2 max-h-28 space-y-0.5 overflow-y-auto text-xs">
+        {rows.map((row) => (
+          <li key={`${row.classId}-${row.feeType}`}>
+            {row.message}
+            {row.studentCount ? ` · ${row.studentCount} student${row.studentCount === 1 ? "" : "s"}` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }
 

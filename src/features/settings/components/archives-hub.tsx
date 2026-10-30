@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { ArchiveRestore, ChevronLeft, ChevronRight } from "lucide-react"
-import { useMemo, useState, type ReactNode } from "react"
+import { type ReactNode,useMemo, useState } from "react"
 
 import schoolCatalogService from "@/api/settings/school-catalog.service"
 import subjectsService from "@/api/subjects/subjects.service"
@@ -23,8 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ArchivedClassesPanel } from "@/features/management/classes/archived-classes-panel"
-import { ALL_ROLES, type Role } from "@/lib/auth"
-import { ROLE_LABELS } from "@/lib/permissions"
+import { ALL_ROLES, type Role,ROLE_LABELS } from "@/lib/auth"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 

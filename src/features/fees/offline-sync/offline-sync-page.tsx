@@ -16,8 +16,7 @@ import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
-import { useActor } from "@/lib/actor"
-import { can } from "@/lib/permissions"
+import { useCan } from "@/lib/access"
 import { cn } from "@/lib/utils"
 
 import { formatPkr, newIdempotencyKey } from "../collect/collect-rules"
@@ -245,8 +244,8 @@ function History({ onError }: { onError: (batchId: number) => void }) {
  * is written to the ledger until "Confirm Import", which is idempotent per batch.
  */
 export function OfflineSyncPage() {
-  const actor = useActor()
-  const seesTotals = can(actor.role, "fees.totals")
+  const can = useCan()
+  const seesTotals = can("fees.totals")
   const queryClient = useQueryClient()
   const [step, setStep] = useState(1)
   const [file, setFile] = useState<File | null>(null)

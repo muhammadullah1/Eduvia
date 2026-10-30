@@ -7,10 +7,9 @@ import studentsService from "@/api/students/students.service"
 import { ClsPanel, ClsPanelHeader, ClsStatCard } from "@/components/app/cls-panel"
 import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
-import { useActor } from "@/lib/actor"
+import { useCan } from "@/lib/access"
 import type { ApiStudentParent } from "@/lib/api-types"
 import { formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
 
 import { ChangeStatusDialog, PromoteDialog } from "../lifecycle"
 import { EVENT_LABELS, EVENT_TONES, eventDetail } from "../lifecycle/lifecycle-rules"
@@ -43,8 +42,8 @@ function guardianName(parent: ApiStudentParent) {
 /** Student profile, opened from the students list. Managers can change status or promote from here. */
 export function StudentDetailPage({ studentId, onBack }: Props) {
   const id = Number(studentId)
-  const actor = useActor()
-  const canManage = can(actor.role, "students.manage")
+  const can = useCan()
+  const canManage = can("students.manage")
   const [dialog, setDialog] = useState<"status" | "promote" | null>(null)
   const { data: student, isLoading, isError, refetch } = useQuery({
     queryKey: ["students", "detail", id],

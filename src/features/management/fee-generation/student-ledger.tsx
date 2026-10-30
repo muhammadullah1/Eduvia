@@ -13,8 +13,7 @@ import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { CreditEntries } from "@/features/fees/components"
-import { useActor } from "@/lib/actor"
-import { can } from "@/lib/permissions"
+import { useCan } from "@/lib/access"
 import { cn } from "@/lib/utils"
 
 import { errorText } from "../fee-structure/fee-structure-rules"
@@ -25,8 +24,8 @@ const pkr = (n: number) => `PKR ${formatPkr(n)}`
 
 /** Monthly ledger for one student: every month billed, what was paid, what is outstanding, and credit. */
 export function StudentLedgerView({ studentId, onBack, backLabel = "Back" }: { studentId: number; onBack: () => void; backLabel?: string }) {
-  const { role } = useActor()
-  const canAdjust = can(role, "fees.months.adjust")
+  const can = useCan()
+  const canAdjust = can("fees.months.adjust")
   const [adjustBill, setAdjustBill] = useState<LedgerBill | null>(null)
   const ledger = useQuery({
     queryKey: [LEDGER_QUERY_KEY, studentId],

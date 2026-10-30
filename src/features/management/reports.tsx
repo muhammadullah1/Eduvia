@@ -21,9 +21,9 @@ import {
 } from "@/components/ui/select"
 import { FeeReportsPanel } from "@/features/management/fee-reports"
 import { useClientPagination } from "@/hooks/use-client-pagination"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { timeAgo } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { useUrlTab } from "@/lib/use-url-tab"
 
 /** Entity types supported by GET /audit-logs (API max limit 200). */
@@ -46,8 +46,9 @@ const ALL_KINDS = FEE_REPORT_KINDS.map((k) => k.kind)
  */
 export function Reports() {
   const actor = useActor()
-  const fees = can(actor.role, "fees.reports")
-  const audit = can(actor.role, "audit.view")
+  const can = useCan()
+  const fees = can("fees.reports")
+  const audit = can("audit.read")
 
   const tabs = useMemo(
     () => [

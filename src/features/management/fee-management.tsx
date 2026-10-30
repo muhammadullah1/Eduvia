@@ -1,4 +1,4 @@
-import { BadgePercent, BookOpenText, CalendarRange, FileBarChart2, Layers, Users2 } from "lucide-react"
+import { BadgePercent, BookOpenText, CalendarRange, FileBarChart2, Layers } from "lucide-react"
 
 import { FEE_REPORT_KINDS } from "@/api/fees/fee-reports.service"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
@@ -6,7 +6,6 @@ import { FeeReportsPanel } from "@/features/management/fee-reports"
 import { Fees } from "@/features/management/fees"
 import { useUrlTab } from "@/lib/use-url-tab"
 
-import { FamiliesPage } from "./families/families-page"
 import { FeeConcessionsPage } from "./fee-concessions/fee-concessions-page"
 import { MonthlyGenerationPage } from "./fee-generation/generation-page"
 import { FeeStructurePage } from "./fee-structure/fee-structure-page"
@@ -17,13 +16,12 @@ const TABS = [
   { value: "structure", label: "Fee Structure", icon: Layers },
   { value: "generation", label: "Monthly Generation", icon: CalendarRange },
   { value: "concessions", label: "Concessions", icon: BadgePercent },
-  { value: "families", label: "Families", icon: Users2 },
   { value: "reports", label: "Fee Reports", icon: FileBarChart2 },
   { value: "ledger", label: "Ledger & receipts", icon: BookOpenText },
 ]
-const TAB_IDS = ["structure", "generation", "concessions", "families", "reports", "ledger"] as const
+const TAB_IDS = ["structure", "generation", "concessions", "reports", "ledger"] as const
 
-/** Fee Management for Super Admin: structure, generation, concessions, families, reports, ledger. */
+/** Fee Management for Super Admin: structure, generation, concessions, reports, ledger. */
 export function FeeManagement({ query }: { query: string }) {
   const [tab, setTab] = useUrlTab(TAB_IDS)
   return (
@@ -35,8 +33,6 @@ export function FeeManagement({ query }: { query: string }) {
         <MonthlyGenerationPage />
       ) : tab === "concessions" ? (
         <FeeConcessionsPage />
-      ) : tab === "families" ? (
-        <FamiliesPage />
       ) : tab === "reports" ? (
         <FeeReportsPanel kinds={ALL_FEE_REPORT_KINDS} />
       ) : (

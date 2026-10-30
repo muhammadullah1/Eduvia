@@ -6,6 +6,7 @@ const PILL: Record<FeeType, string> = {
   Admission: "border-sky-200 bg-sky-50 text-sky-800",
   Exam: "border-amber-200 bg-amber-50 text-amber-900",
   Annual: "border-violet-200 bg-violet-50 text-violet-800",
+  Promotion: "border-teal-200 bg-teal-50 text-teal-900",
 }
 
 export function FeeTypePill({ type, className }: { type: FeeType; className?: string }) {

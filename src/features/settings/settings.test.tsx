@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { cleanup, fireEvent, render, screen } from "@testing-library/react"
 import type { ReactNode } from "react"
-import { MemoryRouter } from "react-router-dom"
+import { MemoryRouter, Route, Routes } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { DEFAULT_SETTINGS } from "@/data/types"
 import type { Role } from "@/lib/auth"
+import { grantRoleDefaults } from "@/test/permissions"
 
 import {
   SchoolProfileCard,
@@ -105,7 +106,6 @@ vi.mock("./settings-operations", () => ({
     <div data-testid="locations-panel">Locations Panel</div>
   ),
   ArchivesHub: () => <div data-testid="archives-hub">Archives Panel</div>,
-  RolesPanel: () => <div data-testid="roles-panel">Roles Panel</div>,
 }))
 
 function wrap(node: ReactNode, initialEntries = ["/admin/settings"]) {
@@ -122,6 +122,7 @@ function wrap(node: ReactNode, initialEntries = ["/admin/settings"]) {
 describe("SettingsGeneralRules", () => {
   beforeEach(() => {
     currentRole = "super_admin"
+    grantRoleDefaults("super_admin")
     mockUpdateSettings.mockReset()
     mockUpdateSettings.mockResolvedValue(null)
     mockSyncPortalForRoute.mockReset()
@@ -171,11 +172,14 @@ describe("SettingsGeneralRules", () => {
     )
   })
 
-  it("saves fee settings when fee fields are dirty", async () => {
+  it("saves fee settings without a school-wide tuition amount", async () => {
     wrap(<SettingsGeneralRules />)
 
-    fireEvent.change(screen.getByDisplayValue("8500"), {
-      target: { value: "9000" },
+    expect(screen.queryByLabelText("Fallback monthly tuition")).toBeNull()
+    expect(screen.getByText(/Fee Management → Fee Structure/)).toBeTruthy()
+
+    fireEvent.change(screen.getByLabelText("Max advance months"), {
+      target: { value: "8" },
     })
     fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
     await flush()
@@ -183,27 +187,39 @@ describe("SettingsGeneralRules", () => {
     expect(mockUpdateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         fees: expect.objectContaining({
-          defaultMonthlyFee: 9000,
           dueDay: 10,
-          maxAdvanceMonths: 12,
-          concessionsEnabled: false,
+          maxAdvanceMonths: 8,
+          concessionPolicy: {
+            allowedModes: ["percent", "fixed_discount", "waiver"],
+            approvalRule: "none",
+            approvalPercentAbove: null,
+            approvalAmountAbove: null,
+          },
+
         }),
       }),
       expect.objectContaining({ role: "super_admin" })
     )
+    const feesArg = mockUpdateSettings.mock.calls.find(
+      (call) => call[0] && typeof call[0] === "object" && "fees" in call[0]
+    )?.[0] as { fees?: Record<string, unknown> } | undefined
+    expect(feesArg?.fees).not.toHaveProperty("defaultMonthlyFee")
   })
 
-  it("saves dynamic concessions toggle with fee settings", async () => {
+  it("saves concession approval rule with fee settings", async () => {
     wrap(<SettingsGeneralRules />)
 
-    fireEvent.click(screen.getByRole("switch", { name: "Enable dynamic concessions" }))
+    fireEvent.click(screen.getByRole("combobox", { name: "Concession approval rule" }))
+    fireEvent.click(await screen.findByRole("option", { name: /Always require approval/i }))
     fireEvent.click(screen.getByRole("button", { name: "Save Configuration" }))
     await flush()
 
     expect(mockUpdateSettings).toHaveBeenCalledWith(
       expect.objectContaining({
         fees: expect.objectContaining({
-          concessionsEnabled: true,
+          concessionPolicy: expect.objectContaining({
+            approvalRule: "always",
+          }),
         }),
       }),
       expect.objectContaining({ role: "super_admin" })
@@ -250,6 +266,7 @@ describe("SettingsGeneralRules", () => {
 
   it("keeps fee and result controls locked for Operations Manager", () => {
     currentRole = "operations_manager"
+    grantRoleDefaults("operations_manager")
     wrap(<SettingsGeneralRules />)
 
     expect(
@@ -288,6 +305,7 @@ describe("SettingsGeneralRules", () => {
 describe("SettingsPage panel navigation", () => {
   beforeEach(() => {
     currentRole = "super_admin"
+    grantRoleDefaults("super_admin")
   })
 
   afterEach(cleanup)
@@ -352,15 +370,17 @@ describe("SettingsPage panel navigation", () => {
     expect(screen.getByTestId("archives-hub")).toBeTruthy()
   })
 
-  it("renders Roles & Permissions when section=settings-roles or panel=roles", () => {
-    wrap(<SettingsPage section="settings-roles" />, ["/admin/settings-roles"])
-    expect(
-      screen.getByRole("heading", { name: "Roles & Permissions" })
-    ).toBeTruthy()
-    expect(screen.getByTestId("roles-panel")).toBeTruthy()
-
-    cleanup()
-    wrap(<SettingsPage section="settings" />, ["/admin/settings?panel=roles"])
-    expect(screen.getByTestId("roles-panel")).toBeTruthy()
+  it("sends the legacy roles panel to the Roles & Permissions page", async () => {
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter initialEntries={["/admin/settings?panel=roles"]}>
+          <Routes>
+            <Route path="/admin/settings" element={<SettingsPage section="settings" />} />
+            <Route path="/admin/roles" element={<p>Roles page</p>} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>
+    )
+    expect(await screen.findByText("Roles page")).toBeTruthy()
   })
 })

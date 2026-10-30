@@ -31,8 +31,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import type { Can } from "@/lib/access"
+import { useCan } from "@/lib/access"
 import type { Role } from "@/lib/auth"
-import { can } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 import { ClsStatusBadge } from "./cls-status-badge"
@@ -59,9 +60,9 @@ type Props = {
   pagination?: PaginationWithHandlers
 }
 
-function canManageStaffRow(actorRole: Role, row: StaffDirectoryRow) {
-  if (can(actorRole, "staff.create.any")) return true
-  return row.role === "teacher" && can(actorRole, "staff.create.teacher")
+function canManageStaffRow(can: Can, row: StaffDirectoryRow) {
+  if (can("roles.manage")) return true
+  return row.role === "teacher" && can("users.create")
 }
 
 function SortHint() {
@@ -99,6 +100,7 @@ export function StaffDirectoryTable({
   pagination,
 }: Props) {
   const showNoMatch = searchActive && !loading && rows.length === 0
+  const can = useCan()
   const showActions = Boolean(actorRole && (onEditUser || onDeleteUser))
   const colSpan = showActions ? 6 : 5
 
@@ -239,7 +241,7 @@ export function StaffDirectoryTable({
                     className="py-3.5 text-right"
                     onClick={(event) => event.stopPropagation()}
                   >
-                    {canManageStaffRow(actorRole, row) ? (
+                    {canManageStaffRow(can, row) ? (
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button

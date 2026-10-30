@@ -8,9 +8,12 @@ import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar"
+import { Spinner } from "@/components/ui/spinner"
 import { useSchool } from "@/data/store"
 import { CollectFeePage } from "@/features/fees/collect"
+import { MyCollections } from "@/features/fees/my-collections"
 import { OfflineSyncPage } from "@/features/fees/offline-sync"
+import { AccountantExpensesPage } from "@/features/finance/finance-page"
 import { AttendanceReviewPage } from "@/features/management/attendance"
 import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-test-schedule-page"
 import { EnrollmentPromotionPage } from "@/features/management/enrollment-promotion"
@@ -21,10 +24,12 @@ import {
   AuditLogPage,
   Classes,
   Examinations,
-  FamiliesPage,
+  FeeConcessionsPage,
   FeeManagement,
+  FeeStructurePage,
   Finance,
   ManagementDashboard,
+  MonthlyGenerationPage,
   Reports,
   Sessions,
   Subjects,
@@ -35,85 +40,89 @@ import { useSessionsList } from "@/features/management/sessions/hooks/use-sessio
 import { Students } from "@/features/management/students/students"
 import { SubstitutesPage } from "@/features/management/substitutes/substitutes-page"
 import {
-  AccountantPortal,
   CurriculumPanel,
-  LessonReviewPanel,
   OperationsOverview,
   SettingsPanel,
   WeeklyTestsPanel,
 } from "@/features/ops/screens"
 import { ParentPortal } from "@/features/parent/screens"
+import { RolesSection } from "@/features/roles/roles-section"
 import { TeacherNotificationsBell } from "@/features/teacher/attendance-notices"
 import { TeacherPortal } from "@/features/teacher/screens"
+import { useCan } from "@/lib/access"
 import { api } from "@/lib/api"
 import {
   clearAuth,
   defaultSection,
+  LEGACY_PORTAL_SLUGS,
   loadAuth,
+  portalForRole,
   portalPath,
+  type PortalSlug,
   type Role,
-  roleFromSlug,
 } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { announceLogout } from "@/lib/token-refresh"
+import { useSessionSync } from "@/lib/use-session"
+import { useAuthStore } from "@/stores/auth-store"
 
 import { academicFocusForSection } from "./academic-section"
 import { HeaderUserMenu } from "./header-user-menu"
-import { navigation, roles, sectionIds, subtitles } from "./navigation"
+import {
+  allowedSections,
+  findSection,
+  isSectionAllowed,
+  LEGACY_SECTIONS,
+  navigationLabelForSection,
+  type NavItem,
+  roles,
+  subtitles,
+} from "./navigation"
 import { PortalTopbar } from "./portal-topbar"
+import { SectionForbidden } from "./section-forbidden"
 import { Sidebar } from "./sidebar"
 
-const LEGACY_SECTION_REDIRECT: Record<string, string> = {
-  academic: "sessions",
-  curriculum: "lesson-plan",
-  people: "students",
-  absences: "substitutes",
-  "weekly-tests": "daily-test-schedule",
-  "results-gate": "exams",
-  "settings-academic": "settings",
-  "settings-calendar": "settings",
-  "settings-rooms": "settings",
-  "settings-archives": "settings",
-  "settings-roles": "settings",
+/** The role's usual landing section when it can open it, otherwise its first permitted section. */
+function homeSection(role: Role, allowed: readonly NavItem[]) {
+  const preferred = defaultSection[role]
+  if (allowed.some((item) => item.id === preferred)) return preferred
+  const [first] = allowed
+  if (first) return first.id
+  return preferred
 }
 
-const LEGACY_SECTION_QUERY: Record<string, string> = {
-  "settings-calendar": "?panel=calendar",
-  "settings-rooms": "?panel=rooms",
-  "settings-archives": "?panel=archives",
-  "settings-roles": "?panel=roles",
-  "settings-academic": "",
+/** Where an out-of-date URL (old portal slug, renamed section, another role's portal) should go. */
+function redirectFor(
+  slug: string | undefined,
+  section: string,
+  portal: PortalSlug,
+  role: Role
+) {
+  const legacy = LEGACY_SECTIONS[section]
+  const onStaffPortal = portal === "admin"
+  if (slug === portal && !(onStaffPortal && legacy)) return null
+  const fromLegacyPortal = slug !== undefined && LEGACY_PORTAL_SLUGS.has(slug)
+  if (slug !== portal && !(onStaffPortal && fromLegacyPortal)) return portalPath(role)
+  if (!legacy) return portalPath(role, section)
+  return `${portalPath(role, legacy.section, legacy.rest)}${legacy.query ?? ""}`
 }
-
-/** Sub-path appended when a legacy section moved under another section. */
-const LEGACY_SECTION_REST: Record<string, string> = {
-  "results-gate": "result-visibility",
-}
-
-const CLS_SHELL_ROLES = new Set<Role>(["super_admin", "operations_manager"])
-/** Roles that get the green sidebar + top bar. The accountant gets it with only their own links. */
-const SIDEBAR_SHELL_ROLES = new Set<Role>(["super_admin", "operations_manager", "accountant"])
 
 export function PortalShell() {
-  const { role: roleParam, section: sectionParam } = useParams()
+  const { role: slugParam, section: sectionParam } = useParams()
   const navigate = useNavigate()
   const { state, syncPortalForRoute } = useSchool()
   const [query, setQuery] = useState("")
   const [notesOpen, setNotesOpen] = useState(false)
-
-  const parsedRole = roleFromSlug(roleParam)
-  const roleOk = parsedRole !== null
-  const role: Role = parsedRole ?? "super_admin"
-  const sectionValid = Boolean(
-    sectionParam && sectionIds[role].has(sectionParam)
-  )
-  const rawSection =
-    sectionValid && sectionParam ? sectionParam : defaultSection[role]
-  const legacyTarget = CLS_SHELL_ROLES.has(role)
-    ? LEGACY_SECTION_REDIRECT[rawSection]
-    : undefined
-  const section = legacyTarget ?? rawSection
+  const sessionReady = useSessionSync()
+  const role = useAuthStore((store) => store.role)
+  const can = useCan()
+  const portal = portalForRole(role)
+  const allowed = useMemo(() => allowedSections(portal, can), [portal, can])
+  const home = homeSection(role, allowed)
+  const requested = sectionParam ?? home
+  const item = findSection(portal, requested)
+  const section = item?.id ?? home
+  const permitted = item !== undefined && isSectionAllowed(item, can)
 
   useEffect(() => {
     void syncPortalForRoute(role, section)
@@ -130,10 +139,7 @@ export function PortalShell() {
     return section
   }, [section, searchParams])
 
-  const current =
-    navigation[role].find((item) => item.id === activeSection) ??
-    navigation[role].find((item) => item.id === section) ??
-    navigation[role][0]
+  const currentLabel = navigationLabelForSection(section, portal)
   const { data: sessionsFromApi = [] } = useSessionsList()
   const sessionLabel = useMemo(() => {
     const sessions =
@@ -141,9 +147,8 @@ export function PortalShell() {
     const current = sessions.find((item) => item.current)
     return current?.name ?? "2026–2027"
   }, [sessionsFromApi, state.sessions])
-  const useClsShell = SIDEBAR_SHELL_ROLES.has(role)
+  const useClsShell = portal === "admin"
   const session = loadAuth()
-  const authRole = session?.role
   const signedInName = session?.user
     ? `${session.user.firstName} ${session.user.lastName}`.trim()
     : roles[role].short
@@ -168,7 +173,7 @@ export function PortalShell() {
         hint: student.id,
         section: role === "teacher" ? "classes" : "admissions",
       }))
-    const payments = can(role, "fees.totals")
+    const payments = can("fees.totals")
       ? state.payments
           .filter((payment) => payment.ref.toLowerCase().includes(needle))
           .slice(0, 3)
@@ -180,24 +185,18 @@ export function PortalShell() {
           }))
       : []
     return [...students, ...payments]
-  }, [query, role, state.payments, state.students])
+  }, [can, query, role, state.payments, state.students])
 
-  if (!roleOk || (authRole && authRole !== role)) {
-    return <Navigate to={authRole ? portalPath(authRole) : "/login"} replace />
-  }
-  if (
-    !sectionValid ||
-    roleParam !== portalPath(role).split("/")[1] ||
-    (sectionParam && legacyTarget)
-  ) {
-    const query = sectionParam ? LEGACY_SECTION_QUERY[rawSection] : undefined
+  if (!sessionReady) {
     return (
-      <Navigate
-        to={`${portalPath(role, section, legacyTarget ? LEGACY_SECTION_REST[rawSection] : undefined)}${query ?? ""}`}
-        replace
-      />
+      <div className="flex min-h-svh items-center justify-center bg-[var(--page-wash)]">
+        <Spinner className="size-6 text-[var(--cls-brand)]" aria-label="Loading your portal" />
+      </div>
     )
   }
+  const redirect = redirectFor(slugParam, requested, portal, role)
+  if (redirect) return <Navigate to={redirect} replace />
+  if (!item) return <Navigate to={portalPath(role, home)} replace />
 
   function openSection(id: string, panel?: string) {
     setNotesOpen(false)
@@ -219,9 +218,11 @@ export function PortalShell() {
     if (role === "teacher")
       return <TeacherPortal section={section} onOpen={openSection} />
     if (role === "parent") return <ParentPortal section={section} />
-    if (role === "accountant") return <AccountantPortal section={section} />
-    if (section === "overview")
+    if (!permitted) return <SectionForbidden onHome={() => openSection(home)} />
+    if (section === "dashboard") {
+      if (can("fees.totals")) return <ManagementDashboard onOpen={openSection} />
       return <OperationsOverview onOpen={openSection} />
+    }
     if (section === "sessions") return <Sessions />
     if (section === "subjects") return <Subjects query={query} />
     if (section === "timetable") return <Timetable />
@@ -236,7 +237,6 @@ export function PortalShell() {
     }
     if (section === "classes") return <Classes query={query} />
     if (section === "lesson-plan") return <CurriculumPanel />
-    if (section === "lesson-review") return <LessonReviewPanel />
     if (section === "admissions") return <Admissions query={query} />
     if (section === "students" || section === "people") {
       return <Students query={query} />
@@ -251,7 +251,12 @@ export function PortalShell() {
     if (section === "weekly-tests") return <WeeklyTestsPanel />
     if (section === "exams") return <Examinations />
     if (section === "fees") return <FeeManagement query={query} />
-    if (section === "families") return <FamiliesPage />
+    if (section === "fee-concessions") return <FeeConcessionsPage />
+    if (section === "collections") return <MyCollections />
+    if (section === "fee-structure") return <FeeStructurePage />
+    if (section === "fee-generation") return <MonthlyGenerationPage />
+    if (section === "expenses") return <AccountantExpensesPage />
+    if (section === "roles") return <RolesSection />
     if (section === "collect-fee") return <CollectFeePage />
     if (section === "offline-sync") return <OfflineSyncPage />
     if (section === "finance") return <Finance />
@@ -259,8 +264,7 @@ export function PortalShell() {
       return <SettingsPanel section={section} />
     }
     if (section === "reports") return <Reports />
-    if (section === "audit-log" && can(role, "audit.view")) return <AuditLogPage />
-    return <ManagementDashboard onOpen={openSection} />
+    return <AuditLogPage />
   })()
 
   const shell = (
@@ -286,7 +290,7 @@ export function PortalShell() {
                   <span>{roles[role].short}</span>
                 </div>
                 <h1 className="text-[20px] font-semibold tracking-tight text-[var(--heading)] ">
-                  {current.label}
+                  {currentLabel}
                 </h1>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {subtitles[section] ?? "Creative Leaders School"}
@@ -383,7 +387,13 @@ export function PortalShell() {
         className="min-h-svh bg-[var(--page-wash)]"
         style={{ "--sidebar-width": "240px" } as CSSProperties}
       >
-        <Sidebar role={role} active={activeSection} onNavigate={openSection} />
+        <Sidebar
+          portal={portal}
+          items={allowed}
+          home={home}
+          active={activeSection}
+          onNavigate={openSection}
+        />
         {/* min-w-0: wide children (e.g. the admissions pipeline) scroll inside themselves instead of widening the page. */}
         <SidebarInset className="min-h-svh min-w-0 bg-[var(--page-wash)]">
           {shell}

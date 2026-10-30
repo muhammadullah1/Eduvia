@@ -1,19 +1,11 @@
-import type { ConcessionCategory, ConcessionMode, ConcessionStatus } from "@/api/fees/concessions.service"
+import type { ConcessionMode, ConcessionStatus } from "@/api/fees/concessions.service"
 import type { StatusChipTone } from "@/components/app/status-chip"
 import { ApiHttpError } from "@/lib/api"
 
 export const MODE_LABEL: Record<ConcessionMode, string> = {
-  fixed_payable: "Fixed payable",
-  fixed_discount: "Fixed discount",
-  percent: "Percent discount",
+  fixed_discount: "Fixed amount off",
+  percent: "Percentage",
   waiver: "Full waiver",
-}
-
-export const CATEGORY_LABEL: Record<ConcessionCategory, string> = {
-  Standard: "Standard",
-  Scholarship: "Scholarship",
-  Sibling: "Sibling / family",
-  Other: "Other",
 }
 
 export const STATUS_TONE: Record<ConcessionStatus, StatusChipTone> = {
@@ -22,10 +14,14 @@ export const STATUS_TONE: Record<ConcessionStatus, StatusChipTone> = {
   Approved: "success",
   Rejected: "danger",
   Revoked: "danger",
+  Superseded: "neutral",
 }
 
-export function formatAmount(value: number) {
-  return value.toLocaleString("en-PK", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
+/** Safe for API nulls (e.g. Tuition not configured → base is null). */
+export function formatAmount(value: number | null | undefined) {
+  const n = Number(value)
+  if (!Number.isFinite(n)) return "—"
+  return n.toLocaleString("en-PK", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
 }
 
 export function errorText(err: unknown) {
@@ -35,14 +31,7 @@ export function errorText(err: unknown) {
 }
 
 export function modeHint(mode: ConcessionMode) {
-  switch (mode) {
-    case "fixed_payable":
-      return "Student pays this fixed amount; the rest is discounted."
-    case "fixed_discount":
-      return "Subtract this amount from the base fee."
-    case "percent":
-      return "Discount this percent of the base fee (0–100)."
-    case "waiver":
-      return "Waive the full amount for the selected fee types."
-  }
+  if (mode === "fixed_discount") return "Subtract this amount from the base fee."
+  if (mode === "percent") return "Discount this percent of the base fee (0–100)."
+  return "Waive the full amount for this fee type."
 }

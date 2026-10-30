@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { FeeStructure } from "@/api/fees/fee-structure.service"
+import { grantRoleDefaults } from "@/test/permissions"
 
 import { AddFeeDialog, RemoveFeeDialog } from "./fee-structure-dialogs"
 import { FeeStructurePage } from "./fee-structure-page"
@@ -52,6 +53,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(() => {
   actor.role = "super_admin"
+  grantRoleDefaults("super_admin")
   Object.values(svc).forEach((fn) => fn.mockReset())
 })
 afterEach(cleanup)
@@ -149,6 +151,7 @@ describe("FeeStructurePage", () => {
 
   it("is read-only for the Accountant", async () => {
     actor.role = "accountant"
+    grantRoleDefaults("accountant")
     svc.get.mockResolvedValue(STRUCTURE)
     wrap(<FeeStructurePage />)
     await screen.findByTestId("monthly-total")

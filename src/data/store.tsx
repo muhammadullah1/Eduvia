@@ -16,6 +16,7 @@ import {
 import {
   ADMISSION_WIZARD_SLICES,
   resolvePortalSyncPlan,
+  sessionPermissions,
 } from "@/data/portal-sync"
 import { portalSyncKey, runPortalSyncOnce } from "@/data/portal-sync-flight"
 import {
@@ -47,6 +48,7 @@ import {
   weekdayOf,
   weekOfMonth,
 } from "@/lib/academics"
+import { canNow, type PermissionKey } from "@/lib/access"
 import type { Actor } from "@/lib/actor"
 import { api, ApiHttpError } from "@/lib/api"
 import {
@@ -58,7 +60,7 @@ import {
   submitApplication,
   toApplicationApiBody,
 } from "@/lib/applications-api"
-import { loadAuth,type Role } from "@/lib/auth"
+import { loadAuth, type Role,ROLE_LABELS } from "@/lib/auth"
 import { getToday } from "@/lib/dates"
 import {
   allocateOldestFirst,
@@ -70,7 +72,6 @@ import {
   invalidateAdmissionDetail,
   invalidateAdmissionsLists,
 } from "@/lib/invalidate-admissions"
-import { can, type Permission, ROLE_LABELS } from "@/lib/permissions"
 
 const LEGACY_KEYS = ["eduvia-demo-v4", "eduvia-demo-v5"]
 
@@ -308,10 +309,9 @@ function withAudit(
 }
 
 /** Server-side style guard: the demo store refuses what the API would refuse (BR-14). */
-function denied(actor: Actor, permission: Permission) {
-  return can(actor.role, permission)
-    ? null
-    : `${ROLE_LABELS[actor.role]} is not allowed to do this.`
+function denied(actor: Actor, permission: PermissionKey) {
+  if (canNow(permission)) return null
+  return `${ROLE_LABELS[actor.role]} is not allowed to do this.`
 }
 
 function staffName(state: SchoolState, id: string) {
@@ -323,7 +323,10 @@ function studentLabel(state: SchoolState, id: string) {
 }
 
 function classFee(state: SchoolState, classId: string) {
-  return state.classes.find((klass) => klass.id === classId)?.monthlyFee ?? 8500
+  const klass = state.classes.find((row) => row.id === classId)
+  if (!klass) return 0
+  if (klass.monthlyFee > 0) return klass.monthlyFee
+  return 0
 }
 
 function receiptNo(state: SchoolState, date: string) {
@@ -471,7 +474,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const syncPortalForRoute = useCallback(
     async (role: Role, section: string) => {
       if (!loadAuth()?.token) return
-      const plan = resolvePortalSyncPlan(role, section)
+      const plan = resolvePortalSyncPlan(role, sessionPermissions(), section)
       const key = portalSyncKey(role, section, plan)
       await runPortalSyncOnce(key, async () => {
         try {
@@ -969,7 +972,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
             label,
             room: input.room.trim() || "Unassigned",
             periodCount: Math.max(1, Number(input.periodCount) || 8),
-            monthlyFee: Math.max(0, Number(input.monthlyFee) || 8500),
+            monthlyFee: 0,
           })
           .then(syncBackend)
           .catch(console.error)
@@ -1039,7 +1042,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
         const isTeacher = input.role === "Teacher"
         const blocked = denied(
           actor,
-          isTeacher ? "staff.create.teacher" : "staff.create.any"
+          isTeacher ? "users.create" : "roles.manage"
         )
         if (blocked)
           return {
@@ -1157,7 +1160,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
   const changeTeacherSubject = useCallback(
     (staffId: string, subject: string, reason: string, actor: Actor) =>
       simple((current) => {
-        const blocked = denied(actor, "teachers.subject.change")
+        const blocked = denied(actor, "teachers.manage")
         if (blocked) return { error: blocked }
         const teacher = current.staff.find(
           (person) => person.id === staffId && person.role === "Teacher"
@@ -1547,7 +1550,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       actor: Actor
     ) =>
       simple((current) => {
-        const blocked = denied(actor, "lessons.submit")
+        const blocked = denied(actor, "lessons.write")
         if (blocked) return { error: blocked }
         const teacher = signedInTeacher(current) as Staff
         if (!teacher.classIds.includes(input.classId))
@@ -2142,22 +2145,18 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
       patch: Partial<SchoolSettings>,
       actor: Actor
     ): Promise<Result> => {
-      if (patch.resultVisibility && !can(actor.role, "settings.results")) {
-        return "Only the super admin can change the result fee rule."
-      }
-      if (patch.fees && !can(actor.role, "settings.fees")) {
-        return "Only the super admin can change fee settings."
+      if (patch.resultVisibility || patch.fees) {
+        const blocked = denied(actor, "settings.fees.update")
+        if (blocked) return blocked
       }
       if (patch.fees) {
-        if (patch.fees.defaultMonthlyFee < 0)
-          return "Default monthly fee cannot be negative."
         if (patch.fees.dueDay < 1 || patch.fees.dueDay > 28)
           return "Due day must be between 1 and 28."
         if (patch.fees.maxAdvanceMonths < 0 || patch.fees.maxAdvanceMonths > 24)
           return "Advance months must be between 0 and 24."
       }
       if (patch.dailyTestRules) {
-        const blocked = denied(actor, "settings.academic")
+        const blocked = denied(actor, "settings.academic.update")
         if (blocked) return blocked
         const rules = patch.dailyTestRules
         if (
@@ -2171,7 +2170,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           return "Counts cannot be negative."
       }
       if (patch.attendance) {
-        const blocked = denied(actor, "settings.academic")
+        const blocked = denied(actor, "settings.academic.update")
         if (blocked) return blocked
         if (patch.attendance.editWindowDays < 0 || patch.attendance.editWindowDays > 31)
           return "Edit window must be between 0 and 31 days."
@@ -2179,7 +2178,7 @@ export function SchoolProvider({ children }: { children: ReactNode }) {
           return "Low attendance threshold must be between 1% and 100%."
       }
       if (patch.admission) {
-        const blocked = denied(actor, "settings.academic")
+        const blocked = denied(actor, "settings.academic.update")
         if (blocked) return blocked
         if (patch.admission.digits < 1 || patch.admission.digits > 8)
           return "Digits must be between 1 and 8."

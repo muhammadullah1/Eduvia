@@ -1,7 +1,7 @@
 import type { CreditEntry } from "@/api/fees/collect.service"
 import { api } from "@/lib/api"
 
-export type BillType = "Tuition" | "Admission" | "Exam" | "Annual" | "Transport" | "Other"
+export type BillType = "Tuition" | "Admission" | "Exam" | "Annual" | "Promotion" | "Transport" | "Other"
 
 /** One class in a generation preview or result. Money fields are absent for roles without `fees.totals`. */
 export type GenerationClass = {
@@ -10,6 +10,7 @@ export type GenerationClass = {
   students: number
   billedStudents: number
   skippedStudents: number
+  missingStructureStudents?: number
   bills: number
   totalDue?: number
   outstandingCarried?: number
@@ -27,6 +28,14 @@ export type ConcessionConflict = {
   conflictIds?: number[]
 }
 
+export type MissingFeeStructure = {
+  classId: number | null
+  label: string
+  feeType: string
+  studentCount: number
+  message: string
+}
+
 export type GenerationResult = {
   month: string
   label: string
@@ -38,6 +47,9 @@ export type GenerationResult = {
   /** True when the server withheld school-wide money totals (Accountant). */
   amountsHidden?: boolean
   concessionConflicts?: ConcessionConflict[]
+  missingStructures?: MissingFeeStructure[]
+  /** False when every would-be bill is blocked by missing Fee Structure. */
+  canConfirm?: boolean
 }
 
 export type LedgerBill = {

@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
-import { toast } from "@/lib/toast"
 
 import { StatusBadge } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
@@ -16,18 +15,20 @@ import { useSchool } from "@/data/store"
 import type { Application } from "@/data/types"
 import { FeeMonthTable } from "@/features/fees/components"
 import { AdmissionWizard } from "@/features/management/admission-wizard"
-import { ApplicationDetailPage } from "@/features/management/admissions/application-detail-page"
 import { AdmissionsListPage } from "@/features/management/admissions/admissions-list-page"
+import { ApplicationDetailPage } from "@/features/management/admissions/application-detail-page"
 import { useGetApplication } from "@/features/management/admissions/hooks/use-admissions"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { applicationNumericId } from "@/lib/applications-api"
 import { portalPath } from "@/lib/auth"
 import { classLabel, formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
+import { toast } from "@/lib/toast"
 
 export function Admissions({ query }: { query: string }) {
   const { state, setApplicationStatus, updateStudent } = useSchool()
   const actor = useActor()
+  const can = useCan()
   const navigate = useNavigate()
   const params = useParams()
   const splat = params["*"] ?? ""
@@ -204,7 +205,7 @@ export function Admissions({ query }: { query: string }) {
                 <p>Phone: {selectedStudent.phone}</p>
                 <StatusBadge value={selectedStudent.status} />
               </div>
-              {can(actor.role, "fees.status.view") ? (
+              {can("students.read") ? (
                 <div className="max-h-64 overflow-y-auto rounded-xl border border-[var(--cls-border)]">
                   <FeeMonthTable studentId={selectedStudent.id} />
                 </div>

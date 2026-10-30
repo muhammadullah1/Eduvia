@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/dialog"
 import { useClassesList } from "@/features/management/classes/hooks/use-classes"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
-import { can } from "@/lib/permissions"
 
 import { DailyTestsPanel } from "./daily-tests-panel"
 import { ExamDetailPage } from "./exam-detail-page"
@@ -80,9 +80,10 @@ export function ExaminationsPage() {
     queryFn: () => examsService.summaries(sessionId),
   })
 
-  const canManage = can(actor.role, "exams.manage")
-  const canOverride = can(actor.role, "results.override")
-  const canEditFees = can(actor.role, "settings.fees")
+  const can = useCan()
+  const canManage = can("exams.create")
+  const canOverride = can("results.override")
+  const canEditFees = can("settings.fees.update")
   const canEnter = canManage || actor.role === "teacher"
 
   const exams = examsQuery.data?.exams ?? []
