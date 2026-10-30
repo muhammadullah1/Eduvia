@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Spinner } from "@/components/ui/spinner"
 import { useSchool } from "@/data/store"
+import { DashboardPage } from "@/features/dashboard/dashboard-page"
 import { CollectFeePage } from "@/features/fees/collect"
 import { MyCollections } from "@/features/fees/my-collections"
 import { OfflineSyncPage } from "@/features/fees/offline-sync"
@@ -28,7 +29,6 @@ import {
   FeeManagement,
   FeeStructurePage,
   Finance,
-  ManagementDashboard,
   MonthlyGenerationPage,
   Reports,
   Sessions,
@@ -41,7 +41,6 @@ import { Students } from "@/features/management/students/students"
 import { SubstitutesPage } from "@/features/management/substitutes/substitutes-page"
 import {
   CurriculumPanel,
-  OperationsOverview,
   SettingsPanel,
   WeeklyTestsPanel,
 } from "@/features/ops/screens"
@@ -220,8 +219,7 @@ export function PortalShell() {
     if (role === "parent") return <ParentPortal section={section} />
     if (!permitted) return <SectionForbidden onHome={() => openSection(home)} />
     if (section === "dashboard") {
-      if (can("fees.totals")) return <ManagementDashboard onOpen={openSection} />
-      return <OperationsOverview onOpen={openSection} />
+      return <DashboardPage onOpen={openSection} />
     }
     if (section === "sessions") return <Sessions />
     if (section === "subjects") return <Subjects query={query} />

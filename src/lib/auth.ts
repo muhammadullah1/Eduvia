@@ -83,7 +83,7 @@ export function clearAuth() {
 export const defaultSection: Record<Role, string> = {
   super_admin: "dashboard",
   operations_manager: "dashboard",
-  accountant: "collect-fee",
+  accountant: "dashboard",
   teacher: "today",
   parent: "home",
 }

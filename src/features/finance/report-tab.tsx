@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query"
 import { Printer, TrendingDown, TrendingUp } from "lucide-react"
-import { useMemo } from "react"
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis, YAxis } from "recharts"
 
 import financeService, { type BreakdownItem, type FinanceReport } from "@/api/finance/finance.service"
@@ -8,15 +7,13 @@ import { Field } from "@/components/app/kit"
 import { ExportButtons, ReportPanelMessage } from "@/components/app/report-layout"
 import { Button } from "@/components/ui/button"
 import { type ChartConfig, ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useReportDownload } from "@/hooks/use-report-download"
-import { getToday } from "@/lib/dates"
 import { printDocument } from "@/lib/print"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
 import { amount, CATEGORY_COLOR, errorText, pkrAmount, signedPkr } from "./format"
-import { periodOptions } from "./periods"
+import { PeriodSelect } from "./period-select"
 
 const barConfig = {
   income: { label: "Income", color: "#1f5e3b" },
@@ -50,7 +47,6 @@ function printReport(r: FinanceReport) {
  * branded Excel / CSV / PDF exports plus Print. Super Admin only.
  */
 export function ReportTab({ period, onPeriod }: { period: string; onPeriod: (value: string) => void }) {
-  const options = useMemo(() => periodOptions(getToday()), [])
   const report = useQuery({ queryKey: ["finance", "report", period], queryFn: () => financeService.report(period) })
   const { busy, run } = useReportDownload()
   const r = report.data
@@ -59,31 +55,7 @@ export function ReportTab({ period, onPeriod }: { period: string; onPeriod: (val
     <div className="flex min-w-0 flex-col gap-4" data-testid="finance-report">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <Field label="Period">
-          <Select value={period} onValueChange={onPeriod}>
-            <SelectTrigger aria-label="Period" className="w-full border-[var(--cls-border)] bg-white sm:w-72">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-80">
-              <SelectGroup>
-                <SelectLabel>Month</SelectLabel>
-                {options.months.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel>Quarter (financial year)</SelectLabel>
-                {options.quarters.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectGroup>
-                <SelectLabel>Financial year (Apr – Mar)</SelectLabel>
-                {options.years.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                ))}
-              </SelectGroup>
-            </SelectContent>
-          </Select>
+          <PeriodSelect value={period} onChange={onPeriod} className="w-full border-[var(--cls-border)] bg-white sm:w-72" />
         </Field>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <ExportButtons busy={busy} disabled={!r} onExport={(format) => void run(format, () => financeService.downloadReport(period, format))} />

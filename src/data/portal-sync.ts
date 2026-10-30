@@ -36,7 +36,8 @@ export type SchoolDataSlice =
 const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   /** List loads via paginated admissions API in the list page. */
   admissions: [],
-  dashboard: ["students", "applications", "feeMonths", "payments"],
+  /** One server-built payload via React Query (`features/dashboard`). */
+  dashboard: [],
   overview: [
     "students",
     "applications",

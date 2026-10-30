@@ -70,7 +70,7 @@ export type NavItem = {
 
 /** The single staff portal (/admin): what each role sees follows from its permissions. */
 const STAFF_SECTIONS: readonly NavItem[] = [
-  { id: "dashboard", label: "Dashboard", icon: navIcons.dashboard, requires: ["reports.dashboard"] },
+  { id: "dashboard", label: "Dashboard", icon: navIcons.dashboard, requires: ["reports.dashboard", "fees.collections.mine"] },
   { id: "sessions", label: "Sessions", icon: navIcons.sessions, requires: ["academic.manage"] },
   { id: "classes", label: "Classes", icon: navIcons.classes, requires: ["academic.manage"] },
   { id: "subjects", label: "Subjects", icon: navIcons.subjects, requires: ["academic.manage"] },
