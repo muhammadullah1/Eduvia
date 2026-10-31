@@ -11,10 +11,11 @@ import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
 import { useCan } from "@/lib/access"
 import { formatDate } from "@/lib/format"
 
-import { errorText, formatAmount, MODE_LABEL, STATUS_TONE } from "./concession-rules"
+import { errorText, MODE_LABEL, STATUS_TONE, valueText } from "./concession-rules"
 
 const BRAND = "bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
 
@@ -63,6 +64,16 @@ export function FeeConcessionsPage() {
       await queryClient.invalidateQueries({ queryKey: [CONCESSIONS_QUERY_KEY, "reasons"] })
       setNewReason("")
       toast.success("Reason added")
+    },
+    onError: (err) => toast.error(errorText(err)),
+  })
+
+  const setFamily = useMutation({
+    mutationFn: ({ id, requiresFamily }: { id: number; requiresFamily: boolean }) =>
+      concessionsService.updateReason(id, { requiresFamily }),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: [CONCESSIONS_QUERY_KEY, "reasons"] })
+      toast.success("Reason updated")
     },
     onError: (err) => toast.error(errorText(err)),
   })
@@ -122,16 +133,29 @@ export function FeeConcessionsPage() {
                 Add reason
               </Button>
             </div>
-            <ul className="text-sm text-[var(--cls-ink)]">
+            <ul className="text-sm text-[var(--cls-ink)]" data-testid="concession-reasons">
               {(reasons.data || []).map((r) => (
-                <li key={r.id} className="border-b border-[var(--cls-border)] py-2 last:border-0">
-                  {r.label}
-                  {!r.active ? (
-                    <span className="ml-2 text-xs text-[var(--cls-muted)]">(inactive)</span>
-                  ) : null}
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 border-b border-[var(--cls-border)] py-2 last:border-0">
+                  <span className="min-w-0">
+                    {r.label}
+                    {!r.active && <span className="ml-2 text-xs text-[var(--cls-muted)]">(inactive)</span>}
+                  </span>
+                  <label className="flex items-center gap-2 text-xs text-[var(--cls-muted)]">
+                    Needs verified family
+                    <Switch
+                      checked={r.requiresFamily}
+                      disabled={setFamily.isPending}
+                      onCheckedChange={(requiresFamily) => setFamily.mutate({ id: r.id, requiresFamily })}
+                      aria-label={`${r.label} needs a verified family`}
+                    />
+                  </label>
                 </li>
               ))}
             </ul>
+            <p className="text-xs text-[var(--cls-muted)]">
+              A reason that needs a verified family (such as Sibling) can only be given to a student
+              who is in a verified family with another active student.
+            </p>
           </div>
         </ClsPanel>
       ) : null}
@@ -188,12 +212,7 @@ function PendingRow({
           {row.studentName || `Student #${row.studentId}`} · {row.reasonLabel || "Concession"}
         </p>
         <p className="text-xs text-[var(--cls-muted)]">
-          {MODE_LABEL[row.mode]} · {row.feeType} · from {formatDate(row.effectiveFrom)}
-          {row.mode === "percent"
-            ? ` · ${formatAmount(row.value)}%`
-            : row.mode === "waiver"
-              ? " · waiver"
-              : ` · PKR ${formatAmount(row.value)}`}
+          {MODE_LABEL[row.mode]} · {row.feeType} · from {formatDate(row.effectiveFrom)} · {valueText(row)}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">

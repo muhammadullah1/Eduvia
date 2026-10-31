@@ -18,7 +18,7 @@ vi.mock("@/api/fees/collect.service", async (orig) => ({
   default: svc,
 }))
 vi.mock("@/lib/actor", () => ({ useActor: () => ({ role: actor.role, name: "Test" }) }))
-vi.mock("@/data/store", () => ({ useSchool: () => ({ syncPortalForRoute: sync }) }))
+vi.mock("@/data/store", () => ({ useSchool: () => ({ syncPortalForRoute: sync, state: { settings: { receipt: { footerNote: "", showSignatureLine: true } } } }) }))
 vi.mock("@/features/management/screens", () => ({ StudentLedgerView: () => <div>ledger view</div> }))
 
 const CTX: CollectContext = {

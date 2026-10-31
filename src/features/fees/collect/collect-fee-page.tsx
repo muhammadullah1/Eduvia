@@ -35,6 +35,7 @@ import { Switch } from "@/components/ui/switch"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { useSchool } from "@/data/store"
 import { StudentLedgerView } from "@/features/management/screens"
+import { usePrintBrand } from "@/hooks/use-print-brand"
 import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
@@ -469,6 +470,7 @@ function AllocationList({ receipt }: { receipt: ServerReceipt }) {
 }
 
 function ReceiptCard({ receipt, studentLabel, classLabel, onAnother, onLedger }: { receipt: ServerReceipt; studentLabel: string; classLabel?: string; onAnother: () => void; onLedger: () => void }) {
+  const brand = usePrintBrand().receipt
   function print() {
     const opened = printDocument(
       `Fee receipt ${receipt.receiptNo}`,
@@ -480,6 +482,7 @@ function ReceiptCard({ receipt, studentLabel, classLabel, onAnother, onLedger }:
         ...(receipt.creditBalance > 0 ? [`Credit balance after this receipt: ${pkr(receipt.creditBalance)}`] : []),
       ],
       { columns: ["Fee month", "Detail", "Amount (PKR)"], rows: receiptPrintRows(receipt) },
+      brand,
     )
     if (!opened) toast.error("Allow pop-ups to print the receipt.")
   }

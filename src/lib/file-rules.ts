@@ -15,6 +15,13 @@ export const IMAGE_RULES: FileRules = {
   label: "JPG or PNG",
 }
 
+/** School logos: any common image; it is converted to a JPEG before upload. */
+export const LOGO_RULES: FileRules = {
+  types: ["image/jpeg", "image/png", "image/webp"],
+  maxBytes: 2 * MB,
+  label: "JPG, PNG or WebP",
+}
+
 /** Admission and other record documents: images or common document types. */
 export const DOCUMENT_RULES: FileRules = {
   types: [

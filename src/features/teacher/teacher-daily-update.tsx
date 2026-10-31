@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 
+import dailyLessonsService from "@/api/lessons/daily-lessons.service"
 import { EmptyState, Field, StatusBadge } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import {
@@ -22,15 +23,13 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useSchool } from "@/data/store"
-import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
 import { classLabel, formatDate } from "@/lib/format"
 
 import { signedInTeacher } from "./session"
 
 export function TeacherDailyUpdate() {
-  const { state, submitDailyLesson } = useSchool()
-  const actor = useActor()
+  const { state, reloadSlices } = useSchool()
   const today = getToday()
   const teacher = signedInTeacher(state.staff)
   const teacherId = teacher?.id ?? ""
@@ -39,6 +38,7 @@ export function TeacherDailyUpdate() {
   const classId = pickedClassId || (teacher?.classIds[0] ?? "")
   const [chapterId, setChapterId] = useState("")
   const [form, setForm] = useState({ classwork: "", homework: "", remarks: "" })
+  const [busy, setBusy] = useState(false)
   const chapters = state.plannedChapters
     .filter(
       (row) => row.classId === classId && row.subject === teacher?.subject
@@ -51,16 +51,20 @@ export function TeacherDailyUpdate() {
     (row) => row.classId === classId && row.date === today
   )
 
-  function submit() {
-    const message = submitDailyLesson(
-      { classId, date: today, chapterId, ...form },
-      actor
-    )
-    if (message) toast.error(message)
-    else {
+  async function submit() {
+    setBusy(true)
+    const plannedChapterId = Number(chapterId)
+    try {
+      if (todayLesson) await dailyLessonsService.update(Number(todayLesson.id), { plannedChapterId, ...form })
+      else await dailyLessonsService.create({ classId: Number(classId), plannedChapterId, date: today, ...form })
+      await reloadSlices(["dailyLessons"])
       toast.success("Sent to management for review")
       setForm({ classwork: "", homework: "", remarks: "" })
       setChapterId("")
+    } catch (err) {
+      toast.error(err instanceof Error && err.message || "Could not send the update.")
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -155,8 +159,8 @@ export function TeacherDailyUpdate() {
         </CardContent>
         <CardFooter>
           <Button
-            disabled={!chapterId || todayLesson?.reviewStatus === "Approved"}
-            onClick={submit}
+            disabled={busy || !chapterId || todayLesson?.reviewStatus === "Approved"}
+            onClick={() => void submit()}
           >
             Submit for review
           </Button>

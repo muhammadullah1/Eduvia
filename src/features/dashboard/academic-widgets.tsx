@@ -1,10 +1,11 @@
+import { BellRing, CalendarCheck, CheckCircle2, Users } from "lucide-react"
 import { Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, XAxis } from "recharts"
 
 import type { AbsentTeacher, AlertsWidget, AttendanceWidget, FeeStatusWidget, PendingWidget } from "@/api/dashboard/dashboard.service"
 import { StatusBadge } from "@/components/app/kit"
 import { type ChartConfig, ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
-import { dayLabel, PENDING_LABELS, type PendingKey, percentText } from "./dashboard-format"
+import { alertItems, dayLabel, PENDING_LABELS, type PendingKey, percentText } from "./dashboard-format"
 import { WidgetCard, WidgetEmpty } from "./widget-card"
 
 const donutConfig = {
@@ -23,7 +24,7 @@ export function AttendanceToday({ attendance }: { attendance: AttendanceWidget }
   ]
   return (
     <WidgetCard title="Attendance today" description={`${today.marked} students marked`} testId="dash-attendance">
-      {!today.marked && <WidgetEmpty>No attendance marked yet today.</WidgetEmpty>}
+      {!today.marked && <WidgetEmpty icon={CalendarCheck} hint="The register fills in as teachers mark their classes.">No attendance marked yet today.</WidgetEmpty>}
       {today.marked > 0 && (
         <div className="flex items-center gap-4">
           <ChartContainer config={donutConfig} className="aspect-square h-36 shrink-0">
@@ -50,7 +51,7 @@ export function AttendanceTrend({ attendance }: { attendance: AttendanceWidget }
   const data = attendance.trend.map((point) => ({ label: dayLabel(point.date), percent: point.percent ?? 0 }))
   return (
     <WidgetCard title="Attendance, last 7 days" testId="dash-attendance-trend">
-      {!data.length && <WidgetEmpty>No attendance in the last 7 days.</WidgetEmpty>}
+      {!data.length && <WidgetEmpty icon={CalendarCheck}>No attendance in the last 7 days.</WidgetEmpty>}
       {data.length > 0 && (
         <ChartContainer config={trendConfig} className="aspect-auto h-44 w-full">
           <BarChart data={data}>
@@ -79,7 +80,7 @@ export function AbsentTeachers({ rows, onOpen }: { rows: AbsentTeacher[]; onOpen
       testId="dash-absent-teachers"
       action={<button type="button" className="text-sm font-medium text-primary" onClick={() => onOpen("substitutes")}>Substitutes</button>}
     >
-      {!rows.length && <WidgetEmpty>Every teacher is in today.</WidgetEmpty>}
+      {!rows.length && <WidgetEmpty icon={Users}>Every teacher is in today.</WidgetEmpty>}
       <ul className="divide-y">
         {rows.map((row) => (
           <li key={row.teacherId} className="flex items-center justify-between gap-3 py-2.5 text-sm">
@@ -99,7 +100,7 @@ export function PendingApprovals({ pending, onOpen }: { pending: PendingWidget; 
   const keys = Object.keys(PENDING_LABELS).filter((key): key is PendingKey => key in pending)
   return (
     <WidgetCard title="Pending approvals" testId="dash-pending">
-      {!keys.length && <WidgetEmpty>Nothing waits on you.</WidgetEmpty>}
+      {!keys.length && <WidgetEmpty icon={CheckCircle2}>Nothing waits on you.</WidgetEmpty>}
       <ul className="divide-y">
         {keys.map((key) => (
           <li key={key}>
@@ -131,25 +132,11 @@ export function FeeStatus({ status }: { status: FeeStatusWidget }) {
   )
 }
 
-type AlertItem = { key: string; text: string; section: string }
-
-function alertItems(alerts: AlertsWidget): AlertItem[] {
-  const items: AlertItem[] = alerts.classesWithoutFeeStructure.map((row) => ({
-    key: `class-${row.classId}`,
-    text: `${row.label} has no fee structure`,
-    section: "fees",
-  }))
-  if (alerts.failedImports > 0) {
-    items.push({ key: "imports", text: `${alerts.failedImports} offline import batches failed`, section: "offline-sync" })
-  }
-  return items
-}
-
 export function Alerts({ alerts, onOpen }: { alerts: AlertsWidget; onOpen: (section: string) => void }) {
   const items = alertItems(alerts)
   return (
     <WidgetCard title="Alerts" testId="dash-alerts">
-      {!items.length && <WidgetEmpty>No alerts. All set up.</WidgetEmpty>}
+      {!items.length && <WidgetEmpty icon={BellRing}>No alerts. All set up.</WidgetEmpty>}
       <ul className="divide-y">
         {items.map((item) => (
           <li key={item.key}>

@@ -198,6 +198,8 @@ export async function fetchPortalCore(): Promise<
     fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
     attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
     admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
+    grading: settingsData.grading ?? DEFAULT_SETTINGS.grading,
+    receipt: settingsData.receipt ?? DEFAULT_SETTINGS.receipt,
   }
 
   return { classes, sessions, subjects, settings }
@@ -263,6 +265,8 @@ async function fetchRequestedCore(
       fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
       attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
       admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
+      grading: settingsData.grading ?? DEFAULT_SETTINGS.grading,
+      receipt: settingsData.receipt ?? DEFAULT_SETTINGS.receipt,
     }
   }
   return partial
@@ -1034,19 +1038,22 @@ export async function fetchBackendState(
     fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
     attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
     admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
+    grading: settingsData.grading ?? DEFAULT_SETTINGS.grading,
+    receipt: settingsData.receipt ?? DEFAULT_SETTINGS.receipt,
   }
 
   // 19. Updates
   const updates: SchoolUpdate[] = updatesData.length
     ? updatesData.map((u) => ({
         id: String(u.id),
-        classId: String(u.fkClassId),
+        classId: String(u.classId),
         kind: (u.kind ?? "Notice") as UpdateKind,
         subject: u.subject ?? "General",
         text: u.text,
         status: (u.status ?? "Draft") as UpdateStatus,
-        due: u.dueDate ? u.dueDate.slice(0, 10) : today,
+        due: u.due ? u.due.slice(0, 10) : today,
         author: u.author ?? "School Office",
+        authorUserId: u.authorUserId ?? undefined,
       }))
     : []
 

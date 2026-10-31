@@ -6,6 +6,7 @@ import {
   SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar"
+import { useSchoolProfile } from "@/hooks/use-print-brand"
 import type { PortalSlug } from "@/lib/auth"
 
 import { Logo } from "./logo"
@@ -28,6 +29,7 @@ export function Sidebar({
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
   const tree = navigationMenuTree(portal, items)
+  const school = useSchoolProfile()
 
   function navigate(id: string, panel?: string) {
     onNavigate(id, panel)
@@ -42,10 +44,10 @@ export function Sidebar({
         <button
           type="button"
           onClick={() => navigate(home)}
-          className="w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          className="w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           aria-label="Go to dashboard"
         >
-          <Logo inverted />
+          <Logo crest logoUrl={school.data?.logoUrl} />
         </button>
       </SidebarHeader>
       <SidebarContent className="gap-0 py-2.5">
@@ -59,7 +61,7 @@ export function Sidebar({
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border px-3.5 py-3">
-        <p className="text-[10px] text-white/40">SMS v1.0 · Abier</p>
+        <p className="text-[10px] text-[var(--sidebar-inactive)]">SMS v1.0 · Abier</p>
       </SidebarFooter>
     </UiSidebar>
   )

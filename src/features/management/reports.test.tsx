@@ -19,6 +19,10 @@ vi.mock("@/features/management/fee-reports", () => ({
   FeeReportsPanel: () => <div data-testid="fee-reports-panel">Fee Reports Panel Content</div>,
 }))
 
+vi.mock("@/features/management/student-reports", () => ({
+  StudentReportsPanel: () => <div data-testid="student-reports-panel">Student Reports Panel Content</div>,
+}))
+
 vi.mock("@/api/audit/audit.service", () => ({
   default: {
     list: vi.fn().mockResolvedValue([
@@ -50,17 +54,44 @@ describe("Reports Component", () => {
 
   afterEach(cleanup)
 
-  it("renders exactly 2 clean tabs: Fee reports and Audit trail", () => {
+  const tabNames = () =>
+    within(screen.getByRole("tablist", { name: "Reports" }))
+      .getAllByRole("tab")
+      .map((t) => t.textContent?.trim())
+
+  it("super admin sees student, fee and audit tabs plus finance and exam links", () => {
     wrap(<Reports />)
 
-    const tablist = screen.getByRole("tablist", { name: "Reports" })
-    const tabs = within(tablist).getAllByRole("tab")
-    expect(tabs.map((t) => t.textContent?.trim())).toEqual(["Fee reports", "Audit trail"])
+    expect(tabNames()).toEqual(["Student reports", "Fee reports", "Audit trail"])
+    expect(screen.getByTestId("student-reports-panel")).toBeTruthy()
+    expect(screen.getByRole("link", { name: /Financial report/ }).getAttribute("href")).toBe("/admin/finance?tab=report")
+    expect(screen.getByRole("link", { name: /Exam documents/ }).getAttribute("href")).toBe("/admin/exams")
+  })
+
+  it("operations manager gets student reports and audit, but no fee or finance figures", () => {
+    currentRole = "operations_manager"
+    grantRoleDefaults("operations_manager")
+    wrap(<Reports />)
+
+    expect(tabNames()).toEqual(["Student reports", "Audit trail"])
+    expect(screen.queryByRole("link", { name: /Financial report/ })).toBeNull()
+    expect(screen.queryByTestId("fee-reports-panel")).toBeNull()
+  })
+
+  it("accountant only sees fee reports", () => {
+    currentRole = "accountant"
+    grantRoleDefaults("accountant")
+    wrap(<Reports />)
+
+    expect(screen.queryByRole("tablist", { name: "Reports" })).toBeNull()
     expect(screen.getByTestId("fee-reports-panel")).toBeTruthy()
+    expect(screen.queryByTestId("student-reports-panel")).toBeNull()
+    expect(screen.queryByRole("link", { name: /Exam documents/ })).toBeNull()
   })
 
   it("switches to Audit trail when clicked and back to Fee reports seamlessly", async () => {
-    wrap(<Reports />)
+    wrap(<Reports />, ["/admin/reports?tab=fees"])
+    expect(screen.getByTestId("fee-reports-panel")).toBeTruthy()
 
     const auditTab = screen.getByRole("tab", { name: "Audit trail" })
     fireEvent.click(auditTab)

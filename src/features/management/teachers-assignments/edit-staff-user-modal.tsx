@@ -142,6 +142,7 @@ export function EditStaffUserModal({
             currentUrl={removePhoto ? null : staff?.photoUrl}
             onRemoveCurrent={() => setRemovePhoto(true)}
             disabled={saving}
+            name={staff?.name}
           />
           {error ? (
             <p className="sm:col-span-2 text-sm text-destructive">{error}</p>

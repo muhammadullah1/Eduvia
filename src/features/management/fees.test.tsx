@@ -131,6 +131,7 @@ vi.mock("@/data/store", () => ({
       classes: [{ id: "1", label: "Class 1", section: "A" }],
       feeMonths: [],
       payments: [],
+      settings: { receipt: { footerNote: "", showSignatureLine: true } },
     },
   }),
 }))

@@ -23,7 +23,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { monthLabel } from "@/lib/fees"
-import { classLabel, gradeFromScore } from "@/lib/format"
+import { classLabel } from "@/lib/format"
+import { gradeForPercent } from "@/lib/grading"
 
 import { ChildSwitcher } from "./child-switcher"
 import { useChild } from "./use-child"
@@ -31,6 +32,11 @@ import { unpaidMonths, visibilityFor } from "./visibility"
 
 export function ParentResults() {
   const { state, child, childId, setChildId, options } = useChild()
+  const { grading, dailyTestRules } = state.settings
+  const sheetGrade = (score: number, max: number) => {
+    const percent = (score / max) * 100
+    return gradeForPercent(percent, percent >= dailyTestRules.passPercent, grading.bands)
+  }
   const sheets = state.sheets.filter(
     (sheet) => sheet.classId === child.classId && sheet.status === "Published"
   )
@@ -156,7 +162,7 @@ export function ParentResults() {
                           "—"
                         ) : (
                           <StatusBadge
-                            value={gradeFromScore(score, sheet.max)}
+                            value={sheetGrade(score, sheet.max)}
                           />
                         )}
                       </TableCell>

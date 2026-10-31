@@ -28,10 +28,19 @@ export type SchoolProfile = {
   email?: string | null
   website?: string | null
   status?: string | null
+  /** Storage key of the uploaded logo (JPEG), or null for the default crest. */
+  logo?: string | null
+  /** Short-lived signed link to the logo, or null. */
+  logoUrl?: string | null
 }
+
+export type SchoolProfileUpdate = { name: string; phone: string; email: string; address: string; website: string }
+export type SchoolLogoUpdate = { logo: string | null }
 
 const schoolCatalogService = {
   getCurrentSchool: () => api.get<SchoolProfile>("/schools/current"),
+  updateCurrentSchool: (body: Partial<SchoolProfileUpdate> | SchoolLogoUpdate) =>
+    api.patch<SchoolProfile>("/schools/current", body),
   listBlockDates: (params?: { search?: string; archived?: boolean }) =>
     api.get<BlockDateRow[]>("/settings/block-dates", {
       search: params?.search,

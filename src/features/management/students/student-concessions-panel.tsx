@@ -5,16 +5,20 @@ import { toast } from "sonner"
 
 import concessionsService, {
   type ConcessionMode,
+  type ConcessionReason,
   CONCESSIONS_QUERY_KEY,
   type CreateConcessionInput,
   type FeeConcession,
 } from "@/api/fees/concessions.service"
+import { FEE_TYPES, type FeeType } from "@/api/fees/fee-structure.service"
 import { ClsPanel, ClsPanelHeader } from "@/components/app/cls-panel"
 import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -29,17 +33,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { useSchool } from "@/data/store"
 import { useCan } from "@/lib/access"
 import { CLS_MODAL_FOOTER } from "@/lib/cls-dialog-footer"
 import { formatDate } from "@/lib/format"
 
-import { errorText, formatAmount, MODE_LABEL, STATUS_TONE } from "../fee-concessions/concession-rules"
+import { errorText, formatAmount, MODE_LABEL, modeHint, STATUS_TONE, valueError, valueText } from "../fee-concessions/concession-rules"
 
 const BRAND = "bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
 
 /** Student-scoped fee concession: one active Approved row per fee type. */
 export function StudentConcessionsPanel({ studentId }: { studentId: number }) {
   const queryClient = useQueryClient()
+  const { state } = useSchool()
   const can = useCan()
   const canView = can("fees.concessions.read") || can("fees.concessions.request")
   const canRequest = can("fees.concessions.request")
@@ -72,13 +78,12 @@ export function StudentConcessionsPanel({ studentId }: { studentId: number }) {
     onSuccess: async (row) => {
       await queryClient.invalidateQueries({ queryKey: [CONCESSIONS_QUERY_KEY] })
       setOpen(false)
-      toast.success(
-        row.status === "PendingApproval"
-          ? "Concession submitted for approval"
-          : "Concession applied"
-      )
+      if (row.status === "PendingApproval") {
+        toast.success("Concession submitted for approval")
+        return
+      }
+      toast.success("Concession applied")
     },
-    onError: (err) => toast.error(errorText(err)),
   })
 
   const active = useMemo(
@@ -175,6 +180,8 @@ export function StudentConcessionsPanel({ studentId }: { studentId: number }) {
         <AssignDialog
           studentId={studentId}
           reasons={reasons.data || []}
+          allowedModes={state.settings.fees.concessionPolicy.allowedModes}
+          existing={list.data || []}
           suggestSibling={Boolean(siblings.data?.suggestSibling)}
           saving={create.isPending}
           onClose={() => setOpen(false)}
@@ -193,12 +200,7 @@ function ConcessionRow({ row }: { row: FeeConcession }) {
           {row.reasonLabel || "Concession"} · {MODE_LABEL[row.mode]}
         </p>
         <p className="text-xs text-[var(--cls-muted)]">
-          {row.feeType} · from {formatDate(row.effectiveFrom)}
-          {row.mode === "percent"
-            ? ` · ${formatAmount(row.value)}%`
-            : row.mode === "waiver"
-              ? " · full waiver"
-              : ` · PKR ${formatAmount(row.value)}`}
+          {row.feeType} · from {formatDate(row.effectiveFrom)} · {valueText(row)}
         </p>
       </div>
       <StatusChip tone={STATUS_TONE[row.status]}>
@@ -208,124 +210,211 @@ function ConcessionRow({ row }: { row: FeeConcession }) {
   )
 }
 
+/**
+ * One concession per fee type, chosen explicitly. An existing Approved concession is
+ * only superseded when "Replace" is confirmed (never stacked), a pending one blocks a
+ * new request, and bills already generated keep their amounts. The API enforces the
+ * same rules; its message is shown if it still refuses (e.g. no verified family).
+ */
 function AssignDialog({
   studentId,
   reasons,
+  allowedModes,
+  existing,
   suggestSibling,
   saving,
   onClose,
   onSubmit,
 }: {
   studentId: number
-  reasons: Array<{
-    id: number
-    label: string
-    defaultMode: ConcessionMode | null
-    defaultValue: number | null
-  }>
+  reasons: ConcessionReason[]
+  allowedModes: ConcessionMode[]
+  existing: FeeConcession[]
   suggestSibling: boolean
   saving: boolean
   onClose: () => void
   onSubmit: (body: CreateConcessionInput) => Promise<unknown>
 }) {
-  const siblingReason = reasons.find((r) => r.label.toLowerCase() === "sibling")
-  const [reasonId, setReasonId] = useState(
-    suggestSibling && siblingReason ? String(siblingReason.id) : ""
-  )
-  const [mode, setMode] = useState<ConcessionMode>("percent")
-  const [value, setValue] = useState("10")
+  const siblingReason = reasons.find((r) => r.requiresFamily)
+  const [reasonId, setReasonId] = useState(() => {
+    if (suggestSibling && siblingReason) return String(siblingReason.id)
+    return ""
+  })
+  const [feeType, setFeeType] = useState<FeeType>("Tuition")
+  const firstMode = allowedModes.find(() => true) ?? "percent"
+  const [mode, setMode] = useState<ConcessionMode>(firstMode)
+  const [value, setValue] = useState("")
   const [notes, setNotes] = useState("")
+  const [replace, setReplace] = useState(false)
+  const [submitted, setSubmitted] = useState(false)
+  const [serverError, setServerError] = useState<string | null>(null)
 
+  const reason = reasons.find((r) => String(r.id) === reasonId)
+  const current = existing.find((r) => r.feeType === feeType && r.status === "Approved")
+  const pending = existing.find((r) => r.feeType === feeType && r.status === "PendingApproval")
+  const problem = valueError(mode, value)
+  let blocker: string | null = null
+  if (!reasonId) blocker = "Pick a reason."
+  else if (!allowedModes.includes(mode)) blocker = "This mode is turned off in Settings → Fee billing."
+  else if (pending) blocker = `A ${feeType} concession is already waiting for approval. Approve or reject it first.`
+  else if (problem) blocker = problem
+  else if (current && !replace) blocker = `Confirm replacing the current ${feeType} concession.`
+
+  function change(next: () => void) {
+    next()
+    setServerError(null)
+  }
   function applyReason(id: string) {
-    setReasonId(id)
-    const reason = reasons.find((r) => String(r.id) === id)
-    if (!reason) return
-    if (reason.defaultMode) setMode(reason.defaultMode)
-    if (reason.defaultValue != null) setValue(String(reason.defaultValue))
+    change(() => setReasonId(id))
+    const picked = reasons.find((r) => String(r.id) === id)
+    if (!picked) return
+    if (picked.defaultMode && allowedModes.includes(picked.defaultMode)) setMode(picked.defaultMode)
+    if (picked.defaultValue != null) setValue(String(picked.defaultValue))
+  }
+  async function submit() {
+    setSubmitted(true)
+    if (blocker) return
+    try {
+      let amount = Number(value)
+      if (mode === "waiver") amount = 0
+      await onSubmit({
+        studentId,
+        reasonId: Number(reasonId),
+        mode,
+        value: amount,
+        feeType,
+        notes: notes.trim() || null,
+        replaceExisting: Boolean(current),
+      })
+    } catch (err) {
+      setServerError(errorText(err))
+    }
   }
 
-  async function submit() {
-    if (!reasonId) {
-      toast.error("Pick a reason")
-      return
-    }
-    await onSubmit({
-      studentId,
-      reasonId: Number(reasonId),
-      mode,
-      value: mode === "waiver" ? 0 : Number(value),
-      feeType: "Tuition",
-      notes: notes.trim() || null,
-    })
-  }
+  let valueLabel = "Amount off (PKR)"
+  if (mode === "percent") valueLabel = "Percent off"
+  if (mode === "fixed_payable") valueLabel = "Amount payable (PKR)"
 
   return (
     <Dialog open onOpenChange={(v) => !saving && !v && onClose()}>
-      <DialogContent className="max-w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg">
+      <DialogContent className="max-w-[calc(100vw-2rem)] gap-0 overflow-hidden rounded-2xl p-0 sm:max-w-lg" data-testid="concession-dialog">
         <DialogHeader className="border-b border-[var(--cls-border)] px-6 py-4 text-left">
           <DialogTitle className="text-lg font-semibold text-[var(--cls-ink)]">
             Set fee concession
           </DialogTitle>
+          <DialogDescription className="text-xs text-[var(--cls-muted)]">
+            Applies to bills generated from now on. Bills already generated keep their amounts.
+          </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 px-6 py-5">
-          {suggestSibling ? (
+        <div className="grid max-h-[70vh] gap-4 overflow-y-auto px-6 py-5">
+          {suggestSibling && siblingReason && (
             <p className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-xs text-sky-950">
-              This student shares a parent account with another student in this school. Consider the
-              Sibling reason.
+              This student shares a parent account with another student. {siblingReason.label} needs
+              them to be in a verified family.
             </p>
-          ) : null}
-          <div>
-            <Label className="mb-1.5 block text-sm">Reason</Label>
-            <Select value={reasonId} onValueChange={applyReason}>
-              <SelectTrigger className="w-full" aria-label="Concession reason">
-                <SelectValue placeholder="Choose reason" />
-              </SelectTrigger>
-              <SelectContent>
-                {reasons.map((r) => (
-                  <SelectItem key={r.id} value={String(r.id)}>
-                    {r.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          )}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Label className="mb-1.5 block text-sm">Fee type</Label>
+              <Select value={feeType} onValueChange={(v) => change(() => { setFeeType(v as FeeType); setReplace(false) })}>
+                <SelectTrigger className="w-full" aria-label="Fee type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {FEE_TYPES.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="mb-1.5 block text-sm">Reason</Label>
+              <Select value={reasonId} onValueChange={applyReason}>
+                <SelectTrigger className="w-full" aria-label="Concession reason">
+                  <SelectValue placeholder="Choose reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {reasons.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>{r.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
+          {reason?.requiresFamily && (
+            <p className="text-xs text-[var(--cls-muted)]" data-testid="family-note">
+              {reason.label} is only allowed when this student is in a verified family with another
+              active student. Verify the family under Families first.
+            </p>
+          )}
           <div>
-            <Label className="mb-1.5 block text-sm">Type</Label>
-            <Select value={mode} onValueChange={(v) => setMode(v as ConcessionMode)}>
-              <SelectTrigger className="w-full" aria-label="Concession type">
+            <Label className="mb-1.5 block text-sm">Mode</Label>
+            <Select value={mode} onValueChange={(v) => change(() => setMode(v as ConcessionMode))}>
+              <SelectTrigger className="w-full" aria-label="Concession mode">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="percent">Percentage</SelectItem>
-                <SelectItem value="fixed_discount">Fixed amount off</SelectItem>
-                <SelectItem value="waiver">Full waiver</SelectItem>
+                {allowedModes.map((item) => (
+                  <SelectItem key={item} value={item}>{MODE_LABEL[item]}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
+            <p className="mt-1.5 text-xs text-[var(--cls-muted)]">{modeHint(mode)}</p>
           </div>
-          {mode !== "waiver" ? (
+          {mode !== "waiver" && (
             <div>
-              <Label className="mb-1.5 block text-sm">
-                {mode === "percent" ? "Percent" : "Amount (PKR)"}
-              </Label>
+              <Label className="mb-1.5 block text-sm">{valueLabel}</Label>
               <Input
                 inputMode="decimal"
                 value={value}
-                onChange={(e) => setValue(e.target.value)}
+                onChange={(e) => change(() => setValue(e.target.value))}
                 aria-label="Concession value"
+                aria-invalid={submitted && Boolean(problem)}
               />
+              {submitted && problem && <p className="mt-1 text-xs text-destructive">{problem}</p>}
             </div>
-          ) : null}
+          )}
           <div>
             <Label className="mb-1.5 block text-sm">Note (optional)</Label>
             <Input value={notes} onChange={(e) => setNotes(e.target.value)} aria-label="Notes" />
           </div>
+          {pending && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900" role="status">
+              A {feeType} concession ({valueText(pending)}) is waiting for approval. Approve or reject it
+              before setting another.
+            </p>
+          )}
+          {current && !pending && (
+            <label className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900" data-testid="replace-confirm">
+              <Checkbox
+                checked={replace}
+                onCheckedChange={(on) => change(() => setReplace(on === true))}
+                aria-label="Replace the current concession"
+              />
+              <span>
+                Replace the current {feeType} concession ({current.reasonLabel || "Concession"},{" "}
+                {valueText(current)}). It stays in history as superseded; concessions are never added
+                together.
+              </span>
+            </label>
+          )}
+          {serverError && (
+            <p className="rounded-lg border border-destructive/20 bg-destructive/10 px-3 py-2 text-xs text-destructive" role="alert">
+              {serverError}
+            </p>
+          )}
+          {submitted && blocker && !serverError && !problem && (
+            <p className="text-xs text-destructive" role="alert">{blocker}</p>
+          )}
         </div>
         <DialogFooter className={CLS_MODAL_FOOTER}>
           <Button type="button" variant="outline" disabled={saving} onClick={onClose}>
             Cancel
           </Button>
-          <Button type="button" className={BRAND} disabled={saving} onClick={() => void submit()}>
-            {saving ? "Saving…" : "Save"}
+          <Button type="button" className={BRAND} disabled={saving || Boolean(pending)} onClick={() => void submit()}>
+            {saving && "Saving…"}
+            {!saving && current && "Replace"}
+            {!saving && !current && "Save"}
           </Button>
         </DialogFooter>
       </DialogContent>

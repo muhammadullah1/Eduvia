@@ -20,7 +20,6 @@ import { DailyTestSchedulePage } from "@/features/management/daily-tests/daily-t
 import { EnrollmentPromotionPage } from "@/features/management/enrollment-promotion"
 import { LifecyclePage } from "@/features/management/lifecycle"
 import {
-  AcademicSetup,
   Admissions,
   AuditLogPage,
   Classes,
@@ -65,7 +64,6 @@ import { announceLogout } from "@/lib/token-refresh"
 import { useSessionSync } from "@/lib/use-session"
 import { useAuthStore } from "@/stores/auth-store"
 
-import { academicFocusForSection } from "./academic-section"
 import { HeaderUserMenu } from "./header-user-menu"
 import {
   allowedSections,
@@ -226,12 +224,6 @@ export function PortalShell() {
     if (section === "timetable") return <Timetable />
     if (section === "teachers-assignments") {
       return <TeachersAssignments query={query} />
-    }
-    {
-      const academicFocus = academicFocusForSection(section)
-      if (academicFocus && academicFocus !== "sessions") {
-        return <AcademicSetup focusTab={academicFocus} />
-      }
     }
     if (section === "classes") return <Classes query={query} />
     if (section === "lesson-plan") return <CurriculumPanel />

@@ -1,5 +1,5 @@
-import { api } from "@/lib/api"
 import type { ReviewStatus } from "@/data/types"
+import { api } from "@/lib/api"
 
 export type DailyLessonDto = {
   id: number
@@ -21,6 +21,18 @@ export type DailyLessonDto = {
   } | null
 }
 
+export type DailyLessonContent = {
+  classwork: string
+  homework: string
+  remarks: string
+}
+
+export type CreateDailyLessonInput = DailyLessonContent & {
+  classId: number
+  plannedChapterId: number
+  date: string
+}
+
 export type ReviewLessonInput = {
   decision: "Approved" | "Rejected"
   note?: string
@@ -35,6 +47,12 @@ const dailyLessonsService = {
     to?: string
     reviewStatus?: string
   }) => api.get<DailyLessonDto[]>("/daily-lessons", query),
+
+  create: (body: CreateDailyLessonInput) =>
+    api.post<DailyLessonDto>("/daily-lessons", body),
+
+  update: (id: number, body: DailyLessonContent & { plannedChapterId: number }) =>
+    api.patch<DailyLessonDto>(`/daily-lessons/${id}`, body),
 
   review: (id: number, body: ReviewLessonInput) =>
     api.post<DailyLessonDto>(`/daily-lessons/${id}/review`, body),

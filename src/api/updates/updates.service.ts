@@ -1,5 +1,5 @@
-import { api } from "@/lib/api"
 import type { UpdateKind, UpdateStatus } from "@/data/types"
+import { api } from "@/lib/api"
 
 export type SchoolUpdateDto = {
   id: string
@@ -28,6 +28,9 @@ const updatesService = {
 
   create: (body: CreateUpdateInput) =>
     api.post<SchoolUpdateDto>("/updates", body),
+
+  update: (id: string, body: Partial<CreateUpdateInput>) =>
+    api.patch<SchoolUpdateDto>(`/updates/${id}`, body),
 
   setStatus: (id: string, status: UpdateStatus) =>
     api.patch<SchoolUpdateDto>(`/updates/${id}/status`, { status }),

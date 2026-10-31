@@ -1,3 +1,4 @@
+import { ReceiptText, WalletCards } from "lucide-react"
 import { Area, AreaChart, CartesianGrid, XAxis } from "recharts"
 
 import type { FinanceWidget, IncomeVsExpensesWidget } from "@/api/dashboard/dashboard.service"
@@ -35,7 +36,7 @@ export function CollectionByMethod({ finance }: { finance: FinanceWidget }) {
   const total = finance.byMethod.reduce((sum, row) => sum + row.amount, 0)
   return (
     <WidgetCard title="Collection by method" description="Share of fee receipts in the period" testId="dash-methods">
-      {!finance.byMethod.length && <WidgetEmpty>No receipts in this period.</WidgetEmpty>}
+      {!finance.byMethod.length && <WidgetEmpty icon={WalletCards}>No receipts in this period.</WidgetEmpty>}
       <ul className="flex flex-col gap-4">
         {finance.byMethod.map((row) => (
           <li key={row.method} className="flex flex-col gap-1.5">
@@ -107,7 +108,7 @@ export function RecentPayments({ finance, onOpen }: { finance: FinanceWidget; on
       testId="dash-recent"
       action={<button type="button" className="text-sm font-medium text-primary" onClick={() => onOpen("fees")}>View all</button>}
     >
-      {!finance.recentPayments.length && <WidgetEmpty>No payments recorded yet.</WidgetEmpty>}
+      {!finance.recentPayments.length && <WidgetEmpty icon={ReceiptText} hint="The latest fee receipts will be listed here.">No payments recorded yet.</WidgetEmpty>}
       {finance.recentPayments.length > 0 && (
         <Table>
           <TableHeader>

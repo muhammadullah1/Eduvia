@@ -2,6 +2,7 @@ import { Lock, Shield } from "lucide-react"
 import { type ReactNode,useEffect, useState } from "react"
 
 import { Button } from "@/components/ui/button"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import {
   Select,
@@ -12,12 +13,18 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import { useSchool } from "@/data/store"
 import {
   type AdmissionSettings,
   type AttendanceSettings,
+  type ConcessionMode,
+  type ConcessionPolicy,
   type DailyTestRules,
+  DEFAULT_SETTINGS,
   type FeeSettings,
+  type GradingSettings,
+  type ReceiptSettings,
   type ResultFeeRule,
   type ResultVisibilitySettings,
   type SchoolSettings,
@@ -25,25 +32,21 @@ import {
 import { FEE_RULE_LABELS } from "@/features/ops/fee-rule-labels"
 import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
+import { FAIL_GRADE, gradingError, RECEIPT_FOOTER_MAX } from "@/lib/grading"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
+import { GradingScaleEditor } from "./components/grading-scale-editor"
 import { SchoolProfileCard } from "./components/school-profile-card"
 
 export { SchoolProfileCard }
 
-/**
- * Exam letter grades are fixed in the API (`GRADE_BANDS`). Editable grading-scale
- * configuration is not a school_settings key yet — show read-only for Figma parity.
- */
-const GRADE_BANDS_READONLY = [
-  { min: 90, max: 100, grade: "A+", remark: "Outstanding" },
-  { min: 80, max: 89, grade: "A", remark: "Excellent" },
-  { min: 70, max: 79, grade: "B", remark: "Very Good" },
-  { min: 60, max: 69, grade: "C", remark: "Good" },
-  { min: 50, max: 59, grade: "D", remark: "Satisfactory" },
-  { min: 0, max: 49, grade: "E", remark: "Passed below 50 (paper pass mark still applies)" },
-] as const
+const CONCESSION_MODE_OPTIONS: { mode: ConcessionMode; label: string; hint: string }[] = [
+  { mode: "percent", label: "Percentage", hint: "A percent off the fee" },
+  { mode: "fixed_discount", label: "Fixed amount off", hint: "A PKR amount off the fee" },
+  { mode: "fixed_payable", label: "Fixed amount payable", hint: "The student pays exactly this amount" },
+  { mode: "waiver", label: "Full waiver", hint: "Nothing to pay for the fee type" },
+]
 
 const FIELD_CONTROL =
   "h-11 rounded-[10px] border-transparent bg-[#F7F7F7] shadow-none focus-visible:border-[var(--cls-brand)]/25 focus-visible:bg-white focus-visible:ring-[var(--cls-brand)]/20"
@@ -173,6 +176,8 @@ export function SettingsGeneralRules() {
   const [admission, setAdmission] = useState<AdmissionSettings>(
     state.settings.admission
   )
+  const [grading, setGrading] = useState<GradingSettings>(state.settings.grading)
+  const [receipt, setReceipt] = useState<ReceiptSettings>(state.settings.receipt)
   const [saving, setSaving] = useState(false)
 
   const can = useCan()
@@ -186,6 +191,8 @@ export function SettingsGeneralRules() {
     setFees(state.settings.fees)
     setAttendance(state.settings.attendance)
     setAdmission(state.settings.admission)
+    setGrading(state.settings.grading)
+    setReceipt(state.settings.receipt)
   }, [state.settings])
 
   const isRulesDirty =
@@ -200,12 +207,34 @@ export function SettingsGeneralRules() {
   const isAdmissionDirty =
     JSON.stringify(admission) !== JSON.stringify(state.settings.admission)
 
+  const isGradingDirty =
+    JSON.stringify(grading) !== JSON.stringify(state.settings.grading)
+  const isReceiptDirty =
+    JSON.stringify(receipt) !== JSON.stringify(state.settings.receipt)
+  const gradingProblem = gradingError(grading.bands)
+  const policy: ConcessionPolicy = fees.concessionPolicy ?? DEFAULT_SETTINGS.fees.concessionPolicy
+  let modesProblem: string | null = null
+  if (policy.allowedModes.length === 0) modesProblem = "Allow at least one concession mode."
+
   const isDirty =
     isRulesDirty ||
     isVisibilityDirty ||
     isFeesDirty ||
     isAttendanceDirty ||
-    isAdmissionDirty
+    isAdmissionDirty ||
+    isGradingDirty ||
+    isReceiptDirty
+
+  const setPolicy = (patch: Partial<ConcessionPolicy>) =>
+    setFees({ ...fees, concessionPolicy: { ...policy, ...patch } })
+  const toggleMode = (mode: ConcessionMode, on: boolean) => {
+    const rest = policy.allowedModes.filter((item) => item !== mode)
+    if (on) {
+      setPolicy({ allowedModes: [...rest, mode] })
+      return
+    }
+    setPolicy({ allowedModes: rest })
+  }
 
   const numberRule =
     (key: keyof DailyTestRules) =>
@@ -241,6 +270,18 @@ export function SettingsGeneralRules() {
       if (isFeesDirty && canFees) patches.push({ fees })
       if (isVisibilityDirty && canResults)
         patches.push({ resultVisibility: visibility })
+      if (isGradingDirty && canAcademic) {
+        if (gradingProblem) {
+          toast.error(gradingProblem)
+          return
+        }
+        patches.push({ grading })
+      }
+      if (isReceiptDirty && canFees) patches.push({ receipt })
+      if (isFeesDirty && canFees && modesProblem) {
+        toast.error(modesProblem)
+        return
+      }
 
       if (patches.length === 0) {
         toast.error("You do not have permission to save these changes.")
@@ -274,54 +315,24 @@ export function SettingsGeneralRules() {
 
       <PolicySection
         title="Grading Scale"
-        description="Letter grades used on exam results. The school-wide scale is fixed in the product; paper pass/fail still follows each paper’s own pass marks."
+        description="Letter grades on exam results, DMCs and result sheets. Pass or fail still follows each paper’s own pass marks."
         badge={
-          <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-[11px] font-medium text-slate-600">
-            Read-only
-          </span>
+          canAcademic ? (
+            <DirtyBadge isDirty={isGradingDirty} />
+          ) : (
+            <SuperAdminOnlyBadge />
+          )
         }
       >
-        <div className="overflow-x-auto rounded-lg border border-[var(--cls-border)]">
-          <table className="w-full min-w-[28rem] text-left text-sm">
-            <thead className="bg-[var(--page-wash)] text-xs uppercase tracking-wider text-[var(--cls-muted)]">
-              <tr>
-                <th className="px-3 py-2.5 font-semibold">Min %</th>
-                <th className="px-3 py-2.5 font-semibold">Max %</th>
-                <th className="px-3 py-2.5 font-semibold">Grade</th>
-                <th className="px-3 py-2.5 font-semibold">Notes</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[var(--cls-border)]">
-              {GRADE_BANDS_READONLY.map((row) => (
-                <tr key={row.grade}>
-                  <td className="px-3 py-2.5 tabular-nums text-[var(--cls-ink)]">
-                    {row.min}
-                  </td>
-                  <td className="px-3 py-2.5 tabular-nums text-[var(--cls-ink)]">
-                    {row.max}
-                  </td>
-                  <td className="px-3 py-2.5 font-semibold text-[var(--cls-ink)]">
-                    {row.grade}
-                  </td>
-                  <td className="px-3 py-2.5 text-[var(--cls-muted)]">
-                    {row.remark}
-                  </td>
-                </tr>
-              ))}
-              <tr>
-                <td className="px-3 py-2.5 text-[var(--cls-muted)]" colSpan={3}>
-                  F
-                </td>
-                <td className="px-3 py-2.5 text-[var(--cls-muted)]">
-                  Failed paper or overall fail — always F
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+        <GradingScaleEditor
+          bands={grading.bands}
+          disabled={!canAcademic}
+          error={gradingProblem}
+          onChange={(bands) => setGrading({ bands })}
+        />
         <LockedNote>
-          Editable grading bands are not available via settings yet. Failed
-          papers are always grade F.
+          Grades are worked out from these bands each time results, DMCs and result sheets
+          are produced. A failed paper is always grade {FAIL_GRADE}.
         </LockedNote>
       </PolicySection>
 
@@ -604,24 +615,42 @@ export function SettingsGeneralRules() {
           </div>
 
           <SettingsField
+            label="Allowed concession modes"
+            hint="Modes staff can choose when assigning a concession"
+          >
+            <div className="grid gap-2 sm:grid-cols-2" data-testid="concession-modes">
+              {CONCESSION_MODE_OPTIONS.map((option) => (
+                <label
+                  key={option.mode}
+                  className="flex cursor-pointer items-start gap-3 rounded-[10px] bg-[#F7F7F7]/70 px-3 py-2.5"
+                >
+                  <Checkbox
+                    disabled={!canFees}
+                    checked={policy.allowedModes.includes(option.mode)}
+                    onCheckedChange={(on) => toggleMode(option.mode, on === true)}
+                    aria-label={option.label}
+                  />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-[var(--cls-ink)]">{option.label}</span>
+                    <span className="block text-xs text-[var(--cls-muted)]">{option.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            {modesProblem && (
+              <p className="text-xs font-medium text-red-600" role="alert">{modesProblem}</p>
+            )}
+          </SettingsField>
+
+          <SettingsField
             label="Concession approval"
             hint="When a new student concession needs Super Admin approval"
           >
             <Select
-              value={fees.concessionPolicy?.approvalRule ?? "none"}
+              value={policy.approvalRule}
               disabled={!canFees}
               onValueChange={(value) =>
-                setFees({
-                  ...fees,
-                  concessionPolicy: {
-                    ...(fees.concessionPolicy ?? {
-                      allowedModes: ["percent", "fixed_discount", "waiver"],
-                      approvalPercentAbove: null,
-                      approvalAmountAbove: null,
-                    }),
-                    approvalRule: value as "none" | "always" | "threshold",
-                  },
-                })
+                setPolicy({ approvalRule: value as ConcessionPolicy["approvalRule"] })
               }
             >
               <SelectTrigger className={FIELD_CONTROL} aria-label="Concession approval rule">
@@ -687,6 +716,45 @@ export function SettingsGeneralRules() {
             <LockedNote>Only Super Admins can modify fee billing policies.</LockedNote>
           ) : null}
         </div>
+      </PolicySection>
+
+      <PolicySection
+        title="Receipt template"
+        description="Printed at the bottom of every fee receipt (PDF and browser print)."
+        badge={
+          canFees ? <DirtyBadge isDirty={isReceiptDirty} /> : <SuperAdminOnlyBadge />
+        }
+      >
+        <SettingsField
+          label="Footer note"
+          hint={`Optional, up to ${RECEIPT_FOOTER_MAX} characters`}
+        >
+          <Textarea
+            className="min-h-20 rounded-[10px] bg-[#F7F7F7] shadow-none"
+            disabled={!canFees}
+            maxLength={RECEIPT_FOOTER_MAX}
+            value={receipt.footerNote}
+            placeholder="e.g. Fees once paid are not refundable."
+            aria-label="Receipt footer note"
+            onChange={(event) => setReceipt({ ...receipt, footerNote: event.target.value })}
+          />
+          <span className="text-right text-xs tabular-nums text-[var(--cls-muted)]">
+            {receipt.footerNote.length}/{RECEIPT_FOOTER_MAX}
+          </span>
+        </SettingsField>
+        <PreferenceRow
+          title="Signature line"
+          description="Adds “Received by ____” for the cashier’s signature."
+          control={
+            <Switch
+              disabled={!canFees}
+              checked={receipt.showSignatureLine}
+              onCheckedChange={(showSignatureLine) => setReceipt({ ...receipt, showSignatureLine })}
+              aria-label="Show signature line on receipts"
+            />
+          }
+        />
+        {!canFees && <LockedNote>Only Super Admins can change the receipt template.</LockedNote>}
       </PolicySection>
 
       <PolicySection

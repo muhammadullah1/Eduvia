@@ -1,42 +1,25 @@
 import { useMemo, useState } from "react"
 import { useNavigate, useParams } from "react-router-dom"
 
-import { StatusBadge } from "@/components/app/kit"
-import { Button } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { useSchool } from "@/data/store"
 import type { Application } from "@/data/types"
-import { FeeMonthTable } from "@/features/fees/components"
 import { AdmissionWizard } from "@/features/management/admission-wizard"
 import { AdmissionsListPage } from "@/features/management/admissions/admissions-list-page"
 import { ApplicationDetailPage } from "@/features/management/admissions/application-detail-page"
 import { useGetApplication } from "@/features/management/admissions/hooks/use-admissions"
-import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
 import { applicationNumericId } from "@/lib/applications-api"
 import { portalPath } from "@/lib/auth"
-import { classLabel, formatDate } from "@/lib/format"
 import { toast } from "@/lib/toast"
 
 export function Admissions({ query }: { query: string }) {
-  const { state, setApplicationStatus, updateStudent } = useSchool()
+  const { state, setApplicationStatus } = useSchool()
   const actor = useActor()
-  const can = useCan()
   const navigate = useNavigate()
   const params = useParams()
   const splat = params["*"] ?? ""
   const appFromUrl = splat.startsWith("applications/")
     ? splat.slice("applications/".length)
-    : ""
-  const studentFromUrl = splat.startsWith("students/")
-    ? splat.slice("students/".length)
     : ""
 
   const [openWizard, setOpenWizard] = useState(false)
@@ -44,9 +27,6 @@ export function Admissions({ query }: { query: string }) {
     null
   )
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null)
-  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(
-    null
-  )
   const [confirm, setConfirm] = useState<null | {
     id: string
     status: Application["status"]
@@ -55,8 +35,6 @@ export function Admissions({ query }: { query: string }) {
 
   const activeAppId =
     selectedAppId !== null ? selectedAppId : appFromUrl || null
-  const activeStudentId =
-    selectedStudentId !== null ? selectedStudentId : studentFromUrl || null
 
   const activeAppNumericId = useMemo(() => {
     if (!activeAppId) return undefined
@@ -73,14 +51,6 @@ export function Admissions({ query }: { query: string }) {
       state.applications.find((item) => item.id === activeAppId) ?? null
     )
   }, [activeAppId, selectedAppFromApi, state.applications])
-  const selectedStudent = useMemo(
-    () =>
-      activeStudentId
-        ? (state.students.find((item) => item.id === activeStudentId) ?? null)
-        : null,
-    [activeStudentId, state.students]
-  )
-
   const sessionLabel = useMemo(() => {
     const current = state.sessions.find((session) => session.current)
     return current?.name ?? "2026–2027"
@@ -88,13 +58,11 @@ export function Admissions({ query }: { query: string }) {
 
   function openApp(item: Application) {
     setSelectedAppId(item.id)
-    setSelectedStudentId(null)
     navigate(portalPath(actor.role, "admissions", `applications/${item.id}`))
   }
 
   function closeDetails() {
     setSelectedAppId(null)
-    setSelectedStudentId(null)
     navigate(portalPath(actor.role, "admissions"))
   }
 
@@ -180,72 +148,10 @@ export function Admissions({ query }: { query: string }) {
         }}
         onCompleted={(id) => {
           setSelectedAppId(id)
-          setSelectedStudentId(null)
-          navigate(portalPath(actor.role, "admissions", `applications/${id}`))
+                navigate(portalPath(actor.role, "admissions", `applications/${id}`))
         }}
       />
 
-      <Dialog
-        open={Boolean(selectedStudent)}
-        onOpenChange={(value) => !value && closeDetails()}
-      >
-        <DialogContent className="sm:max-w-md">
-          {selectedStudent ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>{selectedStudent.name}</DialogTitle>
-                <DialogDescription>
-                  {selectedStudent.id} ·{" "}
-                  {classLabel(state.classes, selectedStudent.classId)} · DOB{" "}
-                  {formatDate(selectedStudent.dob)}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="flex flex-col gap-2 text-sm">
-                <p>Guardian: {selectedStudent.guardian}</p>
-                <p>Phone: {selectedStudent.phone}</p>
-                <StatusBadge value={selectedStudent.status} />
-              </div>
-              {can("students.read") ? (
-                <div className="max-h-64 overflow-y-auto rounded-xl border border-[var(--cls-border)]">
-                  <FeeMonthTable studentId={selectedStudent.id} />
-                </div>
-              ) : null}
-              <DialogFooter className="gap-2 sm:gap-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    updateStudent(
-                      selectedStudent.id,
-                      { status: "Active" },
-                      actor.name
-                    )
-                    toast.success("Student marked active")
-                    closeDetails()
-                  }}
-                >
-                  Mark active
-                </Button>
-                <Button
-                  type="button"
-                  variant="destructive"
-                  onClick={() => {
-                    updateStudent(
-                      selectedStudent.id,
-                      { status: "Withdrawn" },
-                      actor.name
-                    )
-                    toast.success("Student withdrawn")
-                    closeDetails()
-                  }}
-                >
-                  Withdraw
-                </Button>
-              </DialogFooter>
-            </>
-          ) : null}
-        </DialogContent>
-      </Dialog>
     </>
   )
 }

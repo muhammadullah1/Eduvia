@@ -117,8 +117,9 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex flex-col items-start gap-4">
         {back}
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
         {student.photo ? (
           <img src={student.photo} alt="" className="size-12 rounded-full object-cover" />
         ) : (
@@ -137,7 +138,7 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
           <p className="font-mono text-xs text-[var(--cls-muted)]">{student.admissionNo}</p>
         </div>
         {canManage ? (
-          <div className="ml-auto flex shrink-0 gap-2">
+          <div className="flex w-full shrink-0 flex-wrap gap-2 sm:ml-auto sm:w-auto">
             {student.status === "Active" ? (
               <Button variant="outline" onClick={() => setDialog("promote")}>
                 <ArrowUpRight data-icon="inline-start" />
@@ -150,6 +151,7 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
             </Button>
           </div>
         ) : null}
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -6,8 +6,6 @@ import { useSearchParams } from "react-router-dom"
 import feeReportsService, {
   FEE_REPORT_KINDS,
   FEE_REPORT_TABS,
-  type FeeReport,
-  type FeeReportColumn,
   type FeeReportFilters,
   type FeeReportKind,
 } from "@/api/fees/fee-reports.service"
@@ -27,36 +25,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { useSchool } from "@/data/store"
 import { useClientPagination } from "@/hooks/use-client-pagination"
+import { usePrintBrand } from "@/hooks/use-print-brand"
 import { useReportDownload } from "@/hooks/use-report-download"
 import { getToday } from "@/lib/dates"
-import { printDocument } from "@/lib/print"
+import { isNumeric, printReport, reportCell } from "@/lib/report-format"
 import { useUrlTab } from "@/lib/use-url-tab"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 10
-const isNumeric = (column: FeeReportColumn) =>
-  column.type === "money" || column.type === "number" || column.type === "percent"
-
-function reportCell(value: string | number | null | undefined, type?: string) {
-  if (value === null || value === undefined || value === "") return "—"
-  if (type === "money") return Number(value).toLocaleString("en-PK", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-  if (type === "percent") return `${Number(value).toLocaleString("en-PK", { maximumFractionDigits: 1 })}%`
-  return String(value)
-}
-
 type Applied = { kind: FeeReportKind; filters: FeeReportFilters }
-
-/** Every row (not just the visible page) with the filters and totals, through the portal print window. */
-function printReport(report: FeeReport) {
-  const lines = [
-    ...report.meta.map(([label, value]) => `${label}: ${value}`),
-    ...(report.summary ?? []).map(([label, value]) => `${label}: ${value}`),
-  ]
-  return printDocument(report.title, lines, {
-    columns: report.columns.map((c) => c.label),
-    rows: report.rows.map((row) => report.columns.map((c) => reportCell(row[c.key], c.type))),
-  })
-}
 
 /**
  * Fee reports from `/fees/reports/:kind` (Figma "Fee Reports", node 124-40648): six
@@ -66,6 +43,7 @@ function printReport(report: FeeReport) {
  */
 export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
   const { state } = useSchool()
+  const brand = usePrintBrand().report
   const today = getToday()
   const [searchParams] = useSearchParams()
   const tabs = useMemo(
@@ -223,7 +201,7 @@ export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
           variant="outline"
           className="border-[var(--cls-border)] bg-white"
           disabled={!data || dirty}
-          onClick={() => data && printReport(data)}
+          onClick={() => data && printReport(data, brand)}
         >
           <Printer data-icon="inline-start" />
           Print
@@ -334,7 +312,7 @@ const cardClass = "rounded-xl border border-[var(--cls-border)] bg-white px-4 py
  * folded into one "Collections by method" tile so the row stays at four cards; the API
  * summary (and the exported files) are unchanged.
  */
-function SummaryCards({ summary }: { summary: [string, string | number][] }) {
+export function SummaryCards({ summary }: { summary: [string, string | number][] }) {
   const methods = summary.filter(([label]) => methodOf(label))
   const others = summary.filter(([label]) => !methodOf(label))
   const methodTotal = methods.reduce((total, [, value]) => total + Math.round(Number(value || 0) * 100), 0) / 100

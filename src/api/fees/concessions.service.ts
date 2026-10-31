@@ -1,8 +1,9 @@
+import type { ConcessionMode, ConcessionPolicy } from "@/data/types"
 import { api } from "@/lib/api"
 
 import type { FeeType } from "./fee-structure.service"
 
-export type ConcessionMode = "fixed_discount" | "percent" | "waiver"
+export type { ConcessionMode, ConcessionPolicy }
 export type ConcessionStatus =
   | "Draft"
   | "PendingApproval"
@@ -10,13 +11,6 @@ export type ConcessionStatus =
   | "Rejected"
   | "Revoked"
   | "Superseded"
-
-export type ConcessionPolicy = {
-  allowedModes: ConcessionMode[]
-  approvalRule: "none" | "always" | "threshold"
-  approvalPercentAbove: number | null
-  approvalAmountAbove: number | null
-}
 
 export type ConcessionReason = {
   id: number
@@ -26,6 +20,8 @@ export type ConcessionReason = {
   defaultValue: number | null
   sortOrder: number
   active: boolean
+  /** Only for students in a verified family with another active student (e.g. Sibling). */
+  requiresFamily: boolean
 }
 
 export type FeeConcession = {
@@ -88,6 +84,8 @@ export type CreateConcessionInput = {
   effectiveFrom?: string
   effectiveTo?: string | null
   notes?: string | null
+  /** Supersede the current Approved concession for this fee type (kept in history). */
+  replaceExisting?: boolean
 }
 
 export const CONCESSIONS_QUERY_KEY = "fee-concessions"
@@ -122,6 +120,7 @@ const concessionsService = {
     defaultMode?: ConcessionMode | null
     defaultValue?: number | null
     sortOrder?: number
+    requiresFamily?: boolean
   }) => api.post<ConcessionReason>("/concession-reasons", body),
   updateReason: (
     id: number,
@@ -131,6 +130,7 @@ const concessionsService = {
       defaultValue: number | null
       sortOrder: number
       active: boolean
+      requiresFamily: boolean
     }>
   ) => api.patch<ConcessionReason>(`/concession-reasons/${id}`, body),
   removeReason: (id: number) => api.delete<{ id: number; archived: boolean }>(`/concession-reasons/${id}`),

@@ -1,5 +1,3 @@
-export { AbsencesPanel } from "./absences-panel"
 export { CurriculumPanel } from "./curriculum-panel"
-export { MarksDialog } from "./marks-dialog"
 export { SettingsPanel } from "./settings-panel"
 export { WeeklyTestsPanel } from "./weekly-tests-panel"

@@ -63,5 +63,6 @@ export async function uploadFileToStorage(file: File, dirName: string): Promise<
 /** Upload folders, one per feature. */
 export const STORAGE_DIRS = {
   avatars: "avatars",
+  schoolLogo: (schoolId: number) => `school-logos/${schoolId}`,
   admissionDocuments: (applicationId: number) => `admissions/${applicationId}/documents`,
 } as const

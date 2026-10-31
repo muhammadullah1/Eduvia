@@ -7,7 +7,7 @@ import { DEFAULT_ROLE_PERMISSIONS } from "@/test/default-role-permissions.genera
 import { allowedSections, findSection, isSectionAllowed, LEGACY_SECTIONS } from "./navigation"
 import { type NavFolder, navigationMenuTree,type NavNode } from "./navigation-menu-tree"
 
-const FEE_SECTIONS = ["fees", "collect-fee", "offline-sync", "finance", "reports", "collections", "fee-structure", "fee-generation", "fee-concessions", "expenses"]
+const FEE_SECTIONS = ["fees", "collect-fee", "offline-sync", "finance", "collections", "fee-structure", "fee-generation", "fee-concessions", "expenses"]
 
 const canWith = (permissions: readonly PermissionKey[]) => (key: PermissionKey) => holds(permissions, key)
 
@@ -29,8 +29,10 @@ describe("Operations Manager default navigation", () => {
     for (const id of FEE_SECTIONS) expect(ids.has(id)).toBe(false)
   })
 
-  it("offers the read-only audit log", () => {
-    expect(sectionIdsFor("operations_manager").has("audit-log")).toBe(true)
+  it("opens Reports for student reports and the audit trail instead of the separate audit log", () => {
+    const ids = sectionIdsFor("operations_manager")
+    expect(ids.has("reports")).toBe(true)
+    expect(ids.has("audit-log")).toBe(false)
   })
 
   it("cannot open Roles & Permissions", () => {
@@ -66,7 +68,7 @@ describe("section rules", () => {
     expect(item).toBeDefined()
     if (!item) return
     expect(isSectionAllowed(item, canWith(["audit.read"]))).toBe(true)
-    expect(isSectionAllowed(item, canWith(["audit.read", "finance.reports"]))).toBe(false)
+    expect(isSectionAllowed(item, canWith(["audit.read", "students.manage"]))).toBe(false)
   })
 
   it("maps legacy sections to their new homes", () => {

@@ -7,8 +7,9 @@ import { Field } from "@/components/app/kit"
 import { ExportButtons, ReportPanelMessage } from "@/components/app/report-layout"
 import { Button } from "@/components/ui/button"
 import { type ChartConfig, ChartContainer, ChartLegend, ChartLegendContent, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { usePrintBrand } from "@/hooks/use-print-brand"
 import { useReportDownload } from "@/hooks/use-report-download"
-import { printDocument } from "@/lib/print"
+import { type PrintBrand, printDocument } from "@/lib/print"
 import { toast } from "@/lib/toast"
 import { cn } from "@/lib/utils"
 
@@ -24,7 +25,7 @@ const lineConfig = { net: { label: "Net balance", color: "#1f5e3b" } } satisfies
 const compact = (v: number) => (Math.abs(v) >= 1_000_000 ? `${Math.round(v / 100_000) / 10}M` : Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : String(v))
 const panel = "min-w-0 rounded-xl border border-[var(--cls-border)] bg-white p-4 shadow-[0_1px_2px_rgba(16,24,40,0.06)] sm:p-5"
 
-function printReport(r: FinanceReport) {
+function printReport(r: FinanceReport, brand: PrintBrand) {
   const lines = [
     `Period: ${r.period.label}`,
     `Total income: ${pkrAmount(r.totals.income)} (fee ${pkrAmount(r.totals.feeIncome)}, other ${pkrAmount(r.totals.otherIncome)})`,
@@ -37,7 +38,7 @@ function printReport(r: FinanceReport) {
   const ok = printDocument(`Financial Report — ${r.period.label}`, lines, {
     columns: ["Month", "Fee income", "Other income", "Total income", "Expenses", "Net"],
     rows: r.series.map((s) => [s.label, amount(s.feeIncome), amount(s.otherIncome), amount(s.income), amount(s.expenses), amount(s.net)]),
-  })
+  }, brand)
   if (!ok) toast.error("Allow pop-ups to print the report.")
 }
 
@@ -50,6 +51,7 @@ export function ReportTab({ period, onPeriod }: { period: string; onPeriod: (val
   const report = useQuery({ queryKey: ["finance", "report", period], queryFn: () => financeService.report(period) })
   const { busy, run } = useReportDownload()
   const r = report.data
+  const brand = usePrintBrand().report
 
   return (
     <div className="flex min-w-0 flex-col gap-4" data-testid="finance-report">
@@ -59,7 +61,7 @@ export function ReportTab({ period, onPeriod }: { period: string; onPeriod: (val
         </Field>
         <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
           <ExportButtons busy={busy} disabled={!r} onExport={(format) => void run(format, () => financeService.downloadReport(period, format))} />
-          <Button type="button" variant="outline" className="border-[var(--cls-border)] bg-white" disabled={!r} onClick={() => r && printReport(r)}>
+          <Button type="button" variant="outline" className="border-[var(--cls-border)] bg-white" disabled={!r} onClick={() => r && printReport(r, brand)}>
             <Printer data-icon="inline-start" />
             Print
           </Button>

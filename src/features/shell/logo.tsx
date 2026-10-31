@@ -1,43 +1,36 @@
 import { GraduationCap } from "lucide-react"
 
 import clsCrest from "@/assets/cls-crest.png"
+import { cn } from "@/lib/utils"
 
+/** School mark and name; `crest` shows the school's uploaded logo (or the default crest) instead of the generic mark. */
 export function Logo({
   compact = false,
-  inverted = false,
+  crest = false,
+  logoUrl,
 }: {
   compact?: boolean
-  inverted?: boolean
+  crest?: boolean
+  logoUrl?: string | null
 }) {
   return (
     <div className="flex items-center gap-3">
       <div
-        className={`grid size-9 shrink-0 place-items-center overflow-hidden rounded-sm ${inverted ? "bg-transparent" : "brand-mark size-10 rounded-xl text-primary-foreground shadow-sm"}`}
-      >
-        {inverted ? (
-          <img
-            src={clsCrest}
-            alt=""
-            className="size-9 object-contain"
-          />
-        ) : (
-          <GraduationCap className="size-5" />
+        className={cn(
+          "grid size-9 shrink-0 place-items-center overflow-hidden rounded-sm",
+          crest && "rounded-md bg-white",
+          !crest && "brand-mark size-10 rounded-xl text-primary-foreground shadow-sm"
         )}
+      >
+        {crest && <img src={logoUrl || clsCrest} alt="" className="size-9 object-contain" />}
+        {!crest && <GraduationCap className="size-5" />}
       </div>
-      {!compact ? (
+      {!compact && (
         <div className="leading-tight">
-          <p
-            className={`font-heading text-sm font-semibold tracking-tight ${inverted ? "text-white" : ""}`}
-          >
-            Creative Leaders
-          </p>
-          <p
-            className={`text-[11px] ${inverted ? "text-[var(--sidebar-inactive)]" : "text-muted-foreground"}`}
-          >
-            Schools
-          </p>
+          <p className="font-heading text-sm font-semibold tracking-tight text-white">Creative Leaders</p>
+          <p className="text-[11px] text-[var(--sidebar-inactive)]">Schools</p>
         </div>
-      ) : null}
+      )}
     </div>
   )
 }

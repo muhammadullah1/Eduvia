@@ -24,6 +24,7 @@ import { studentName, useSchool } from "@/data/store"
 import { PrintReceiptButton } from "@/features/fees/components"
 import { feeMonthsLabel } from "@/features/fees/receipts"
 import { useClientPagination } from "@/hooks/use-client-pagination"
+import { usePrintBrand } from "@/hooks/use-print-brand"
 import { useReportDownload } from "@/hooks/use-report-download"
 import { useActor } from "@/lib/actor"
 import { getToday } from "@/lib/dates"
@@ -43,6 +44,7 @@ const RECEIPT_COLUMNS = [
 /** The signed-in collector's own confirmed receipts for one day; no totals. */
 export function MyCollections() {
   const { state } = useSchool()
+  const brand = usePrintBrand().report
   const actor = useActor()
   const [day, setDay] = useState(getToday)
   // Only this accountant's own confirmed receipts for the chosen day, no aggregates (§9.2).
@@ -73,7 +75,8 @@ export function MyCollections() {
           pkr(payment.amount),
           payment.ref,
         ]),
-      }
+      },
+      brand
     )
     if (!opened) toast.error("Allow pop-ups to print the day sheet.")
   }

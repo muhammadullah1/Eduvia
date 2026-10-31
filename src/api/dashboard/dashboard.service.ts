@@ -6,7 +6,7 @@ import { api } from "@/lib/api"
  * permissions allow, so every widget is optional and absent ones are never shown.
  */
 export type AttendanceToday = { marked: number; present: number; absent: number; leave: number; percent: number | null }
-export type AttendanceWidget = { today: AttendanceToday; trend: { date: string; percent: number | null }[] }
+export type AttendanceWidget = { today: AttendanceToday; trend: { date: string; percent: number | null; absent: number }[] }
 export type AbsentTeacher = { teacherId: number; name: string; periods: number; covered: number; uncovered: number }
 export type PendingWidget = Partial<Record<"lessonReviews" | "marksToVerify" | "resultsToPublish" | "concessions" | "adjustments", number>>
 export type FeeStatusWidget = { month: string; label: string; cleared: number; notCleared: number }
@@ -20,6 +20,8 @@ export type FinanceWidget = {
   trend: { month: string; label: string; amount: number }[]
   byMethod: { method: string; amount: number; receipts: number }[]
   defaulterClasses: { classId: number; label: string; students: number; amount: number }[]
+  defaulterStudents: { studentId: number; name: string; classLabel: string | null; months: number; amount: number }[]
+  advanceCredit: { students: number; amount: number }
   recentPayments: RecentPayment[]
 }
 export type IncomeVsExpensesWidget = { income: number; expenses: number; net: number }
