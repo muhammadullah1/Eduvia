@@ -39,7 +39,7 @@ export function PortalTopbar({
 
   return (
     <header
-      className="relative sticky top-0 z-20 flex min-h-[49px] shrink-0 items-center gap-[10.5px] border-b border-[var(--cls-border)] bg-white px-3.5 py-2"
+      className="relative sticky top-0 z-20 flex h-[var(--shell-header-height)] shrink-0 items-center gap-[10.5px] border-b border-[var(--cls-border)] bg-white px-3.5"
     >
       <ClsMenuTrigger />
 

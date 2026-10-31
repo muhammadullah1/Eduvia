@@ -120,7 +120,10 @@ export type ApiStudentDetail = ApiStudent & {
   bloodGroup?: string | null
   address?: string | null
   emergencyContact?: string | null
+  /** Storage key of the uploaded photo. */
   photo?: string | null
+  /** Short-lived signed link to `photo` (the bucket is private). */
+  photoUrl?: string | null
   discountPercent?: string | null
   fixedMonthlyFee?: string | null
   statusEvents?: {

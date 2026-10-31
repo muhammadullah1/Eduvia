@@ -14,6 +14,7 @@ import { formatDate } from "@/lib/format"
 import { ChangeStatusDialog, PromoteDialog } from "../lifecycle"
 import { EVENT_LABELS, EVENT_TONES, eventDetail } from "../lifecycle/lifecycle-rules"
 import { StudentConcessionsPanel } from "./student-concessions-panel"
+import { StudentPhotoField } from "./student-photo-field"
 import { StudentStatusChip } from "./student-status-chip"
 
 type Props = {
@@ -120,8 +121,8 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
       <div className="flex flex-col items-start gap-4">
         {back}
         <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
-        {student.photo ? (
-          <img src={student.photo} alt="" className="size-12 rounded-full object-cover" />
+        {student.photoUrl ? (
+          <img src={student.photoUrl} alt="" className="size-12 rounded-full object-cover" />
         ) : (
           <span className="flex size-12 items-center justify-center rounded-full bg-[var(--cls-brand)]/10 text-sm font-semibold text-[var(--cls-brand)]">
             {initials(student.firstName, student.lastName)}
@@ -173,6 +174,11 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
       <div className="grid gap-4 lg:grid-cols-2">
         <ClsPanel>
           <ClsPanelHeader title="Personal details" />
+          {canManage ? (
+            <div className="border-b border-[var(--cls-border)] px-4 py-4">
+              <StudentPhotoField student={student} name={name} />
+            </div>
+          ) : null}
           <dl className="grid gap-4 px-4 py-4 sm:grid-cols-2">
             <Item label="Full name" value={name} />
             <Item label="Gender" value={student.gender} />

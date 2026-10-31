@@ -40,7 +40,7 @@ export function Sidebar({
 
   return (
     <UiSidebar className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className="border-b border-sidebar-border p-3.5">
+      <SidebarHeader className="h-[var(--shell-header-height)] shrink-0 justify-center border-b border-sidebar-border px-3.5 py-0">
         <button
           type="button"
           onClick={() => navigate(home)}

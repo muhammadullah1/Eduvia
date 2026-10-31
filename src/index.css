@@ -40,6 +40,8 @@
   --cls-brand: var(--primary-color);
   --cls-brand-hover: var(--primary-hover);
   --cls-border: #E2E8F0;
+  /* Top bar and sidebar logo block share this height so their bottom borders line up. */
+  --shell-header-height: 52px;
   --cls-ink: #0F172A;
   --cls-muted: #64748B;
   --cls-profile-ink: #0F172A;

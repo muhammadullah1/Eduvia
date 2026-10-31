@@ -361,7 +361,7 @@ function StructureTable({
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 px-2 text-sky-700"
+              className="px-2 text-sky-700"
               aria-label={`History ${fee.feeType}`}
               onClick={() => onHistory(fee.feeType)}
             >
@@ -371,7 +371,7 @@ function StructureTable({
               <Button
                 size="sm"
                 variant="ghost"
-                className="hidden h-8 px-2 md:inline-flex"
+                className="hidden px-2 md:inline-flex"
                 aria-label={`Change ${fee.feeType}`}
                 onClick={() => onChange(fee.feeType)}
               >
@@ -382,7 +382,7 @@ function StructureTable({
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-8 px-2 text-red-600 hover:text-red-700"
+                className="px-2 text-red-600 hover:text-red-700"
                 aria-label={`Remove ${fee.feeType}`}
                 onClick={() => onRemove(fee)}
               >

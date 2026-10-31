@@ -24,6 +24,10 @@ const studentsService = {
     api.get<StudentsListResponse>("/students", params),
 
   get: (id: number) => api.get<ApiStudentDetail>(`/students/${id}`),
+
+  /** Points the student at an uploaded photo key, or clears it with null (the old file is deleted). */
+  setPhoto: (id: number, photo: string | null) =>
+    api.put<ApiStudentDetail>(`/students/${id}/photo`, { photo }),
 }
 
 export default studentsService

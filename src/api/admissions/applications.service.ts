@@ -25,6 +25,12 @@ function cleanListParams(params?: ListApplicationsRequest) {
   return next
 }
 
+/** One required admission document; the API owns the list (single source). */
+export type AdmissionChecklistItem = {
+  label: string
+  status: "Pending"
+}
+
 export type ApplicationStatusCounts = {
   all: number
   draft: number
@@ -42,6 +48,9 @@ const applicationsService = {
     api.get<ListApplicationsData>("/applications", cleanListParams(params)),
 
   summary: () => api.get<ApplicationStatusCounts>("/applications/summary"),
+
+  documentChecklist: () =>
+    api.get<AdmissionChecklistItem[]>("/applications/document-checklist"),
 
   getById: (id: number) => api.get<ApplicationDto>(`/applications/${id}`),
 

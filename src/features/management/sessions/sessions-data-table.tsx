@@ -183,7 +183,7 @@ export function SessionsDataTable({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 border-[var(--cls-border)] text-xs"
+                      className="border-[var(--cls-border)] text-xs"
                       onClick={() => onActivate?.(row.id)}
                     >
                       Activate

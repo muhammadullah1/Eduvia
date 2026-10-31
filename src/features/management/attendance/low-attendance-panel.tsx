@@ -133,7 +133,7 @@ export function LowAttendancePanel({ month, onMonthChange }: Props) {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-7 text-[var(--cls-brand)]"
+                      className="text-[var(--cls-brand)]"
                       onClick={() => navigate(portalPath(actor.role, "students", String(s.studentId)))}
                     >
                       View profile

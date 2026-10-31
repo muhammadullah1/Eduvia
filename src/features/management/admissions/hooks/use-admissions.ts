@@ -3,6 +3,7 @@ import { useMemo } from "react"
 
 import applicationsService from "@/api/admissions/applications.service"
 import {
+  ADMISSION_CHECKLIST_QUERY_KEY,
   ADMISSION_DETAIL_QUERY_KEY,
   ADMISSIONS_QUERY_KEY,
   ADMISSIONS_SUMMARY_QUERY_KEY,
@@ -83,5 +84,15 @@ export function useGetApplication(id: number | undefined) {
       const dto = await applicationsService.getById(id!)
       return mapApplicationDto(dto)
     },
+  })
+}
+
+/** The required admission documents a new application starts with (served by the API). */
+export function useAdmissionChecklist() {
+  return useQuery({
+    queryKey: [ADMISSION_CHECKLIST_QUERY_KEY],
+    enabled: Boolean(loadAuth()?.token),
+    staleTime: Infinity,
+    queryFn: () => applicationsService.documentChecklist(),
   })
 }

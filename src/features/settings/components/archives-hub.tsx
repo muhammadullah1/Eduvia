@@ -403,7 +403,7 @@ function ArchiveTable({
                     type="button"
                     variant="outline"
                     size="sm"
-                    className="h-8 gap-1.5 rounded-lg text-xs"
+                    className="rounded-lg text-xs"
                     onClick={() => setTarget({ id: row.id, title: row.title })}
                   >
                     <ArchiveRestore className="size-3.5" />
