@@ -2,8 +2,6 @@ import { act, render, screen } from "@testing-library/react"
 import { MemoryRouter, useLocation } from "react-router-dom"
 import { describe, expect, it } from "vitest"
 
-import { navigationMenuTreeForRole } from "@/features/shell/navigation-menu-tree"
-
 import { useUrlTab } from "./use-url-tab"
 
 function Probe() {
@@ -42,12 +40,5 @@ describe("useUrlTab", () => {
     expect(screen.getByTestId("out").textContent).toBe("expenses|?x=1&tab=expenses")
     act(() => screen.getByText("income").click())
     expect(screen.getByTestId("out").textContent).toBe("income|?x=1")
-  })
-})
-
-describe("accountant sidebar", () => {
-  it("lists only the accountant's own sections, flat", () => {
-    const ids = navigationMenuTreeForRole("accountant").map((n) => (n.type === "link" ? n.id : n.key))
-    expect(ids).toEqual(["collect", "collections", "fee-structure", "fee-generation", "expenses", "offline-sync"])
   })
 })

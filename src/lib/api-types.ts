@@ -6,7 +6,9 @@ import type {
   DailyTestRules,
   DocumentStatus,
   FeeSettings,
+  GradingSettings,
   PaymentStatus,
+  ReceiptSettings,
   ResultVisibilitySettings,
   ReviewStatus,
   SheetStatus,
@@ -118,7 +120,10 @@ export type ApiStudentDetail = ApiStudent & {
   bloodGroup?: string | null
   address?: string | null
   emergencyContact?: string | null
+  /** Storage key of the uploaded photo. */
   photo?: string | null
+  /** Short-lived signed link to `photo` (the bucket is private). */
+  photoUrl?: string | null
   discountPercent?: string | null
   fixedMonthlyFee?: string | null
   statusEvents?: {
@@ -435,17 +440,20 @@ export type ApiSettings = {
   fees?: FeeSettings
   attendance?: AttendanceSettings
   admission?: AdmissionSettings
+  grading?: GradingSettings
+  receipt?: ReceiptSettings
 }
 
 export type ApiUpdate = {
-  id: number
-  fkClassId: number
+  id: string
+  classId: number
   kind: UpdateKind
   subject?: string | null
   text: string
   status: UpdateStatus
-  dueDate?: string | null
+  due?: string | null
   author?: string | null
+  authorUserId?: number | null
 }
 
 export type ApiAuditLog = {

@@ -1,6 +1,6 @@
 import { api } from "@/lib/api"
 
-export const FEE_TYPES = ["Tuition", "Admission", "Exam", "Annual"] as const
+export const FEE_TYPES = ["Tuition", "Admission", "Exam", "Annual", "Promotion"] as const
 export type FeeType = (typeof FEE_TYPES)[number]
 export type FeeFrequency = "Monthly" | "OneTime" | "Yearly"
 
@@ -9,6 +9,7 @@ export const FEE_TYPE_FREQUENCY: Record<FeeType, FeeFrequency> = {
   Admission: "OneTime",
   Exam: "Yearly",
   Annual: "Yearly",
+  Promotion: "OneTime",
 }
 
 export type FeeStructureFee = {
@@ -22,6 +23,10 @@ export type FeeStructureFee = {
 export type FeeStructure = {
   class: { id: number; label: string; sessionId: number; sessionName: string | null }
   asOf: string
+  sessionStartDate?: string
+  sessionLocked?: boolean
+  editable?: boolean
+  bootstrapEligible?: FeeType[]
   fees: FeeStructureFee[]
   upcoming: FeeStructureFee[]
   monthlyTotal: number
@@ -41,7 +46,7 @@ export type FeeHistoryEntry = FeeStructureFee & {
 
 export type FeeHistory = { feeType: FeeType; entries: FeeHistoryEntry[] }
 
-export type AddFeeInput = { feeType: FeeType; amount: number; effectiveFrom: string }
+export type AddFeeInput = { feeType: FeeType; amount: number; effectiveFrom?: string }
 
 export const FEE_STRUCTURE_QUERY_KEY = "fee-structure"
 

@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 
+import updatesService from "@/api/updates/updates.service"
 import { EmptyState, Field, StatusBadge } from "@/components/app/kit"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,34 +24,78 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { useSchool } from "@/data/store"
-import { useActor } from "@/lib/actor"
+import type { SchoolUpdate, UpdateKind } from "@/data/types"
 import { getToday } from "@/lib/dates"
 import { classLabel } from "@/lib/format"
+import { useAuthStore } from "@/stores/auth-store"
 
 import { signedInTeacher } from "./session"
 
+const KINDS: UpdateKind[] = ["Homework", "Classwork", "Notice"]
+const EDITABLE: SchoolUpdate["status"][] = ["Draft", "Rejected"]
+
 export function TeacherUpdates() {
-  const { state, addUpdate, setUpdateStatus } = useSchool()
-  const actor = useActor()
+  const { state, reloadSlices } = useSchool()
+  const userId = useAuthStore((store) => store.user?.id)
   const teacher = signedInTeacher(state.staff)
+  const teacherClassIds = teacher?.classIds ?? []
   const [selectedClassId, setClassId] = useState("")
-  const classId =
-    selectedClassId && (teacher?.classIds ?? []).includes(selectedClassId)
-      ? selectedClassId
-      : (teacher?.classIds?.[0] ?? state.classes[0]?.id ?? "g7b")
-  const [kind, setKind] = useState<"Homework" | "Classwork" | "Notice">(
-    "Notice"
-  )
+  let classId = teacherClassIds.find((id) => id === selectedClassId) ?? ""
+  if (!classId) classId = teacherClassIds.find(Boolean) ?? ""
+  const [kind, setKind] = useState<UpdateKind>("Notice")
   const [subject, setSubject] = useState(teacher?.subject ?? "")
   const [text, setText] = useState("")
   const [due, setDue] = useState(getToday)
   const [error, setError] = useState("")
-  const mine = state.updates.filter((item) => item.author === actor.name)
+  const [editingId, setEditingId] = useState("")
+  const [busy, setBusy] = useState(false)
+  const mine = state.updates.filter((item) => userId !== undefined && item.authorUserId === userId)
+
+  function resetForm() {
+    setEditingId("")
+    setText("")
+    setError("")
+  }
+
+  function startEdit(item: SchoolUpdate) {
+    setEditingId(item.id)
+    setClassId(item.classId)
+    setKind(item.kind)
+    setSubject(item.subject)
+    setText(item.text)
+    setDue(item.due)
+    setError("")
+  }
+
+  async function save() {
+    if (!classId) {
+      setError("You have no assigned class.")
+      return
+    }
+    if (!text.trim()) {
+      setError("Write the update first.")
+      return
+    }
+    setBusy(true)
+    const body = { classId: Number(classId), kind, subject, text: text.trim(), due }
+    try {
+      if (editingId) await updatesService.update(editingId, body)
+      else await updatesService.create(body)
+      await reloadSlices(["updates"])
+      resetForm()
+      toast.success("Draft saved for management review")
+    } catch (err) {
+      setError(err instanceof Error && err.message || "Could not save the update.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Create update</CardTitle>
+          <CardTitle>{editingId && "Edit update" || "Create update"}</CardTitle>
           <CardDescription>
             Drafts stay private until management publishes them.
           </CardDescription>
@@ -63,7 +108,7 @@ export function TeacherUpdates() {
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {(teacher?.classIds ?? []).map((id) => (
+                  {teacherClassIds.map((id) => (
                     <SelectItem key={id} value={id}>
                       {classLabel(state.classes, id)}
                     </SelectItem>
@@ -75,14 +120,14 @@ export function TeacherUpdates() {
           <Field label="Type">
             <Select
               value={kind}
-              onValueChange={(value) => setKind(value as typeof kind)}
+              onValueChange={(value) => setKind(KINDS.find((item) => item === value) ?? "Notice")}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectGroup>
-                  {["Homework", "Classwork", "Notice"].map((item) => (
+                  {KINDS.map((item) => (
                     <SelectItem key={item} value={item}>
                       {item}
                     </SelectItem>
@@ -114,27 +159,15 @@ export function TeacherUpdates() {
             />
           </Field>
         </CardContent>
-        <CardFooter>
-          <Button
-            onClick={() => {
-              const message = addUpdate({
-                classId,
-                kind,
-                subject,
-                text,
-                due,
-                author: actor.name,
-              })
-              if (message) setError(message)
-              else {
-                setError("")
-                setText("")
-                toast.success("Draft saved for management review")
-              }
-            }}
-          >
+        <CardFooter className="gap-2">
+          <Button disabled={busy} onClick={() => void save()}>
             Save draft
           </Button>
+          {editingId && (
+            <Button variant="outline" disabled={busy} onClick={resetForm}>
+              Cancel edit
+            </Button>
+          )}
         </CardFooter>
       </Card>
       <Card>
@@ -159,19 +192,17 @@ export function TeacherUpdates() {
                   </div>
                   <StatusBadge value={item.status} />
                 </div>
-                {item.status === "Draft" ? (
+                {EDITABLE.includes(item.status) && (
                   <Button
                     className="mt-3"
                     size="sm"
                     variant="outline"
-                    onClick={() => {
-                      setUpdateStatus(item.id, "Approved", actor.name)
-                      toast.success("Sent for publishing")
-                    }}
+                    disabled={busy}
+                    onClick={() => startEdit(item)}
                   >
-                    Send for approval
+                    Edit
                   </Button>
-                ) : null}
+                )}
               </div>
             ))
           )}

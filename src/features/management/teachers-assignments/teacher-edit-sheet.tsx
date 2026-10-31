@@ -181,7 +181,7 @@ export function TeacherEditSheet({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-8 text-[var(--cls-brand)]"
+                className="text-[var(--cls-brand)]"
                 asChild
               >
                 <Link to={timetableHref}>

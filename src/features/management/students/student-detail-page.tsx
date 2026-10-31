@@ -7,13 +7,14 @@ import studentsService from "@/api/students/students.service"
 import { ClsPanel, ClsPanelHeader, ClsStatCard } from "@/components/app/cls-panel"
 import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
-import { useActor } from "@/lib/actor"
+import { useCan } from "@/lib/access"
 import type { ApiStudentParent } from "@/lib/api-types"
 import { formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
 
 import { ChangeStatusDialog, PromoteDialog } from "../lifecycle"
 import { EVENT_LABELS, EVENT_TONES, eventDetail } from "../lifecycle/lifecycle-rules"
+import { StudentConcessionsPanel } from "./student-concessions-panel"
+import { StudentPhotoField } from "./student-photo-field"
 import { StudentStatusChip } from "./student-status-chip"
 
 type Props = {
@@ -42,8 +43,8 @@ function guardianName(parent: ApiStudentParent) {
 /** Student profile, opened from the students list. Managers can change status or promote from here. */
 export function StudentDetailPage({ studentId, onBack }: Props) {
   const id = Number(studentId)
-  const actor = useActor()
-  const canManage = can(actor.role, "students.manage")
+  const can = useCan()
+  const canManage = can("students.manage")
   const [dialog, setDialog] = useState<"status" | "promote" | null>(null)
   const { data: student, isLoading, isError, refetch } = useQuery({
     queryKey: ["students", "detail", id],
@@ -117,10 +118,11 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex min-w-0 items-center gap-3">
+      <div className="flex flex-col items-start gap-4">
         {back}
-        {student.photo ? (
-          <img src={student.photo} alt="" className="size-12 rounded-full object-cover" />
+        <div className="flex w-full min-w-0 flex-wrap items-center gap-3">
+        {student.photoUrl ? (
+          <img src={student.photoUrl} alt="" className="size-12 rounded-full object-cover" />
         ) : (
           <span className="flex size-12 items-center justify-center rounded-full bg-[var(--cls-brand)]/10 text-sm font-semibold text-[var(--cls-brand)]">
             {initials(student.firstName, student.lastName)}
@@ -137,7 +139,7 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
           <p className="font-mono text-xs text-[var(--cls-muted)]">{student.admissionNo}</p>
         </div>
         {canManage ? (
-          <div className="ml-auto flex shrink-0 gap-2">
+          <div className="flex w-full shrink-0 flex-wrap gap-2 sm:ml-auto sm:w-auto">
             {student.status === "Active" ? (
               <Button variant="outline" onClick={() => setDialog("promote")}>
                 <ArrowUpRight data-icon="inline-start" />
@@ -150,6 +152,7 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
             </Button>
           </div>
         ) : null}
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -158,13 +161,24 @@ export function StudentDetailPage({ studentId, onBack }: Props) {
           label="Admitted on"
           value={student.admissionDate ? formatDate(student.admissionDate) : "—"}
         />
-        <ClsStatCard label="Fee discount" value={`${Number(student.discountPercent ?? 0)}%`} />
+        <ClsStatCard
+          label="Legacy discount %"
+          value={`${Number(student.discountPercent ?? 0)}%`}
+          hint="Not applied to billing"
+        />
         <ClsStatCard label="Guardians" value={parents.length} />
       </div>
+
+      <StudentConcessionsPanel studentId={id} />
 
       <div className="grid gap-4 lg:grid-cols-2">
         <ClsPanel>
           <ClsPanelHeader title="Personal details" />
+          {canManage ? (
+            <div className="border-b border-[var(--cls-border)] px-4 py-4">
+              <StudentPhotoField student={student} name={name} />
+            </div>
+          ) : null}
           <dl className="grid gap-4 px-4 py-4 sm:grid-cols-2">
             <Item label="Full name" value={name} />
             <Item label="Gender" value={student.gender} />

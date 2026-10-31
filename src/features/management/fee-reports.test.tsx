@@ -15,7 +15,7 @@ vi.mock("@/api/fees/fee-reports.service", async (orig) => ({
   ...(await orig<typeof import("@/api/fees/fee-reports.service")>()),
   default: svc,
 }))
-vi.mock("@/data/store", () => ({ useSchool: () => ({ state: { classes: [{ id: "7", label: "Class 1 – A" }] } }) }))
+vi.mock("@/data/store", () => ({ useSchool: () => ({ state: { classes: [{ id: "7", label: "Class 1 – A" }], settings: { receipt: { footerNote: "", showSignatureLine: true } } } }) }))
 vi.mock("@/lib/print", () => ({ printDocument: print }))
 
 globalThis.ResizeObserver ??= class { observe() {} unobserve() {} disconnect() {} } as unknown as typeof ResizeObserver

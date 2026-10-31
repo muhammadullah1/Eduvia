@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { FeeStructure } from "@/api/fees/fee-structure.service"
+import { grantRoleDefaults } from "@/test/permissions"
 
 import { AddFeeDialog, RemoveFeeDialog } from "./fee-structure-dialogs"
 import { FeeStructurePage } from "./fee-structure-page"
@@ -52,6 +53,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(() => {
   actor.role = "super_admin"
+  grantRoleDefaults("super_admin")
   Object.values(svc).forEach((fn) => fn.mockReset())
 })
 afterEach(cleanup)
@@ -71,15 +73,15 @@ describe("amount and date helpers", () => {
     expect(amountError("2500.50")).toBeNull()
   })
 
-  it("defaults the effective date to the next month start", () => {
+  it("nextMonthStart helper still computes calendar months (legacy utility)", () => {
     expect(nextMonthStart(new Date(2026, 9, 24))).toBe("2026-11-01")
     expect(nextMonthStart(new Date(2026, 11, 5))).toBe("2027-01-01")
   })
 })
 
 describe("AddFeeDialog", () => {
-  it("validates, then submits a typed payload and shows server errors inline", async () => {
-    const onSubmit = vi.fn().mockRejectedValueOnce(new Error("Tuition already has an amount starting 2026-11-01."))
+  it("validates, then submits amount without a client effective date", async () => {
+    const onSubmit = vi.fn().mockRejectedValueOnce(new Error("Fee structure for this session is locked."))
     wrap(
       <AddFeeDialog open onOpenChange={() => {}} classLabel="Class 1 – A" current={STRUCTURE.fees} initialType="Tuition" saving={false} onSubmit={onSubmit} />
     )
@@ -90,10 +92,8 @@ describe("AddFeeDialog", () => {
     expect(onSubmit).not.toHaveBeenCalled()
     fireEvent.change(screen.getByLabelText(/Amount \(PKR\)/), { target: { value: "2800" } })
     fireEvent.click(screen.getByRole("button", { name: "Save new amount" }))
-    await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith({ feeType: "Tuition", amount: 2800, effectiveFrom: nextMonthStart() })
-    )
-    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Tuition already has an amount starting 2026-11-01.")
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith({ feeType: "Tuition", amount: 2800 }))
+    expect(await screen.findByRole("alert")).toHaveProperty("textContent", "Fee structure for this session is locked.")
   })
 
   it("requires a fee type", async () => {
@@ -151,6 +151,7 @@ describe("FeeStructurePage", () => {
 
   it("is read-only for the Accountant", async () => {
     actor.role = "accountant"
+    grantRoleDefaults("accountant")
     svc.get.mockResolvedValue(STRUCTURE)
     wrap(<FeeStructurePage />)
     await screen.findByTestId("monthly-total")

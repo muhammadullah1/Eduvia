@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { ImportBatch, ImportResult, ImportRow } from "@/api/fees/fee-import.service"
+import { grantRoleDefaults } from "@/test/permissions"
 
 import { OfflineSyncPage } from "./offline-sync-page"
 import { fileProblem, pillCounts, rowLabel, rowTone } from "./offline-sync-rules"
@@ -57,6 +58,7 @@ async function toResults() {
 
 beforeEach(() => {
   actor.role = "super_admin"
+  grantRoleDefaults("super_admin")
   Object.values(svc).forEach((fn) => fn.mockReset())
   svc.history.mockResolvedValue([COMMITTED.batch, { ...BATCH, id: 8, status: "Validated" }])
   svc.validate.mockResolvedValue(VALIDATED)
@@ -161,6 +163,7 @@ describe("OfflineSyncPage", () => {
 
   it("accountant never sees a money total; history lists committed files only", async () => {
     actor.role = "accountant"
+    grantRoleDefaults("accountant")
     const noTotals = { ...BATCH }
     delete noTotals.validAmount
     svc.validate.mockResolvedValue({ ...VALIDATED, batch: noTotals })

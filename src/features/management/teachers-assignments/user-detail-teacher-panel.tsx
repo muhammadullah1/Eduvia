@@ -1,8 +1,7 @@
 import { Link } from "react-router-dom"
 
-import type { ApiTeacher } from "@/lib/api-types"
-import type { SubjectRow } from "@/api/subjects/map-subject"
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
+import type { SubjectRow } from "@/api/subjects/map-subject"
 import { Button } from "@/components/ui/button"
 import {
   Table,
@@ -12,8 +11,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { can } from "@/lib/permissions"
-import type { Role } from "@/lib/auth"
+import { useCan } from "@/lib/access"
+import type { ApiTeacher } from "@/lib/api-types"
 
 import { ClsSubjectBadge } from "./cls-subject-badge"
 import { shortenClassLabel } from "./format-class-label"
@@ -31,7 +30,6 @@ type Props = {
   teacherError?: boolean
   subjects: SubjectRow[]
   timetableHref: string
-  viewerRole: Role
   saving?: boolean
   onSubjectSave: (payload: {
     teacherId: number
@@ -53,12 +51,12 @@ export function UserDetailTeacherPanel({
   teacherError = false,
   subjects,
   timetableHref,
-  viewerRole,
   saving = false,
   onSubjectSave,
   onRetryTeacher,
 }: Props) {
-  const canChangeSubject = can(viewerRole, "teachers.subject.change")
+  const can = useCan()
+  const canChangeSubject = can("teachers.manage")
   const history = teacherProfile?.subjectHistory ?? []
 
   const identityFields = [

@@ -1,3 +1,10 @@
+import type { PermissionKey } from "@/lib/permission-keys.generated"
+import {
+  clearAuthSession,
+  readAuthSession,
+  writeAuthSession,
+} from "@/stores/auth-store"
+
 /** Operational roles (SRS Addendum v1.1 · UR-01). Values mirror the API `users.role` enum. */
 export type Role =
   "super_admin" | "operations_manager" | "accountant" | "teacher" | "parent"
@@ -10,26 +17,29 @@ export const ALL_ROLES: Role[] = [
   "parent",
 ]
 
-/** URL slug per role: `/admin/...`, `/operations/...`, `/accountant/...`, `/teacher/...`, `/parent/...`. */
-const ROLE_SLUGS: Record<Role, string> = {
+export const ROLE_LABELS: Record<Role, string> = {
+  super_admin: "Super Admin",
+  operations_manager: "Operations Manager",
+  accountant: "Accountant",
+  teacher: "Teacher",
+  parent: "Parent",
+}
+
+/** URL slug of each portal. Super Admin, Operations Manager and Accountant share `/admin`. */
+export type PortalSlug = "admin" | "teacher" | "parent"
+
+const PORTAL_BY_ROLE: Record<Role, PortalSlug> = {
   super_admin: "admin",
-  operations_manager: "operations",
-  accountant: "accountant",
+  operations_manager: "admin",
+  accountant: "admin",
   teacher: "teacher",
   parent: "parent",
 }
 
-/** Role names stored by earlier builds of the demo. */
-const LEGACY_ROLES: Record<string, Role> = {
-  management: "super_admin",
-  controller: "operations_manager",
-}
+/** Portals of earlier builds; their links now open the staff portal. */
+export const LEGACY_PORTAL_SLUGS = new Set(["operations", "accountant", "management", "controller"])
 
-import {
-  clearAuthSession,
-  readAuthSession,
-  writeAuthSession,
-} from "@/stores/auth-store"
+const PORTAL_SLUGS = new Set<string>(Object.values(PORTAL_BY_ROLE))
 
 export type AuthUser = {
   id: number
@@ -45,12 +55,15 @@ export type AuthSession = {
   role: Role
   token?: string
   user?: AuthUser | null
+  permissions?: PermissionKey[]
 }
 
-export function roleFromSlug(slug: string | undefined): Role | null {
-  if (!slug) return null
-  const match = ALL_ROLES.find((role) => ROLE_SLUGS[role] === slug)
-  return match ?? LEGACY_ROLES[slug] ?? null
+export function portalForRole(role: Role): PortalSlug {
+  return PORTAL_BY_ROLE[role]
+}
+
+export function isPortalSlug(slug: string | undefined): slug is PortalSlug {
+  return slug !== undefined && PORTAL_SLUGS.has(slug)
 }
 
 export function loadAuth(): AuthSession | null {
@@ -69,13 +82,14 @@ export function clearAuth() {
 
 export const defaultSection: Record<Role, string> = {
   super_admin: "dashboard",
-  operations_manager: "overview",
-  accountant: "collect",
+  operations_manager: "dashboard",
+  accountant: "dashboard",
   teacher: "today",
   parent: "home",
 }
 
 export function portalPath(role: Role, section?: string, rest?: string) {
-  const base = `/${ROLE_SLUGS[role]}/${section ?? defaultSection[role]}`
-  return rest ? `${base}/${rest}` : base
+  const base = `/${PORTAL_BY_ROLE[role]}/${section ?? defaultSection[role]}`
+  if (rest) return `${base}/${rest}`
+  return base
 }

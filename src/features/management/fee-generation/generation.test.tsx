@@ -125,6 +125,28 @@ describe("MonthlyGenerationPage", () => {
     expect((screen.getByRole("button", { name: "Confirm Generation" }) as HTMLButtonElement).disabled).toBe(true)
   })
 
+  it("shows missing fee-structure rows and blocks confirm when nothing else can bill", async () => {
+    svc.preview.mockResolvedValue({
+      ...RESULT,
+      canConfirm: false,
+      totals: { ...RESULT.totals, bills: 0, billedStudents: 0, missingStructureStudents: 3 },
+      missingStructures: [
+        {
+          classId: 7,
+          label: "Class 1 – A",
+          feeType: "Tuition",
+          studentCount: 3,
+          message: "No fee structure for Class 1 – A / Tuition",
+        },
+      ],
+    })
+    wrap(<MonthlyGenerationPage />)
+    fireEvent.click(screen.getByRole("button", { name: /Preview Generation/ }))
+    expect(await screen.findByTestId("missing-fee-structures")).toBeTruthy()
+    expect(screen.getByText(/No fee structure for Class 1 – A \/ Tuition/)).toBeTruthy()
+    expect((screen.getByTestId("confirm-generation") as HTMLButtonElement).disabled).toBe(true)
+  })
+
   it("shows a retryable error when the preview fails", async () => {
     svc.preview.mockRejectedValueOnce(new Error("Server unavailable"))
     wrap(<MonthlyGenerationPage />)
@@ -159,7 +181,8 @@ describe("StudentLedgerView", () => {
     expect(screen.getByText("PKR 4,000")).toBeTruthy()
     expect(screen.getByText("PKR 1,500")).toBeTruthy()
     expect(screen.getByTestId("credit-balance").textContent).toMatch(/Credit balance PKR 200.*net due PKR 1,300/)
-    expect(screen.getAllByText("Tuition 2,500 + Exam 500").length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Tuition 2,500/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/Exam 500/).length).toBeGreaterThan(0)
     expect(screen.getAllByText("Partially Paid").length).toBeGreaterThan(0)
   })
 

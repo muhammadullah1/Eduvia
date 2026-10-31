@@ -36,7 +36,7 @@ export function UserDetailProfileCard({ staff }: Props) {
               {staff.name}
             </h2>
             <p
-              className="mt-1 text-sm text-[var(--cls-muted)] break-all"
+              className="mt-1 text-sm [overflow-wrap:anywhere] text-[var(--cls-muted)]"
               title={staff.email}
             >
               {staff.email}
@@ -48,7 +48,7 @@ export function UserDetailProfileCard({ staff }: Props) {
           </div>
         </div>
       </div>
-      <div className="grid gap-4 border-t border-[var(--cls-border)] px-6 py-5 sm:grid-cols-2">
+      <div className="grid gap-4 border-t border-[var(--cls-border)] px-6 py-5">
         <div className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--page-wash)] text-[var(--cls-brand)]">
             <Mail className="size-4" aria-hidden />
@@ -56,7 +56,7 @@ export function UserDetailProfileCard({ staff }: Props) {
           <div className="min-w-0">
             <p className="text-xs font-medium text-[var(--cls-muted)]">Email</p>
             <p
-              className="break-all text-sm font-medium text-[var(--cls-ink)]"
+              className="text-sm font-medium [overflow-wrap:anywhere] text-[var(--cls-ink)]"
               title={staff.email}
             >
               {staff.email}
@@ -70,14 +70,14 @@ export function UserDetailProfileCard({ staff }: Props) {
           <div className="min-w-0">
             <p className="text-xs font-medium text-[var(--cls-muted)]">Phone</p>
             <p
-              className="break-all text-sm font-medium text-[var(--cls-ink)]"
+              className="text-sm font-medium [overflow-wrap:anywhere] text-[var(--cls-ink)]"
               title={staff.phone}
             >
               {staff.phone}
             </p>
           </div>
         </div>
-        <div className="sm:col-span-2">
+        <div>
           <p className="text-xs font-medium text-[var(--cls-muted)]">
             Staff / employee ID
           </p>

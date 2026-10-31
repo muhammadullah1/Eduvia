@@ -13,10 +13,9 @@ import {
   SidebarMenuSubButton,
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
-import type { Role } from "@/lib/auth"
 import { cn } from "@/lib/utils"
 
-import { navigation } from "./navigation"
+import type { NavItem } from "./navigation"
 import {
   folderContainsSection,
   type NavFolder,
@@ -25,22 +24,22 @@ import {
 } from "./navigation-menu-tree"
 
 const linkButtonClass =
-  "h-9 rounded-md px-3.5 text-[12.25px] font-normal text-sidebar-foreground hover:bg-white/10 hover:text-white data-[active=true]:bg-white/15 data-[active=true]:text-white"
+  "h-9 rounded-md px-3.5 text-[12.25px] font-normal text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground"
 
 const folderTriggerClass =
-  "h-8 w-full justify-between rounded-md px-3.5 text-[11px] font-semibold tracking-[0.06em] text-white/50 uppercase hover:bg-white/5 hover:text-white/70"
+  "h-8 w-full justify-between rounded-md px-3.5 text-[11px] font-semibold tracking-[0.06em] text-[var(--sidebar-inactive)] uppercase hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
 
 type Props = {
-  role: Role
+  items: readonly NavItem[]
   nodes: NavNode[]
   active: string
   onNavigate: (id: string, panel?: string) => void
 }
 
-export function SidebarNavTree({ role, nodes, active, onNavigate }: Props) {
+export function SidebarNavTree({ items, nodes, active, onNavigate }: Props) {
   const itemsById = useMemo(
-    () => new Map(navigation[role].map((item) => [item.id, item])),
-    [role]
+    () => new Map(items.map((item) => [item.id, item])),
+    [items]
   )
 
   return (
@@ -81,7 +80,7 @@ function NavLinkItem({
 }: {
   link: NavLink
   active: string
-  itemsById: Map<string, (typeof navigation)[Role][number]>
+  itemsById: Map<string, NavItem>
   onNavigate: (id: string, panel?: string) => void
   nested: boolean
 }) {
@@ -105,7 +104,7 @@ function NavLinkItem({
       <SidebarMenuSubItem className="relative">
         {selected ? (
           <span
-            className="pointer-events-none absolute top-1/2 -left-2.5 z-10 h-6 w-0.5 -translate-y-1/2 rounded-r-sm bg-[#c9a227]"
+            className="pointer-events-none absolute top-1/2 -left-2.5 z-10 h-6 w-0.5 -translate-y-1/2 rounded-r-sm bg-sidebar-primary"
             aria-hidden
           />
         ) : null}
@@ -113,8 +112,8 @@ function NavLinkItem({
           asChild
           isActive={selected}
           className={cn(
-            "text-[12.25px] text-[#bacec4] hover:bg-white/10 hover:text-white data-[active=true]:bg-white/15 data-[active=true]:text-white",
-            selected && "font-medium text-white"
+            "text-[12.25px] text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground",
+            selected && "font-medium"
           )}
         >
           <button type="button" onClick={handleClick}>
@@ -130,7 +129,7 @@ function NavLinkItem({
     <SidebarMenuItem className="relative">
       {selected ? (
         <span
-          className="pointer-events-none absolute top-1/2 left-0 z-10 h-7 w-0.5 -translate-y-1/2 rounded-r-sm bg-[#c9a227]"
+          className="pointer-events-none absolute top-1/2 left-0 z-10 h-7 w-0.5 -translate-y-1/2 rounded-r-sm bg-sidebar-primary"
           aria-hidden
         />
       ) : null}
@@ -155,7 +154,7 @@ function NavFolderBlock({
 }: {
   folder: NavFolder
   active: string
-  itemsById: Map<string, (typeof navigation)[Role][number]>
+  itemsById: Map<string, NavItem>
   onNavigate: (id: string, panel?: string) => void
 }) {
   const activeBase = active.split(":")[0].split("?")[0]
@@ -179,16 +178,16 @@ function NavFolderBlock({
       >
         <CollapsibleTrigger asChild>
           <SidebarMenuButton
-            className={cn(folderTriggerClass, "data-[state=open]:text-white/70")}
+            className={cn(folderTriggerClass, "data-[state=open]:text-sidebar-foreground")}
           >
             <span className="flex-1 truncate text-left">{folder.label}</span>
             <ChevronRight
-              className="size-3.5 shrink-0 text-white/40 transition-transform group-data-[state=open]/collapsible:rotate-90"
+              className="size-3.5 shrink-0 text-[var(--sidebar-inactive)] transition-transform group-data-[state=open]/collapsible:rotate-90"
             />
           </SidebarMenuButton>
         </CollapsibleTrigger>
         <CollapsibleContent>
-          <SidebarMenuSub className="mx-3.5 border-white/10 px-0 pb-1">
+          <SidebarMenuSub className="mx-3.5 border-sidebar-border px-0 pb-1">
             {folder.children.map((child, idx) => (
               <NavLinkItem
                 key={`${child.id}-${child.panel ?? idx}`}

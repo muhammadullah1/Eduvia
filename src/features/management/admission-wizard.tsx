@@ -1,6 +1,7 @@
 import { Check, Plus, X } from "lucide-react"
 import { useEffect, useMemo, useRef, useState } from "react"
 
+import type { AdmissionChecklistItem } from "@/api/admissions/applications.service"
 import { STORAGE_DIRS, uploadFileToStorage } from "@/api/storage/storage.service"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -33,7 +34,10 @@ import {
   ReadOnlyRefCard,
   WizardStepHeader,
 } from "@/features/management/admissions/admission-ui"
-import { useGetApplication } from "@/features/management/admissions/hooks/use-admissions"
+import {
+  useAdmissionChecklist,
+  useGetApplication,
+} from "@/features/management/admissions/hooks/use-admissions"
 import { useActor } from "@/lib/actor"
 import {
   enrollmentDateBounds,
@@ -65,13 +69,10 @@ function classSelectionValid(
   return Boolean(classId && classes.some((item) => item.id === classId))
 }
 
-const DOC_DEFAULTS: AdmissionDocument[] = [
-  { id: "birth", label: "Birth Certificate / B-Form", status: "Pending" },
-  { id: "slc", label: "Previous School Leaving Certificate", status: "Pending" },
-  { id: "cnic", label: "Guardian ID Copy (CNIC)", status: "Pending" },
-  { id: "photos", label: "Photographs (2 passport size)", status: "Pending" },
-  { id: "medical", label: "Medical / Vaccination Record", status: "Pending" },
-]
+/** Draft rows for the API's checklist; the label doubles as the id until the server assigns one. */
+function checklistDocuments(items: AdmissionChecklistItem[] = []): AdmissionDocument[] {
+  return items.map(({ label, status }) => ({ id: label, label, status }))
+}
 
 type GuardianRow = {
   id: string
@@ -147,9 +148,12 @@ export function AdmissionWizard({
     classId: "",
   })
   const [guardians, setGuardians] = useState<GuardianRow[]>([emptyGuardian()])
-  const [documents, setDocuments] = useState(() =>
-    DOC_DEFAULTS.map((item) => ({ ...item }))
-  )
+  const checklist = useAdmissionChecklist()
+  const [documents, setDocuments] = useState<AdmissionDocument[]>([])
+  useEffect(() => {
+    if (!checklist.data) return
+    setDocuments((current) => (current.length ? current : checklistDocuments(checklist.data)))
+  }, [checklist.data])
   const [interview, setInterview] = useState({
     waived: false,
     date: "",
@@ -313,7 +317,7 @@ export function AdmissionWizard({
       classId: "",
     })
     setGuardians([emptyGuardian()])
-    setDocuments(DOC_DEFAULTS.map((item) => ({ ...item })))
+    setDocuments(checklistDocuments(checklist.data))
     setInterview({
       waived: false,
       date: "",

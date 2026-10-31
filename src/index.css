@@ -20,19 +20,19 @@
   --radius-2xl: calc(var(--radius) * 1.8); --radius-3xl: calc(var(--radius) * 2.35);
 }
 :root {
-  /* Eduvia brand, matched to geteduvia.site (--edu-brand*): emerald + slate + blue. */
+  /* Eduvia brand: teal + slate + blue. */
   /* Buttons rest one step darker than the site primary (#059669) for weight. */
-  --primary-color: #047857;
-  --primary-hover: #064E3B;
-  --brand-accent: #059669;
-  --secondary-color: #ECFDF5;
-  --brand-light: #10B981;
-  --brand-deep: #064E3B;
-  /* Sidebar sits darker than any button state so the two never blend. */
-  --sidebar-bg: #022C22;
-  --sidebar-active: #065F46;
-  --brand-100: #D1FAE5;
-  --brand-border: #A7F3D0;
+  --primary-color: #0F766E;
+  --primary-hover: #115E59;
+  --brand-accent: #0D9488;
+  --secondary-color: #F0FDFA;
+  --brand-light: #14B8A6;
+  --brand-deep: #134E4A;
+  /* Deep teal sidebar; the active item is a lighter teal with white text and a mint bar. */
+  --sidebar-bg: #0F3D3A;
+  --sidebar-active: #17635D;
+  --brand-100: #CCFBF1;
+  --brand-border: #99F6E4;
   --blue: #2563EB;
   --blue-light: #EFF6FF;
   --page-wash: #F8FAFC;
@@ -40,6 +40,8 @@
   --cls-brand: var(--primary-color);
   --cls-brand-hover: var(--primary-hover);
   --cls-border: #E2E8F0;
+  /* Top bar and sidebar logo block share this height so their bottom borders line up. */
+  --shell-header-height: 52px;
   --cls-ink: #0F172A;
   --cls-muted: #64748B;
   --cls-profile-ink: #0F172A;
@@ -60,16 +62,16 @@
   --accent: var(--secondary-color); --accent-foreground: var(--primary-color); --destructive: #DC2626; --success: #16A34A;
   --border: #E2E8F0; --input: #E2E8F0; --ring: var(--primary-color); --chart-1: var(--primary-color);
   --chart-2: #2563EB; --chart-3: #D97706; --chart-4: #DC2626; --chart-5: #16A34A; --radius: .5rem;
-  /* Management shell: near-black emerald sidebar, distinct from buttons. */
+  /* Management shell: deep teal sidebar (text contrast >= 4.5:1 on #0F3D3A). */
   --sidebar: var(--sidebar-bg);
-  --sidebar-foreground: var(--brand-100);
-  --sidebar-primary: #ffffff;
-  --sidebar-primary-foreground: var(--sidebar-bg);
+  --sidebar-foreground: #D5F5EF;
+  --sidebar-primary: #5EEAD4;
+  --sidebar-primary-foreground: #0F3D3A;
   --sidebar-accent: var(--sidebar-active);
-  --sidebar-accent-foreground: #ffffff;
-  --sidebar-border: rgba(255, 255, 255, 0.1);
-  --sidebar-ring: #ffffff;
-  --sidebar-inactive: var(--brand-100);
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #1F5550;
+  --sidebar-ring: #5EEAD4;
+  --sidebar-inactive: #8CC7BF;
 }
 @layer base {
   * { @apply border-border outline-ring/50; }

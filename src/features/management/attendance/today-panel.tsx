@@ -154,7 +154,7 @@ export function TodayPanel({ onAssign }: { onAssign: () => void }) {
                   </TableCell>
                   <ClsActionCell>
                     {row.taken ? null : row.superMasterState !== "assigned" ? (
-                      <Button variant="ghost" size="sm" className="-ml-2 h-7 text-[var(--cls-brand)]" onClick={onAssign}>
+                      <Button variant="ghost" size="sm" className="-ml-2 text-[var(--cls-brand)]" onClick={onAssign}>
                         Assign Super Master
                       </Button>
                     ) : row.remindedAt ? (
@@ -166,7 +166,7 @@ export function TodayPanel({ onAssign }: { onAssign: () => void }) {
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="-ml-2 h-7 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
+                        className="-ml-2 text-amber-700 hover:bg-amber-100 hover:text-amber-800"
                         disabled={remind.isPending}
                         onClick={() => remind.mutate(row)}
                       >

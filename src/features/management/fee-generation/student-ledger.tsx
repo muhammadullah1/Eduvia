@@ -1,22 +1,32 @@
 import { useQuery } from "@tanstack/react-query"
 import { ArrowLeft, Wallet } from "lucide-react"
+import { useState } from "react"
 
-import generationService, { LEDGER_QUERY_KEY, type LedgerMonth } from "@/api/fees/generation.service"
+import generationService, {
+  LEDGER_QUERY_KEY,
+  type LedgerBill,
+  type LedgerMonth,
+} from "@/api/fees/generation.service"
 import { ClsEmpty, clsHeadRowClass, ClsPanel, clsRowClass, ClsStatCard, ClsTh } from "@/components/app/cls-panel"
 import { StatusChip } from "@/components/app/status-chip"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { CreditEntries } from "@/features/fees/components"
+import { useCan } from "@/lib/access"
 import { cn } from "@/lib/utils"
 
 import { errorText } from "../fee-structure/fee-structure-rules"
+import { AdjustBillDialog } from "./adjust-bill-dialog"
 import { formatPkr, statusTone } from "./generation-rules"
 
 const pkr = (n: number) => `PKR ${formatPkr(n)}`
 
 /** Monthly ledger for one student: every month billed, what was paid, what is outstanding, and credit. */
 export function StudentLedgerView({ studentId, onBack, backLabel = "Back" }: { studentId: number; onBack: () => void; backLabel?: string }) {
+  const can = useCan()
+  const canAdjust = can("fees.months.adjust")
+  const [adjustBill, setAdjustBill] = useState<LedgerBill | null>(null)
   const ledger = useQuery({
     queryKey: [LEDGER_QUERY_KEY, studentId],
     queryFn: () => generationService.ledger(studentId),
@@ -114,7 +124,7 @@ export function StudentLedgerView({ studentId, onBack, backLabel = "Back" }: { s
                       <TableRow key={m.month} className={clsRowClass}>
                         <TableCell className="font-medium text-[var(--cls-ink)]">
                           {m.label}
-                          <BillBreakdown month={m} />
+                          <BillBreakdown month={m} canAdjust={canAdjust} onAdjust={setAdjustBill} />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{formatPkr(m.due)}</TableCell>
                         <TableCell className="text-right tabular-nums">{m.paid ? formatPkr(m.paid) : "—"}</TableCell>
@@ -140,7 +150,7 @@ export function StudentLedgerView({ studentId, onBack, backLabel = "Back" }: { s
                         {m.status}
                       </StatusChip>
                     </div>
-                    <BillBreakdown month={m} />
+                    <BillBreakdown month={m} canAdjust={canAdjust} onAdjust={setAdjustBill} />
                     <div className="grid grid-cols-3 gap-2 text-xs">
                       <span>
                         <span className="block text-[var(--cls-muted)]">Due</span>
@@ -160,18 +170,49 @@ export function StudentLedgerView({ studentId, onBack, backLabel = "Back" }: { s
               </ul>
             </ClsPanel>
           )}
+          {canAdjust ? (
+            <AdjustBillDialog
+              open={Boolean(adjustBill)}
+              onOpenChange={(open) => !open && setAdjustBill(null)}
+              bill={adjustBill}
+              studentId={studentId}
+            />
+          ) : null}
         </>
       )}
     </div>
   )
 }
 
-/** Lists separately billed fees when a month has more than tuition. */
-function BillBreakdown({ month }: { month: LedgerMonth }) {
-  if (month.bills.length < 2) return null
+/** Lists separately billed fees; SA can open an adjustment on any bill line. */
+function BillBreakdown({
+  month,
+  canAdjust,
+  onAdjust,
+}: {
+  month: LedgerMonth
+  canAdjust?: boolean
+  onAdjust?: (bill: LedgerBill) => void
+}) {
+  if (!month.bills.length) return null
   return (
-    <span className="block text-[11px] font-normal text-[var(--cls-muted)]">
-      {month.bills.map((b) => `${b.feeType} ${formatPkr(b.due)}`).join(" + ")}
+    <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] font-normal text-[var(--cls-muted)]">
+      {month.bills.map((b) => (
+        <span key={b.id} className="inline-flex items-center gap-1">
+          {b.feeType} {formatPkr(b.due)}
+          {b.discountAmount ? ` (−${formatPkr(b.discountAmount)})` : ""}
+          {b.adjustmentTotal ? ` · adj ${formatPkr(b.adjustmentTotal)}` : ""}
+          {canAdjust ? (
+            <button
+              type="button"
+              className="text-[var(--cls-brand)] underline-offset-2 hover:underline"
+              onClick={() => onAdjust?.(b)}
+            >
+              Adjust
+            </button>
+          ) : null}
+        </span>
+      ))}
     </span>
   )
 }

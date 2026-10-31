@@ -1,4 +1,4 @@
-import { ArrowLeft, CalendarDays, Send } from "lucide-react"
+import { ArrowLeft, CalendarDays, Pencil, Send, Trash2 } from "lucide-react"
 import { Link } from "react-router-dom"
 
 import type { StaffDirectoryRow } from "@/api/staff/map-staff-directory"
@@ -16,6 +16,7 @@ type Props = {
   deleting?: boolean
 }
 
+/** Back button on its own row, then the name with the page actions: secondary outline, Edit as the filled primary. */
 export function StaffDetailHeader({
   staff,
   onBack,
@@ -27,82 +28,64 @@ export function StaffDetailHeader({
   onDelete,
   deleting = false,
 }: Props) {
-  let timetableAction = null
-  if (staff.role === "teacher" && timetableHref) {
-    timetableAction = (
+  const showTimetable = staff.role === "teacher" && Boolean(timetableHref)
+  const showInvite = canResendInvite && Boolean(onResendInvite)
+  let inviteLabel = "Send activation email"
+  if (resending) inviteLabel = "Sending…"
+  let deleteLabel = "Delete"
+  if (deleting) deleteLabel = "Deleting…"
+
+  return (
+    <div className="flex flex-col items-start gap-4">
       <Button
         type="button"
         variant="outline"
-        size="sm"
-        className="border-[var(--cls-border)]"
-        asChild
+        size="icon"
+        className="size-10 shrink-0 rounded-[10px] border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-ink)] shadow-none hover:bg-[var(--cls-border)]/40"
+        onClick={onBack}
+        aria-label="Back to staff directory"
       >
-        <Link to={timetableHref}>
-          <CalendarDays data-icon="inline-start" />
-          Timetable
-        </Link>
+        <ArrowLeft className="size-5" />
       </Button>
-    )
-  }
-
-  let inviteAction = null
-  if (canResendInvite && onResendInvite) {
-    inviteAction = (
-      <Button
-        type="button"
-        size="sm"
-        className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
-        disabled={resending}
-        onClick={onResendInvite}
-      >
-        <Send data-icon="inline-start" />
-        {resending ? "Sending…" : "Send activation email"}
-      </Button>
-    )
-  }
-
-  return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
-        <Button
-          type="button"
-          variant="outline"
-          size="icon"
-          className="size-10 shrink-0 rounded-[10px] border-[var(--cls-border)] bg-[var(--page-wash)] text-[var(--cls-ink)] shadow-none hover:bg-[var(--cls-border)]/40"
-          onClick={onBack}
-          aria-label="Back to staff directory"
-        >
-          <ArrowLeft className="size-5" />
-        </Button>
+      <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-medium uppercase tracking-wide text-[var(--cls-muted)]">
-            Staff profile
-          </p>
-          <p className="truncate text-sm font-semibold text-[var(--cls-ink)]">
-            {staff.name}
-          </p>
+          <p className="text-xs font-medium tracking-wide text-[var(--cls-muted)] uppercase">Staff profile</p>
+          <h1 className="truncate text-2xl font-semibold tracking-tight text-[var(--cls-ink)]">{staff.name}</h1>
         </div>
-      </div>
-      <div className="flex flex-wrap gap-2 sm:justify-end">
-        {onEdit ? (
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-            Edit
-          </Button>
-        ) : null}
-        {onDelete ? (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="text-destructive hover:text-destructive"
-            disabled={deleting}
-            onClick={onDelete}
-          >
-            {deleting ? "Deleting…" : "Delete"}
-          </Button>
-        ) : null}
-        {inviteAction}
-        {timetableAction}
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          {showTimetable && timetableHref && (
+            <Button variant="outline" asChild>
+              <Link to={timetableHref}>
+                <CalendarDays data-icon="inline-start" />
+                Timetable
+              </Link>
+            </Button>
+          )}
+          {showInvite && (
+            <Button type="button" variant="outline" disabled={resending} onClick={onResendInvite}>
+              <Send data-icon="inline-start" />
+              {inviteLabel}
+            </Button>
+          )}
+          {onDelete && (
+            <Button
+              type="button"
+              variant="outline"
+              className="border-destructive/30 text-destructive hover:bg-destructive/5 hover:text-destructive"
+              disabled={deleting}
+              onClick={onDelete}
+            >
+              <Trash2 data-icon="inline-start" />
+              {deleteLabel}
+            </Button>
+          )}
+          {onEdit && (
+            <Button type="button" onClick={onEdit}>
+              <Pencil data-icon="inline-start" />
+              Edit
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )

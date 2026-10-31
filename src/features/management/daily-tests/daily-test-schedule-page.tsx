@@ -1,9 +1,19 @@
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Pencil, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
 import { toast } from "sonner"
 
+import examsService from "@/api/exams/exams.service"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -13,21 +23,28 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import { useSchool } from "@/data/store"
 import type { TestSchedule } from "@/data/types"
-import { useActor } from "@/lib/actor"
 import { WEEKDAYS } from "@/lib/academics"
+import { useCan } from "@/lib/access"
+import { useActor } from "@/lib/actor"
+import type { ApiSchedule } from "@/lib/api-types"
 import { classLabel } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
+
+const SCHEDULES_KEY = ["daily-test-schedules"] as const
+
+function mapSchedule(row: ApiSchedule): TestSchedule {
+  return {
+    id: String(row.id),
+    classId: String(row.fkClassId),
+    subject: row.subject?.name ?? "Mathematics",
+    weekday: row.weekday || "",
+    periodIndex: Number(row.periodIndex) || 4,
+    max: Number(row.maxScore) || 20,
+    active: row.isActive == null ? true : Boolean(row.isActive),
+  }
+}
 
 const SCHOOL_DAYS = WEEKDAYS.slice(0, 6)
 
@@ -56,14 +73,28 @@ function passMark(max: number, percent: number) {
 export function DailyTestSchedulePage() {
   const { state, saveTestSchedule, removeTestSchedule } = useSchool()
   const actor = useActor()
-  const canManage = can(actor.role, "tests.schedule")
+  const queryClient = useQueryClient()
+  const can = useCan()
+  const canManage = can("tests.schedule")
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
 
+  const schedulesQuery = useQuery({
+    queryKey: SCHEDULES_KEY,
+    queryFn: async () => {
+      const rows = await examsService.listSchedules()
+      return rows.map(mapSchedule)
+    },
+  })
+
   const classes = state.classes.filter((row) => row.status !== "Archived")
-  const schedules = state.testSchedules.filter((row) => row.active)
+  const schedules = (schedulesQuery.data ?? []).filter((row) => row.active)
   const passPercent = state.settings.dailyTestRules.passPercent
+
+  async function refreshSchedules() {
+    await queryClient.invalidateQueries({ queryKey: SCHEDULES_KEY })
+  }
 
   function taughtDays(subject: string, classId?: string) {
     return SCHOOL_DAYS.filter((day) =>
@@ -237,6 +268,7 @@ export function DailyTestSchedulePage() {
       }
     }
 
+    await refreshSchedules()
     const dayLabel = draft.weekdays
       .slice()
       .sort(
@@ -285,6 +317,21 @@ export function DailyTestSchedulePage() {
         {state.settings.dailyTestRules.maxFailsPerMonth === 1 ? "" : "s"} in a
         subject during the month is flagged.
       </p>
+
+      {schedulesQuery.isLoading ? (
+        <p className="text-sm text-[var(--cls-muted)]">Loading schedules…</p>
+      ) : schedulesQuery.isError ? (
+        <p className="text-sm text-red-600">
+          Could not load schedules.{" "}
+          <button
+            type="button"
+            className="underline"
+            onClick={() => void schedulesQuery.refetch()}
+          >
+            Try again
+          </button>
+        </p>
+      ) : null}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {SCHOOL_DAYS.map((day) => {

@@ -6,8 +6,6 @@ import { useSearchParams } from "react-router-dom"
 import feeReportsService, {
   FEE_REPORT_KINDS,
   FEE_REPORT_TABS,
-  type FeeReport,
-  type FeeReportColumn,
   type FeeReportFilters,
   type FeeReportKind,
 } from "@/api/fees/fee-reports.service"
@@ -27,36 +25,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
 import { useSchool } from "@/data/store"
 import { useClientPagination } from "@/hooks/use-client-pagination"
+import { usePrintBrand } from "@/hooks/use-print-brand"
 import { useReportDownload } from "@/hooks/use-report-download"
 import { getToday } from "@/lib/dates"
-import { printDocument } from "@/lib/print"
+import { isNumeric, printReport, reportCell } from "@/lib/report-format"
 import { useUrlTab } from "@/lib/use-url-tab"
 import { cn } from "@/lib/utils"
 
 const PAGE_SIZE = 10
-const isNumeric = (column: FeeReportColumn) =>
-  column.type === "money" || column.type === "number" || column.type === "percent"
-
-function reportCell(value: string | number | null | undefined, type?: string) {
-  if (value === null || value === undefined || value === "") return "—"
-  if (type === "money") return Number(value).toLocaleString("en-PK", { minimumFractionDigits: 0, maximumFractionDigits: 2 })
-  if (type === "percent") return `${Number(value).toLocaleString("en-PK", { maximumFractionDigits: 1 })}%`
-  return String(value)
-}
-
 type Applied = { kind: FeeReportKind; filters: FeeReportFilters }
-
-/** Every row (not just the visible page) with the filters and totals, through the portal print window. */
-function printReport(report: FeeReport) {
-  const lines = [
-    ...report.meta.map(([label, value]) => `${label}: ${value}`),
-    ...(report.summary ?? []).map(([label, value]) => `${label}: ${value}`),
-  ]
-  return printDocument(report.title, lines, {
-    columns: report.columns.map((c) => c.label),
-    rows: report.rows.map((row) => report.columns.map((c) => reportCell(row[c.key], c.type))),
-  })
-}
 
 /**
  * Fee reports from `/fees/reports/:kind` (Figma "Fee Reports", node 124-40648): six
@@ -66,6 +43,7 @@ function printReport(report: FeeReport) {
  */
 export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
   const { state } = useSchool()
+  const brand = usePrintBrand().report
   const today = getToday()
   const [searchParams] = useSearchParams()
   const tabs = useMemo(
@@ -80,67 +58,96 @@ export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
   }, [tabs, kinds])
 
   const [activeSubtab, setActiveSubtab] = useUrlTab(allowedSubtabs, "subtab")
-  const effectiveTab =
-    activeSubtab === "outstanding" || activeSubtab === "advance" ? "outstanding-advance" : activeSubtab
-  const current = tabs.find((t) => t.value === effectiveTab) ?? tabs[0]
+  let effectiveTab = activeSubtab
+  if (activeSubtab === "outstanding" || activeSubtab === "advance") {
+    effectiveTab = "outstanding-advance"
+  }
+  const current = tabs.find((t) => t.value === effectiveTab) ?? tabs.find(() => true)
 
-  const initialKind: FeeReportKind =
-    activeSubtab === "outstanding" || activeSubtab === "advance"
-      ? (activeSubtab as FeeReportKind)
-      : (current?.kinds[0] ?? "daily")
+  let initialKind: FeeReportKind = "daily"
+  if (activeSubtab === "outstanding" || activeSubtab === "advance") {
+    initialKind = activeSubtab as FeeReportKind
+  } else if (current) {
+    const firstKind = current.kinds.find(() => true)
+    if (firstKind) initialKind = firstKind
+  }
   const [kind, setKind] = useState<FeeReportKind>(initialKind)
 
   const [from, setFrom] = useState(searchParams.get("from") || today)
   const [to, setTo] = useState(searchParams.get("to") || today)
   const [month, setMonth] = useState(searchParams.get("month") || today.slice(0, 7))
   const [classId, setClassId] = useState(searchParams.get("classId") || "all")
-  const [applied, setApplied] = useState<Applied | null>(
-    kinds[0] === "daily" ? { kind: "daily", filters: { from: searchParams.get("from") || today, to: searchParams.get("to") || today, classId: searchParams.get("classId") || "all" } } : null
-  )
+  const defaultDaily = kinds.includes("daily")
+  const [applied, setApplied] = useState<Applied | null>(() => {
+    if (!defaultDaily) return null
+    return {
+      kind: "daily",
+      filters: {
+        from: searchParams.get("from") || today,
+        to: searchParams.get("to") || today,
+        classId: searchParams.get("classId") || "all",
+      },
+    }
+  })
   const { busy, run } = useReportDownload()
-  const meta = FEE_REPORT_KINDS.find((k) => k.kind === kind) ?? FEE_REPORT_KINDS[0]
-  const filters: FeeReportFilters = useMemo(
-    () => (meta.range === "days" ? { from, to, classId } : { month, classId }),
-    [meta.range, from, to, month, classId]
-  )
-  const rangeError = meta.range === "days" && to < from ? "The end date must be on or after the start date." : undefined
+  const metaFallback = FEE_REPORT_KINDS.find(() => true)
+  const meta = FEE_REPORT_KINDS.find((k) => k.kind === kind) ?? metaFallback
+  if (!meta) {
+    throw new Error("Fee report kinds are not configured")
+  }
+  const filters: FeeReportFilters = useMemo(() => {
+    if (meta.range === "days") return { from, to, classId }
+    return { month, classId }
+  }, [meta.range, from, to, month, classId])
+  let rangeError: string | undefined
+  if (meta.range === "days" && to < from) {
+    rangeError = "The end date must be on or after the start date."
+  }
   const active = applied?.kind === kind ? applied : null
   const dirty = Boolean(active) && JSON.stringify(active?.filters) !== JSON.stringify(filters)
   const report = useQuery({
     queryKey: ["fee-report", active?.kind, active?.filters],
-    queryFn: () => (active ? feeReportsService.get(active.kind, active.filters) : Promise.reject(new Error("No report"))),
+    queryFn: () => {
+      if (!active) return Promise.reject(new Error("No report"))
+      return feeReportsService.get(active.kind, active.filters)
+    },
     enabled: Boolean(active),
   })
   const classes = useMemo(() => [...state.classes].sort((a, b) => a.label.localeCompare(b.label)), [state.classes])
   const data = active ? report.data : undefined
   const rows = useMemo(() => data?.rows ?? [], [data])
   const { paginatedItems, pagination } = useClientPagination(rows, { initialPageSize: PAGE_SIZE })
-  const ownOnly = kinds.length === 1 && kinds[0] === "daily"
+  const ownOnly = kinds.length === 1 && kinds.includes("daily")
 
   function selectKind(next: FeeReportKind) {
     setKind(next)
     setActiveSubtab(next)
     // Daily opens on today's receipts (as in Figma); the others wait for Generate Report.
-    setApplied(next === "daily" ? { kind: next, filters: { from, to, classId } } : null)
+    if (next === "daily") {
+      setApplied({ kind: next, filters: { from, to, classId } })
+      return
+    }
+    setApplied(null)
   }
   function selectTab(value: string) {
     const next = tabs.find((t) => t.value === value)
     if (!next) return
-    const nextKind =
-      value === "outstanding-advance"
-        ? (kind === "advance" ? "advance" : "outstanding")
-        : next.kinds[0]
+    let nextKind: FeeReportKind | undefined = next.kinds.find(() => true)
+    if (value === "outstanding-advance") {
+      if (kind === "advance") nextKind = "advance"
+      else nextKind = "outstanding"
+    }
+    if (!nextKind) return
     selectKind(nextKind)
   }
   useEffect(() => {
     if (activeSubtab === "outstanding" || activeSubtab === "advance") {
       setKind(activeSubtab as FeeReportKind)
-    } else {
-      const match = tabs.find((t) => t.value === activeSubtab)
-      if (match && match.kinds[0]) {
-        setKind(match.kinds[0])
-      }
+      return
     }
+    const match = tabs.find((t) => t.value === activeSubtab)
+    const firstKind = match?.kinds.find(() => true)
+    if (firstKind) setKind(firstKind)
   }, [activeSubtab, tabs])
   const generate = () => {
     if (!rangeError) setApplied({ kind, filters })
@@ -194,7 +201,7 @@ export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
           variant="outline"
           className="border-[var(--cls-border)] bg-white"
           disabled={!data || dirty}
-          onClick={() => data && printReport(data)}
+          onClick={() => data && printReport(data, brand)}
         >
           <Printer data-icon="inline-start" />
           Print
@@ -203,20 +210,26 @@ export function FeeReportsPanel({ kinds }: { kinds: FeeReportKind[] }) {
     </div>
   )
 
-  const heading = data
-    ? `${data.title} — ${data.meta
-        .filter(([label]) => label !== "Note" && label !== "Scope")
-        .map(([, value]) => value)
-        .join(" · ")}`
-    : meta.label
+  let heading = meta.label
+  if (data) {
+    const parts = data.meta
+      .filter(([label]) => label !== "Note" && label !== "Scope")
+      .map(([, value]) => value)
+    heading = `${data.title} — ${parts.join(" · ")}`
+  }
 
   return (
     <div className="flex min-w-0 flex-col gap-4" data-testid="fee-reports">
-      {tabs.length > 1 ? <ClsSubTabs items={tabs} value={current.value} onValueChange={selectTab} aria-label="Fee reports" wrap /> : null}
+      {tabs.length > 1 && current ? (
+        <ClsSubTabs items={tabs} value={current.value} onValueChange={selectTab} aria-label="Fee reports" wrap />
+      ) : null}
 
       {current && current.kinds.length > 1 ? (
         <ClsSubTabs
-          items={current.kinds.map((k) => ({ value: k, label: FEE_REPORT_KINDS.find((m) => m.kind === k)?.label ?? k }))}
+          items={current.kinds.map((k) => {
+            const metaKind = FEE_REPORT_KINDS.find((m) => m.kind === k)
+            return { value: k, label: metaKind ? metaKind.label : k }
+          })}
           value={kind}
           onValueChange={(value) => selectKind(value as FeeReportKind)}
           aria-label="Report view"
@@ -299,7 +312,7 @@ const cardClass = "rounded-xl border border-[var(--cls-border)] bg-white px-4 py
  * folded into one "Collections by method" tile so the row stays at four cards; the API
  * summary (and the exported files) are unchanged.
  */
-function SummaryCards({ summary }: { summary: [string, string | number][] }) {
+export function SummaryCards({ summary }: { summary: [string, string | number][] }) {
   const methods = summary.filter(([label]) => methodOf(label))
   const others = summary.filter(([label]) => !methodOf(label))
   const methodTotal = methods.reduce((total, [, value]) => total + Math.round(Number(value || 0) * 100), 0) / 100

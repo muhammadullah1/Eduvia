@@ -1,6 +1,7 @@
 import { useState } from "react"
 import { toast } from "sonner"
 
+import examsService from "@/api/exams/exams.service"
 import { EmptyState, StatusBadge } from "@/components/app/kit"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
@@ -22,15 +23,13 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { studentName, useSchool } from "@/data/store"
-import { useActor } from "@/lib/actor"
 import { classLabel } from "@/lib/format"
 import { marksInput } from "@/lib/marks"
 
 import { signedInTeacher } from "./session"
 
 export function TeacherMarks() {
-  const { state, saveScores, setSheetStatus } = useSchool()
-  const actor = useActor()
+  const { state, reloadSlices } = useSchool()
   const teacher = signedInTeacher(state.staff)
   const sheets = state.sheets.filter(
     (sheet) =>
@@ -42,6 +41,7 @@ export function TeacherMarks() {
   const sheet = state.sheets.find((item) => item.id === sheetId) ?? sheets[0]
   const [scores, setScores] = useState<Record<string, string>>({})
   const [error, setError] = useState("")
+  const [busy, setBusy] = useState(false)
   if (!sheet)
     return (
       <EmptyState
@@ -49,7 +49,45 @@ export function TeacherMarks() {
         detail="Management has not assigned an exam to your classes."
       />
     )
-  const locked = sheet.status !== "Draft"
+  const locked = sheet.status !== "Draft" || busy
+  const current = sheet
+
+  function scoreFor(studentId: string, saved: number | null) {
+    const typed = scores[studentId]
+    if (typed === undefined) return saved
+    if (typed === "") return null
+    return Number(typed)
+  }
+
+  async function save(submit: boolean) {
+    setBusy(true)
+    setError("")
+    try {
+      const sheetId = Number(current.id)
+      const detail = await examsService.sheet(sheetId)
+      const rows = detail.rows.map((row) => {
+        const local = current.rows.find((item) => item.studentId === String(row.fkStudentId))
+        return {
+          studentId: row.fkStudentId,
+          score: scoreFor(String(row.fkStudentId), local?.score ?? null),
+          absent: row.isAbsent,
+          exempt: row.isExempt,
+        }
+      })
+      await examsService.saveRows(sheetId, rows)
+      if (submit) await examsService.submitSheet(sheetId)
+      await reloadSlices(["sheets"])
+      setScores({})
+      if (submit) toast.success("Sheet submitted and locked")
+      else toast.success("Draft saved")
+    } catch (err) {
+      const message = err instanceof Error && err.message || "Could not save marks."
+      setError(message)
+      toast.error(message)
+    } finally {
+      setBusy(false)
+    }
+  }
   return (
     <div className="grid gap-4">
       <Alert>
@@ -118,58 +156,10 @@ export function TeacherMarks() {
           ))}
         </CardContent>
         <CardFooter className="gap-2">
-          <Button
-            variant="outline"
-            disabled={locked}
-            onClick={() => {
-              const message = saveScores(
-                sheet.id,
-                sheet.rows.map((row) => ({
-                  studentId: row.studentId,
-                  score:
-                    (scores[row.studentId] ?? row.score ?? "") === ""
-                      ? null
-                      : Number(scores[row.studentId] ?? row.score),
-                })),
-                actor.name
-              )
-              if (message) {
-                setError(message)
-                toast.error(message)
-              } else {
-                setError("")
-                toast.success("Draft saved")
-              }
-            }}
-          >
+          <Button variant="outline" disabled={locked} onClick={() => void save(false)}>
             Save draft
           </Button>
-          <Button
-            disabled={locked}
-            onClick={() => {
-              const saved = saveScores(
-                sheet.id,
-                sheet.rows.map((row) => ({
-                  studentId: row.studentId,
-                  score:
-                    (scores[row.studentId] ?? row.score ?? "") === ""
-                      ? null
-                      : Number(scores[row.studentId] ?? row.score),
-                })),
-                actor.name
-              )
-              if (saved) {
-                setError(saved)
-                toast.error(saved)
-                return
-              }
-              const message = setSheetStatus(sheet.id, "Submitted", actor.name)
-              if (message) {
-                setError(message)
-                toast.error(message)
-              } else toast.success("Sheet submitted and locked")
-            }}
-          >
+          <Button disabled={locked} onClick={() => void save(true)}>
             Submit sheet
           </Button>
         </CardFooter>

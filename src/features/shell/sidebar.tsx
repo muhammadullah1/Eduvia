@@ -6,23 +6,30 @@ import {
   SidebarMenu,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { defaultSection, type Role } from "@/lib/auth"
+import { useSchoolProfile } from "@/hooks/use-print-brand"
+import type { PortalSlug } from "@/lib/auth"
 
 import { Logo } from "./logo"
-import { navigationMenuTreeForRole } from "./navigation-menu-tree"
+import type { NavItem } from "./navigation"
+import { navigationMenuTree } from "./navigation-menu-tree"
 import { SidebarNavTree } from "./sidebar-nav-tree"
 
 export function Sidebar({
-  role,
+  portal,
+  items,
+  home,
   active,
   onNavigate,
 }: {
-  role: Role
+  portal: PortalSlug
+  items: readonly NavItem[]
+  home: string
   active: string
   onNavigate: (id: string, panel?: string) => void
 }) {
   const { isMobile, setOpenMobile } = useSidebar()
-  const tree = navigationMenuTreeForRole(role)
+  const tree = navigationMenuTree(portal, items)
+  const school = useSchoolProfile()
 
   function navigate(id: string, panel?: string) {
     onNavigate(id, panel)
@@ -33,20 +40,20 @@ export function Sidebar({
 
   return (
     <UiSidebar className="border-r border-sidebar-border bg-sidebar">
-      <SidebarHeader className="border-b border-sidebar-border p-3.5">
+      <SidebarHeader className="h-[var(--shell-header-height)] shrink-0 justify-center border-b border-sidebar-border px-3.5 py-0">
         <button
           type="button"
-          onClick={() => navigate(defaultSection[role])}
-          className="w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-white/40"
+          onClick={() => navigate(home)}
+          className="w-full rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
           aria-label="Go to dashboard"
         >
-          <Logo inverted />
+          <Logo crest logoUrl={school.data?.logoUrl} />
         </button>
       </SidebarHeader>
       <SidebarContent className="gap-0 py-2.5">
         <SidebarMenu className="gap-0 px-1.5">
           <SidebarNavTree
-            role={role}
+            items={items}
             nodes={tree}
             active={active}
             onNavigate={navigate}
@@ -54,7 +61,7 @@ export function Sidebar({
         </SidebarMenu>
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border px-3.5 py-3">
-        <p className="text-[10px] text-white/40">SMS v1.0 · Abier</p>
+        <p className="text-[10px] text-[var(--sidebar-inactive)]">SMS v1.0 · Abier</p>
       </SidebarFooter>
     </UiSidebar>
   )

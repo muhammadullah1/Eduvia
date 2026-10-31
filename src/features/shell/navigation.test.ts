@@ -1,99 +1,109 @@
 import { describe, expect, it } from "vitest"
 
-import { canReadSlice } from "@/data/portal-sync"
-import { can } from "@/lib/permissions"
+import { holds, type PermissionKey } from "@/lib/access"
+import { portalForRole, type Role } from "@/lib/auth"
+import { DEFAULT_ROLE_PERMISSIONS } from "@/test/default-role-permissions.generated"
 
-import { navigation, sectionIds } from "./navigation"
-import { type NavFolder,navigationMenuTreeForRole } from "./navigation-menu-tree"
+import { allowedSections, findSection, isSectionAllowed, LEGACY_SECTIONS } from "./navigation"
+import { type NavFolder, navigationMenuTree,type NavNode } from "./navigation-menu-tree"
 
-const FEE_SECTIONS = ["fees", "collect-fee", "offline-sync", "finance", "reports", "collect", "collections", "fee-structure", "fee-generation", "expenses"]
+const FEE_SECTIONS = ["fees", "collect-fee", "offline-sync", "finance", "collections", "fee-structure", "fee-generation", "fee-concessions", "expenses"]
 
-describe("Operations Manager navigation", () => {
-  it("has no fee, finance or fee-report sections, so the route guard refuses them", () => {
-    for (const id of FEE_SECTIONS) expect(sectionIds.operations_manager.has(id)).toBe(false)
+const canWith = (permissions: readonly PermissionKey[]) => (key: PermissionKey) => holds(permissions, key)
+
+function sectionIdsFor(role: Role, extra: readonly PermissionKey[] = []) {
+  const can = canWith([...DEFAULT_ROLE_PERMISSIONS[role], ...extra])
+  return new Set(allowedSections(portalForRole(role), can).map((item) => item.id))
+}
+
+function treeFor(role: Role) {
+  const portal = portalForRole(role)
+  return navigationMenuTree(portal, allowedSections(portal, canWith(DEFAULT_ROLE_PERMISSIONS[role])))
+}
+
+const nodeId = (node: NavNode) => (node.type === "link" && node.id) || (node.type === "folder" && node.key)
+
+describe("Operations Manager default navigation", () => {
+  it("has no fee or finance sections", () => {
+    const ids = sectionIdsFor("operations_manager")
+    for (const id of FEE_SECTIONS) expect(ids.has(id)).toBe(false)
   })
 
-  it("offers a read-only audit log backed by the audit permission and slice", () => {
-    expect(navigation.operations_manager.map((item) => item.id)).toContain("audit-log")
-    expect(can("operations_manager", "audit.view")).toBe(true)
-    expect(canReadSlice("operations_manager", "audits")).toBe(true)
+  it("opens Reports for student reports and the audit trail instead of the separate audit log", () => {
+    const ids = sectionIdsFor("operations_manager")
+    expect(ids.has("reports")).toBe(true)
+    expect(ids.has("audit-log")).toBe(false)
   })
 
-  it("never reads fee data or fee amounts", () => {
-    for (const slice of ["feeMonths", "payments", "expenses"] as const) {
-      expect(canReadSlice("operations_manager", slice)).toBe(false)
-    }
-    expect(can("operations_manager", "fees.amounts.view")).toBe(false)
-    expect(can("operations_manager", "fees.reports")).toBe(false)
-  })
-})
-
-describe("other roles keep their sections", () => {
-  it("Super Admin keeps Reports and finance; only SA and Ops see the audit log", () => {
-    for (const id of ["reports", "fees", "collect-fee", "offline-sync", "finance"]) {
-      expect(sectionIds.super_admin.has(id)).toBe(true)
-    }
-    expect(can("super_admin", "audit.view")).toBe(true)
-    expect(can("accountant", "audit.view")).toBe(false)
-    expect(can("teacher", "audit.view")).toBe(false)
-    expect(canReadSlice("accountant", "audits")).toBe(false)
-  })
-
-  it("Accountant keeps record payment and daily receipts", () => {
-    expect(sectionIds.accountant.has("collect")).toBe(true)
-    expect(sectionIds.accountant.has("collections")).toBe(true)
-    expect(can("accountant", "fees.amounts.view")).toBe(true)
+  it("cannot open Roles & Permissions", () => {
+    expect(sectionIdsFor("operations_manager").has("roles")).toBe(false)
   })
 })
 
-describe("Settings primary sidebar folder", () => {
-  it("Super Admin and Operations Manager have Settings folder with the 5 nested sections", () => {
-    for (const role of ["super_admin", "operations_manager"] as const) {
-      const tree = navigationMenuTreeForRole(role)
-      const settingsFolder = tree.find(
-        (node): node is NavFolder =>
-          node.type === "folder" && node.key === "settings"
-      )
-      expect(settingsFolder).toBeDefined()
-      expect(settingsFolder?.label).toBe("Settings")
-      expect(settingsFolder?.children.map((c) => c.label)).toEqual([
-        "General & Rules",
-        "Calendar & Holidays",
-        "Rooms & Locations",
-        "Archives",
-        "Roles & Permissions",
-      ])
-      expect(settingsFolder?.children.map((c) => c.panel)).toEqual([
-        undefined,
-        "calendar",
-        "rooms",
-        "archives",
-        "roles",
-      ])
-      expect(sectionIds[role].has("settings")).toBe(true)
-      // Legacy sections are registered in sectionIds to trigger safe client-side redirects to canonical /admin/settings
-      for (const id of [
-        "settings-academic",
-        "settings-calendar",
-        "settings-rooms",
-        "settings-archives",
-        "settings-roles",
-      ]) {
-        expect(sectionIds[role].has(id)).toBe(true)
-      }
+describe("Super Admin default navigation", () => {
+  it("keeps reports, finance and roles; reports replace the separate audit log", () => {
+    const ids = sectionIdsFor("super_admin")
+    for (const id of ["reports", "fees", "collect-fee", "offline-sync", "finance", "roles", "settings"]) {
+      expect(ids.has(id)).toBe(true)
     }
+    expect(ids.has("audit-log")).toBe(false)
+  })
+})
+
+describe("Accountant default navigation", () => {
+  it("keeps fee collection and own receipts but no audit log or settings", () => {
+    const ids = sectionIdsFor("accountant")
+    for (const id of ["collect-fee", "collections", "expenses"]) expect(ids.has(id)).toBe(true)
+    for (const id of ["audit-log", "settings", "roles"]) expect(ids.has(id)).toBe(false)
   })
 
-  it("Accountant, Teacher, and Parent do not have Settings in their sidebar", () => {
+  it("shows a newly granted permission's section without a code change", () => {
+    expect(sectionIdsFor("accountant", ["audit.read"]).has("audit-log")).toBe(true)
+  })
+})
+
+describe("section rules", () => {
+  it("hides a section when its hiddenWith permission is held", () => {
+    const item = findSection("admin", "audit-log")
+    expect(item).toBeDefined()
+    if (!item) return
+    expect(isSectionAllowed(item, canWith(["audit.read"]))).toBe(true)
+    expect(isSectionAllowed(item, canWith(["audit.read", "students.manage"]))).toBe(false)
+  })
+
+  it("maps legacy sections to their new homes", () => {
+    expect(LEGACY_SECTIONS["settings-roles"]?.section).toBe("roles")
+    expect(LEGACY_SECTIONS.overview?.section).toBe("dashboard")
+    expect(LEGACY_SECTIONS.collect?.section).toBe("collect-fee")
+  })
+
+  it("nothing is allowed without permissions", () => {
+    for (const portal of ["admin", "teacher", "parent"] as const) {
+      expect(allowedSections(portal, canWith([]))).toEqual([])
+    }
+  })
+})
+
+describe("Settings sidebar folder", () => {
+  it("Super Admin's Settings folder ends with Roles & Permissions", () => {
+    const settings = treeFor("super_admin").find(
+      (node): node is NavFolder => node.type === "folder" && node.key === "settings"
+    )
+    expect(settings?.label).toBe("Settings")
+    expect(settings?.children.map((child) => child.id)).toContain("roles")
+  })
+
+  it("Operations Manager's Settings folder has no Roles & Permissions link", () => {
+    const settings = treeFor("operations_manager").find(
+      (node): node is NavFolder => node.type === "folder" && node.key === "settings"
+    )
+    expect(settings).toBeDefined()
+    expect(settings?.children.map((child) => child.id)).not.toContain("roles")
+  })
+
+  it("Accountant, Teacher and Parent have no Settings entry", () => {
     for (const role of ["accountant", "teacher", "parent"] as const) {
-      const tree = navigationMenuTreeForRole(role)
-      const hasSettings = tree.some(
-        (node) =>
-          (node.type === "folder" && node.key === "settings") ||
-          (node.type === "link" && node.id === "settings")
-      )
-      expect(hasSettings).toBe(false)
-      expect(sectionIds[role].has("settings")).toBe(false)
+      expect(treeFor(role).map(nodeId)).not.toContain("settings")
     }
   })
 })

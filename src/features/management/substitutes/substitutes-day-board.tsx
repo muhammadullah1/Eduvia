@@ -117,7 +117,7 @@ export function SubstitutesDayBoard({
                     <Button
                       type="button"
                       size="sm"
-                      className="h-8 bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+                      className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
                       onClick={() => onAssignTeacher(tid)}
                     >
                       Assign all

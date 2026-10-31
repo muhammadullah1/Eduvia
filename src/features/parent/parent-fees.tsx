@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/table"
 import { FeeMonthTable } from "@/features/fees/components"
 import { feeMonthsLabel, printReceipt } from "@/features/fees/receipts"
+import { usePrintBrand } from "@/hooks/use-print-brand"
 import { getToday } from "@/lib/dates"
 import { feeMonthStatus, monthLabel, outstanding } from "@/lib/fees"
 import { formatDate, pkr } from "@/lib/format"
@@ -30,6 +31,7 @@ import { unpaidMonths } from "./visibility"
 
 export function ParentFees() {
   const { state, child, childId, setChildId, options } = useChild()
+  const brand = usePrintBrand().receipt
   const currentMonth = getToday().slice(0, 7)
   const payments = state.payments.filter(
     (payment) => payment.studentId === child.id
@@ -148,7 +150,7 @@ export function ParentFees() {
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Print receipt"
-                          onClick={() => printReceipt(state, payment)}
+                          onClick={() => printReceipt(state, payment, brand)}
                         >
                           <Printer />
                         </Button>

@@ -358,10 +358,17 @@ export type DailyTestRules = {
 
 export type ResultFeeRule = "all_due_paid" | "exam_month_paid" | "disabled"
 
+export type ConcessionPolicy = {
+  allowedModes: ConcessionMode[]
+  approvalRule: "none" | "always" | "threshold"
+  approvalPercentAbove: number | null
+  approvalAmountAbove: number | null
+}
+
 export type FeeSettings = {
-  defaultMonthlyFee: number
   dueDay: number
   maxAdvanceMonths: number
+  concessionPolicy: ConcessionPolicy
 }
 
 export type AttendanceSettings = {
@@ -373,6 +380,16 @@ export type AdmissionSettings = {
   prefix: string
   digits: number
 }
+
+/** How a concession changes a bill: a set payable amount, a fixed discount, a percentage, or a full waiver. */
+export type ConcessionMode = "percent" | "fixed_discount" | "fixed_payable" | "waiver"
+
+/** One letter grade: a pass at or above `min` percent gets `grade` (highest band first). */
+export type GradeBand = { min: number; grade: string }
+export type GradingSettings = { bands: GradeBand[] }
+
+/** Printed at the bottom of every fee receipt. */
+export type ReceiptSettings = { footerNote: string; showSignatureLine: boolean }
 
 export type ResultVisibilitySettings = {
   feeRule: ResultFeeRule
@@ -387,6 +404,8 @@ export type SchoolSettings = {
   fees: FeeSettings
   attendance: AttendanceSettings
   admission: AdmissionSettings
+  grading: GradingSettings
+  receipt: ReceiptSettings
 }
 
 export type SchoolUpdate = {
@@ -398,6 +417,7 @@ export type SchoolUpdate = {
   status: UpdateStatus
   due: string
   author: string
+  authorUserId?: number
 }
 
 export type TimetableSlot = {
@@ -483,9 +503,14 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
     rankTie: "shared",
   },
   fees: {
-    defaultMonthlyFee: 8500,
     dueDay: 10,
     maxAdvanceMonths: 12,
+    concessionPolicy: {
+      allowedModes: ["percent", "fixed_discount", "waiver"],
+      approvalRule: "none",
+      approvalPercentAbove: null,
+      approvalAmountAbove: null,
+    },
   },
   attendance: {
     editWindowDays: 7,
@@ -495,6 +520,17 @@ export const DEFAULT_SETTINGS: SchoolSettings = {
     prefix: "CLS",
     digits: 4,
   },
+  grading: {
+    bands: [
+      { min: 90, grade: "A+" },
+      { min: 80, grade: "A" },
+      { min: 70, grade: "B" },
+      { min: 60, grade: "C" },
+      { min: 50, grade: "D" },
+      { min: 0, grade: "E" },
+    ],
+  },
+  receipt: { footerNote: "", showSignatureLine: true },
 }
 export { getToday } from "@/lib/dates"
 export const PAGE_SIZE = 8

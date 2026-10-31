@@ -22,6 +22,12 @@ Then open the local address printed by Vite. The login page contains demo access
 3. Try **New admission**, **Record payment**, **Offline sync** (load the sample workbook and review skipped rows before importing), **Mark attendance**, and **Review mark sheet**. Published marks and published updates are what parents see. Submitted or published mark sheets stay locked until management reopens them.
 4. Use **Reset demo school** in the sidebar to restore the starting register.
 
+## Deploying (Stage / production)
+
+Set `VITE_API_URL=https://<api-host>/api` in Vercel (see `.env.example`); `npm run build` fails without it,
+except with `--mode development`. Leave `VITE_R2_PUBLIC_BASE_URL` unset. Full API, database, R2, Resend and
+smoke-test steps: `Eduvia-Api/docs/DEPLOYMENT-STAGE.md`.
+
 ## Production check
 
 Verified commands:

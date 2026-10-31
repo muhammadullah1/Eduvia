@@ -1,4 +1,5 @@
 import { api } from "@/lib/api"
+import type { ApiSchedule } from "@/lib/api-types"
 
 export const EXAM_TYPES = [
   "Mid-Term",
@@ -17,6 +18,12 @@ export type ExamStatus =
   | "Published"
   | "Archived"
 
+export type ExamGateOverride = {
+  id: number
+  reason: string
+  grantedAt: string
+}
+
 export type ExamGateStatus = {
   exam: { id: number; name: string; feeMonth: string | null }
   feeRule: string
@@ -26,7 +33,25 @@ export type ExamGateStatus = {
     student: { id: number; firstName: string; lastName: string; admissionNo: string | null }
     feeCleared: boolean
     visibleToParent: boolean
+    override?: ExamGateOverride | null
   }[]
+}
+
+export type ResultOverrideDto = {
+  id: number
+  fkExamId: number
+  fkStudentId: number
+  reason: string
+  grantedAt: string
+  revokedAt?: string | null
+  student?: {
+    id: number
+    firstName: string
+    lastName: string
+    admissionNo?: string | null
+  } | null
+  grantedBy?: { id: number; firstName: string; lastName: string } | null
+  exam?: { id: number; name: string } | null
 }
 
 export type ExamClassRef = { id: number; label: string }
@@ -382,6 +407,9 @@ const examsService = {
   revokeOverride: (overrideId: number) =>
     api.delete<unknown>(`/exams/overrides/${overrideId}`),
 
+  listOverrides: (query?: { examId?: number }) =>
+    api.get<ResultOverrideDto[]>("/exams/overrides", query),
+
   bulkOverride: (examId: number, classId: number, reason: string) =>
     api.post<{ granted: number }>(`/exams/${examId}/overrides/bulk`, {
       classId,
@@ -393,6 +421,18 @@ const examsService = {
 
   updateVisibility: (body: { feeRule?: string; rankTie?: "shared" | "dense" }) =>
     api.put<unknown>("/settings/resultVisibility", body),
+
+  listSchedules: () => api.get<ApiSchedule[]>("/daily-tests/schedules"),
+
+  saveSchedule: (body: {
+    classId: number
+    subjectId: number
+    weekday: string
+    maxScore: number
+  }) => api.put<ApiSchedule>("/daily-tests/schedules", body),
+
+  deactivateSchedule: (id: number) =>
+    api.delete<{ id: number }>(`/daily-tests/schedules/${id}`),
 
   dailyTests: (month: string) =>
     api.get<DailyTestDto[]>("/daily-tests", { month }),

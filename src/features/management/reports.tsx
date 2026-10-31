@@ -1,7 +1,10 @@
-import { FileBarChart2, History } from "lucide-react"
-import { useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
+import { ArrowRight, FileBarChart2, History, Landmark, type LucideIcon, ScrollText, Users } from "lucide-react"
+import { useMemo, useState } from "react"
+import { Link } from "react-router-dom"
 
-import { FEE_REPORT_KINDS } from "@/api/fees/fee-reports.service"
+import auditService from "@/api/audit/audit.service"
+import { FEE_REPORT_KINDS, type FeeReportKind } from "@/api/fees/fee-reports.service"
 import { ClsSubTabs } from "@/components/app/cls-sub-tabs"
 import { EmptyState } from "@/components/app/kit"
 import {
@@ -10,35 +13,66 @@ import {
   ReportPanelMessage,
 } from "@/components/app/report-layout"
 import { Badge } from "@/components/ui/badge"
-import { useSchool } from "@/data/store"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { FeeReportsPanel } from "@/features/management/fee-reports"
+import { StudentReportsPanel } from "@/features/management/student-reports"
 import { useClientPagination } from "@/hooks/use-client-pagination"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
+import { portalPath } from "@/lib/auth"
 import { timeAgo } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { useUrlTab } from "@/lib/use-url-tab"
+
+/** Entity types supported by GET /audit-logs (API max limit 200). */
+const AUDIT_ENTITY_FILTERS = [
+  { value: "all", label: "All entities" },
+  { value: "school_setting", label: "Settings" },
+  { value: "school_update", label: "Notices" },
+  { value: "fee_payment", label: "Fee payments" },
+  { value: "student_fee_month", label: "Fee months" },
+  { value: "exam", label: "Exams" },
+  { value: "daily_lesson", label: "Daily lessons" },
+] as const
 
 const ALL_KINDS = FEE_REPORT_KINDS.map((k) => k.kind)
 
+type ReportTab = { value: string; label: string; icon: LucideIcon }
+
 /**
- * Reports (SRS §4.5, §9). Fee reports come from the API and are Super Admin + Accountant only;
- * the Operations Manager never sees fee data. The audit trail is Super Admin + Operations Manager (read-only for Ops).
- * Overall Financial Reports live under Finance (/admin/finance?tab=report).
+ * Reports (SRS §8, §9). Student reports (list, admissions, class distribution, status and
+ * promotion records) for Super Admin + Operations Manager; fee reports for Super Admin +
+ * Accountant (own receipts only); the audit trail for Super Admin + Operations Manager.
+ * The Financial Report and exam documents live in their own sections and are linked here.
  */
 export function Reports() {
   const actor = useActor()
-  const fees = can(actor.role, "fees.reports")
-  const audit = can(actor.role, "audit.view")
+  const can = useCan()
+  const students = can("students.manage")
+  const fees = can("fees.reports")
+  const audit = can("audit.read")
+  const finance = can("finance.reports")
+  const exams = can("exams.create")
 
-  const tabs = useMemo(
-    () => [
-      ...(fees ? [{ value: "fees", label: "Fee reports", icon: FileBarChart2 }] : []),
-      ...(audit ? [{ value: "audit", label: "Audit trail", icon: History }] : []),
-    ],
-    [fees, audit]
-  )
-  const allowed = useMemo(() => (tabs.length ? tabs.map((t) => t.value) : ["none"]), [tabs])
+  const tabs = useMemo(() => {
+    const list: ReportTab[] = []
+    if (students) list.push({ value: "students", label: "Student reports", icon: Users })
+    if (fees) list.push({ value: "fees", label: "Fee reports", icon: FileBarChart2 })
+    if (audit) list.push({ value: "audit", label: "Audit trail", icon: History })
+    return list
+  }, [students, fees, audit])
+  const allowed = useMemo(() => {
+    if (tabs.length) return tabs.map((t) => t.value)
+    return ["none"]
+  }, [tabs])
   const [view, setView] = useUrlTab(allowed, "tab")
+  let feeKinds: FeeReportKind[] = ["daily"]
+  if (actor.role === "super_admin") feeKinds = ALL_KINDS
 
   if (tabs.length === 0) {
     return (
@@ -46,7 +80,7 @@ export function Reports() {
         <ReportPageHeader title="Reports" subtitle="School reports for your role" />
         <EmptyState
           title="No reports for your role"
-          detail="Fee reports are available to the Super Admin and Accountant only. Attendance registers can be printed from Student attendance."
+          detail="Reports are available to the Super Admin, Operations Manager and Accountant. Attendance registers can be printed from Student attendance."
         />
       </div>
     )
@@ -54,22 +88,50 @@ export function Reports() {
 
   return (
     <div className="flex flex-col gap-6">
-      <ReportPageHeader
-        title="Reports"
-        subtitle={
-          fees
-            ? "Fee collections, balances, and traceable security audit history"
-            : "Security audit trail"
-        }
-      />
-      {tabs.length > 1 ? (
-        <ClsSubTabs aria-label="Reports" value={view} onValueChange={setView} items={tabs} />
-      ) : null}
-      {view === "fees" && fees ? (
-        <FeeReportsPanel kinds={actor.role === "super_admin" ? ALL_KINDS : ["daily"]} />
-      ) : null}
-      {view === "audit" && audit ? <AuditTrail /> : null}
+      <ReportPageHeader title="Reports" subtitle="Students, fee collections and a traceable audit history" />
+      {(finance || exams) && (
+        <div className="grid gap-3 sm:grid-cols-2" aria-label="Related reports">
+          {finance && (
+            <ReportLink
+              to={`${portalPath(actor.role, "finance")}?tab=report`}
+              icon={Landmark}
+              title="Financial report"
+              detail="Income, expenses and net position by month, quarter or year"
+            />
+          )}
+          {exams && (
+            <ReportLink
+              to={portalPath(actor.role, "exams")}
+              icon={ScrollText}
+              title="Exam documents"
+              detail="Result sheets, DMCs and award lists from each examination"
+            />
+          )}
+        </div>
+      )}
+      {tabs.length > 1 && <ClsSubTabs aria-label="Reports" wrap value={view} onValueChange={setView} items={tabs} />}
+      {view === "students" && students && <StudentReportsPanel />}
+      {view === "fees" && fees && <FeeReportsPanel kinds={feeKinds} />}
+      {view === "audit" && audit && <AuditTrail />}
     </div>
+  )
+}
+
+function ReportLink({ to, icon: Icon, title, detail }: { to: string; icon: LucideIcon; title: string; detail: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex min-w-0 items-center gap-3 rounded-xl border border-[var(--cls-border)] bg-white px-4 py-3 shadow-[0_1px_2px_rgba(16,24,40,0.06)] transition-colors hover:bg-[var(--brand-100)]/40 focus-visible:ring-2 focus-visible:ring-[var(--primary-color)] focus-visible:outline-none"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-100)] text-[var(--primary-color)]">
+        <Icon className="size-4" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-semibold text-[var(--cls-ink)]">{title}</span>
+        <span className="block truncate text-xs text-[var(--cls-muted)]">{detail}</span>
+      </span>
+      <ArrowRight className="size-4 shrink-0 text-[var(--cls-muted)]" aria-hidden />
+    </Link>
   )
 }
 
@@ -84,16 +146,48 @@ export function AuditLogPage() {
 }
 
 function AuditTrail() {
-  const { state } = useSchool()
-  const { paginatedItems, pagination } = useClientPagination(state.audits)
+  const [entityType, setEntityType] = useState("all")
+  const auditsQuery = useQuery({
+    queryKey: ["audit-logs", entityType],
+    queryFn: () =>
+      auditService.list({
+        limit: 200,
+        entityType: entityType === "all" ? undefined : entityType,
+      }),
+  })
+  const audits = auditsQuery.data ?? []
+  const { paginatedItems, pagination } = useClientPagination(audits)
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h2 className="text-base font-semibold text-[var(--cls-ink)]">Security audit trail</h2>
-        <p className="mt-0.5 text-sm text-[var(--cls-muted)]">Sensitive actions recorded by the school system.</p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-base font-semibold text-[var(--cls-ink)]">Security audit trail</h2>
+          <p className="mt-0.5 text-sm text-[var(--cls-muted)]">
+            Sensitive actions recorded by the school system. Showing up to 200
+            newest matching events (API limit).
+          </p>
+        </div>
+        <div className="w-full sm:w-56">
+          <Select value={entityType} onValueChange={setEntityType}>
+            <SelectTrigger aria-label="Filter audit entities">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AUDIT_ENTITY_FILTERS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
       <ReportPanel pagination={pagination}>
-        {state.audits.length === 0 ? (
+        {auditsQuery.isLoading ? (
+          <ReportPanelMessage title="Loading audit trail…" />
+        ) : auditsQuery.isError ? (
+          <ReportPanelMessage title="Could not load audit trail" />
+        ) : audits.length === 0 ? (
           <ReportPanelMessage title="No audit events yet" />
         ) : (
           <ul className="divide-y divide-[var(--cls-border)]">

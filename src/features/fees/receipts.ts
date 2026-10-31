@@ -3,7 +3,7 @@ import { toast } from "sonner"
 import type { Payment, SchoolState } from "@/data/types"
 import { monthLabel } from "@/lib/fees"
 import { classLabel, formatDate, pkr } from "@/lib/format"
-import { printDocument } from "@/lib/print"
+import { type PrintBrand, printDocument } from "@/lib/print"
 
 export function feeMonthsLabel(payment: Payment) {
   return (
@@ -13,7 +13,7 @@ export function feeMonthsLabel(payment: Payment) {
 }
 
 /** Individual receipt (§9): no running totals, just this payment. */
-export function printReceipt(state: SchoolState, payment: Payment) {
+export function printReceipt(state: SchoolState, payment: Payment, brand: PrintBrand) {
   const student = state.students.find((item) => item.id === payment.studentId)
   const opened = printDocument(
     `Fee receipt ${payment.ref}`,
@@ -35,7 +35,8 @@ export function printReceipt(state: SchoolState, payment: Payment) {
           : []),
         ["Amount received", pkr(payment.amount)],
       ],
-    }
+    },
+    brand
   )
   if (!opened) toast.error("Allow pop-ups to print the receipt.")
 }

@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { CollectContext, ServerReceipt } from "@/api/fees/collect.service"
+import { grantRoleDefaults } from "@/test/permissions"
 
 import { CollectFeePage } from "./collect-fee-page"
 import { allocationRows, amountError, canApplyCredit, receiptPrintRows } from "./collect-rules"
@@ -17,7 +18,7 @@ vi.mock("@/api/fees/collect.service", async (orig) => ({
   default: svc,
 }))
 vi.mock("@/lib/actor", () => ({ useActor: () => ({ role: actor.role, name: "Test" }) }))
-vi.mock("@/data/store", () => ({ useSchool: () => ({ syncPortalForRoute: sync }) }))
+vi.mock("@/data/store", () => ({ useSchool: () => ({ syncPortalForRoute: sync, state: { settings: { receipt: { footerNote: "", showSignatureLine: true } } } }) }))
 vi.mock("@/features/management/screens", () => ({ StudentLedgerView: () => <div>ledger view</div> }))
 
 const CTX: CollectContext = {
@@ -53,6 +54,7 @@ function wrap(node: ReactNode) {
 
 beforeEach(() => {
   actor.role = "super_admin"
+  grantRoleDefaults("super_admin")
   Object.values(svc).forEach((fn) => fn.mockReset())
   sync.mockReset()
   svc.overview.mockResolvedValue({ date: "2026-10-24", totalStudents: 10, withOutstanding: 3, todayCollection: { receipts: 0, amount: 0 } })
@@ -93,6 +95,7 @@ describe("CollectFeePage", () => {
 
   it("accountant never sees a school-wide total", async () => {
     actor.role = "accountant"
+    grantRoleDefaults("accountant")
     svc.overview.mockResolvedValue({ date: "2026-10-24", totalStudents: 10, withOutstanding: 3, myCollectionToday: { receipts: 2, amount: 5000 } })
     wrap(<CollectFeePage />)
     expect(await screen.findByText("My Receipts Today")).toBeTruthy()

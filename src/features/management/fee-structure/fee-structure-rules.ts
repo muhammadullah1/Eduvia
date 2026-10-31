@@ -2,7 +2,7 @@ import type { FeeFrequency } from "@/api/fees/fee-structure.service"
 
 export const FREQUENCY_LABEL: Record<FeeFrequency, string> = {
   Monthly: "Every month",
-  OneTime: "Once, at admission",
+  OneTime: "Once",
   Yearly: "Once a year",
 }
 

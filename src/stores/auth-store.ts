@@ -1,6 +1,8 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
 
+import type { PermissionKey } from "@/lib/permission-keys.generated"
+
 type Role =
   | "super_admin"
   | "operations_manager"
@@ -22,9 +24,12 @@ type AuthSession = {
   role: Role
   token?: string
   user?: AuthUser | null
+  /** Effective permissions from the API (`/auth/login`, `/auth/me`); never derived from the role. */
+  permissions?: PermissionKey[]
 }
 
 type AuthStore = AuthSession & {
+  permissions: PermissionKey[]
   setSession: (session: AuthSession) => void
   logout: () => void
 }
@@ -35,17 +40,20 @@ export const useAuthStore = create<AuthStore>()(
       role: "super_admin",
       token: undefined,
       user: null,
+      permissions: [],
       setSession: (session) =>
         set({
           role: session.role,
           token: session.token,
           user: session.user ?? null,
+          permissions: session.permissions ?? [],
         }),
       logout: () =>
         set({
           role: "super_admin",
           token: undefined,
           user: null,
+          permissions: [],
         }),
     }),
     {
@@ -54,6 +62,7 @@ export const useAuthStore = create<AuthStore>()(
         role: state.role,
         token: state.token,
         user: state.user,
+        permissions: state.permissions,
       }),
     }
   )
@@ -86,8 +95,8 @@ function readLegacyAuth(): AuthSession | null {
 }
 
 export function readAuthSession(): AuthSession | null {
-  const { role, token, user } = useAuthStore.getState()
-  if (token) return { role, token, user }
+  const { role, token, user, permissions } = useAuthStore.getState()
+  if (token) return { role, token, user, permissions }
   const legacy = readLegacyAuth()
   if (legacy?.token) {
     useAuthStore.getState().setSession(legacy)

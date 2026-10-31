@@ -1,6 +1,7 @@
 import { useQueryClient } from "@tanstack/react-query"
 import { Layers, Plus } from "lucide-react"
 import { useMemo, useState } from "react"
+import { useNavigate } from "react-router-dom"
 
 import classesService from "@/api/classes/classes.service"
 import {
@@ -19,6 +20,9 @@ import {
 } from "@/features/management/classes/hooks/use-classes"
 import { useSessionsList } from "@/features/management/sessions/hooks/use-sessions"
 import { useClientPagination } from "@/hooks/use-client-pagination"
+import { useCan } from "@/lib/access"
+import { useActor } from "@/lib/actor"
+import { portalPath } from "@/lib/auth"
 import { toast } from "@/lib/toast"
 
 const CLASS_API_DEFAULTS = {
@@ -32,12 +36,17 @@ type Props = {
 
 export function ClassesPage({ globalQuery, onOpenClass }: Props) {
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const actor = useActor()
+  const can = useCan()
+  const canSetFees = can("fees.structure.update")
   const [search, setSearch] = useState("")
   const [modalOpen, setModalOpen] = useState(false)
   const [editClass, setEditClass] = useState<ClassSection | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [createdClassId, setCreatedClassId] = useState<string | null>(null)
 
   const { data: sessions = [], isLoading: sessionsLoading } = useSessionsList()
 
@@ -121,7 +130,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
     }
     setSaving(true)
     try {
-      await classesService.create({
+      const created = await classesService.create({
         fkSessionId: sessionNumericId,
         grade: payload.grade,
         section: payload.section,
@@ -132,6 +141,7 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
       })
       await afterMutation("Class created")
       setModalOpen(false)
+      if (canSetFees && created?.id != null) setCreatedClassId(String(created.id))
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Could not create class."
@@ -232,6 +242,35 @@ export function ClassesPage({ globalQuery, onOpenClass }: Props) {
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
           Activate an academic session before creating classes for this school
           year.
+        </div>
+      ) : null}
+
+      {createdClassId ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-950">
+          <p>Class created. Set tuition and other fees before billing starts.</p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)]"
+              onClick={() => {
+                navigate(
+                  `${portalPath(actor.role, "fee-structure")}?classId=${createdClassId}`
+                )
+                setCreatedClassId(null)
+              }}
+            >
+              Set fees
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => setCreatedClassId(null)}
+            >
+              Dismiss
+            </Button>
+          </div>
         </div>
       ) : null}
 

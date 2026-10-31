@@ -46,15 +46,6 @@ export function formatWhen(iso: string, now = Date.now()) {
   return formatLongDate(iso)
 }
 
-export function letterGrade(percent: number) {
-  if (percent >= 90) return "A+"
-  if (percent >= 80) return "A"
-  if (percent >= 70) return "B"
-  if (percent >= 60) return "C"
-  if (percent >= 50) return "D"
-  return "F"
-}
-
 export function downloadText(
   filename: string,
   content: string,
@@ -138,12 +129,3 @@ export function classLabel(
   return id || "—"
 }
 
-export function gradeFromScore(score: number, max: number) {
-  const pct = (score / max) * 100
-  if (pct >= 90) return "A+"
-  if (pct >= 80) return "A"
-  if (pct >= 70) return "B"
-  if (pct >= 60) return "C"
-  if (pct >= 50) return "D"
-  return "F"
-}

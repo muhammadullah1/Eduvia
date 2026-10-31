@@ -116,7 +116,7 @@ export function ApplicationDetailPage({
               </p>
             </div>
           </div>
-          <div className="flex shrink-0 items-center justify-start gap-2 lg:justify-end">
+          <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 lg:justify-end">
             {isDraft && onContinueDraft ? (
               <Button
                 type="button"

@@ -127,7 +127,6 @@ export function DailyPanel({ classId, date, onClassChange, onDateChange }: Props
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7"
                           disabled={!data.canEdit}
                           title={!data.canEdit ? "Outside the edit window" : undefined}
                           onClick={() => setEditing(student)}

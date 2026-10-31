@@ -4,7 +4,7 @@ import {
   mapTeacherAbsencesFromApi,
 } from "@/api/teacher-absences/map-absences"
 import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
-import { canListUserAccounts, canReadSlice, PORTAL_CORE_SLICES, readableSlices, type SchoolDataSlice, unavailableSlicesFor } from "@/data/portal-sync"
+import { canListUserAccounts, canReadSlice, PORTAL_CORE_SLICES, readableSlices, type SchoolDataSlice, sessionPermissions, unavailableSlicesFor } from "@/data/portal-sync"
 import {
   type AbsenceStatus,
   type AcademicSession,
@@ -151,7 +151,7 @@ export async function fetchPortalCore(): Promise<
       safeGet<ApiClass[]>("/classes", undefined, []),
       safeGet<ApiSession[]>("/sessions", undefined, []),
       safeGet<ApiSubject[]>("/subjects", undefined, []),
-      canReadSlice(loadAuth()?.role, "settings")
+      canReadSlice(sessionPermissions(), "settings")
         ? safeGet<ApiSettings>("/settings", undefined, {})
         : Promise.resolve({} as ApiSettings),
     ])
@@ -195,9 +195,11 @@ export async function fetchPortalCore(): Promise<
       settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
     resultVisibility:
       settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
-    fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+    fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
     attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
     admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
+    grading: settingsData.grading ?? DEFAULT_SETTINGS.grading,
+    receipt: settingsData.receipt ?? DEFAULT_SETTINGS.receipt,
   }
 
   return { classes, sessions, subjects, settings }
@@ -260,9 +262,11 @@ async function fetchRequestedCore(
         settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
       resultVisibility:
         settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
-      fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+      fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
       attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
       admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
+      grading: settingsData.grading ?? DEFAULT_SETTINGS.grading,
+      receipt: settingsData.receipt ?? DEFAULT_SETTINGS.receipt,
     }
   }
   return partial
@@ -322,7 +326,7 @@ async function fetchStudentsFromApi(): Promise<Student[]> {
 async function fetchStaffFromApi(): Promise<Staff[]> {
   const [teachersData, usersData] = await Promise.all([
     safeGet<ApiTeacher[]>("/teachers", undefined, []),
-    canListUserAccounts(loadAuth()?.role)
+    canListUserAccounts(sessionPermissions())
       ? safeGet<{ users: ApiUser[] }>("/users", { pageSize: 1000 }, { users: [] })
       : Promise.resolve({ users: [] as ApiUser[] }),
   ])
@@ -377,12 +381,12 @@ async function fetchFeesFromApi(): Promise<
   Pick<SchoolState, "feeMonths" | "payments">
 > {
   const today = getToday()
-  const role = loadAuth()?.role
+  const permissions = sessionPermissions()
   const [feeMonthsData, paymentsData] = await Promise.all([
-    canReadSlice(role, "feeMonths")
+    canReadSlice(permissions, "feeMonths")
       ? safeGet<ApiFeeMonth[]>("/fees/months", undefined, [])
       : Promise.resolve([] as ApiFeeMonth[]),
-    canReadSlice(role, "payments")
+    canReadSlice(permissions, "payments")
       ? safeGet<ApiPayment[]>("/fees/payments", undefined, [])
       : Promise.resolve([] as ApiPayment[]),
   ])
@@ -443,7 +447,7 @@ export async function fetchSchoolDataSlices(
   slices: SchoolDataSlice[]
 ): Promise<Partial<SchoolState>> {
   // Never request a slice the signed-in role cannot read (the API would answer 403).
-  const want = new Set(readableSlices(loadAuth()?.role, slices))
+  const want = new Set(readableSlices(sessionPermissions(), slices))
   if (want.size === 0) return {}
   const partial: Partial<SchoolState> = {}
   const tasks: Promise<void>[] = []
@@ -520,8 +524,8 @@ export async function fetchSchoolDataSlices(
 export async function fetchBackendState(
   only?: ReadonlySet<SchoolDataSlice>
 ): Promise<SchoolState> {
-  const role = loadAuth()?.role
-  const unavailable = unavailableSlicesFor(role)
+  const permissions = sessionPermissions()
+  const unavailable = unavailableSlicesFor(permissions)
   const need = (slice: SchoolDataSlice) => (!only || only.has(slice)) && !unavailable.has(slice)
   const [
     classesData,
@@ -559,7 +563,7 @@ export async function fetchBackendState(
     need("staff")
       ? safeGet<ApiTeacher[]>("/teachers", undefined, [])
       : Promise.resolve([] as ApiTeacher[]),
-    need("staff") && canListUserAccounts(role)
+    need("staff") && canListUserAccounts(permissions)
       ? safeGet<{ users: ApiUser[] }>("/users", { pageSize: 1000 }, { users: [] })
       : Promise.resolve({ users: [] as ApiUser[] }),
     need("students")
@@ -1031,22 +1035,25 @@ export async function fetchBackendState(
       settingsData.dailyTestRules ?? DEFAULT_SETTINGS.dailyTestRules,
     resultVisibility:
       settingsData.resultVisibility ?? DEFAULT_SETTINGS.resultVisibility,
-    fees: settingsData.fees ?? DEFAULT_SETTINGS.fees,
+    fees: { ...DEFAULT_SETTINGS.fees, ...(settingsData.fees ?? {}) },
     attendance: settingsData.attendance ?? DEFAULT_SETTINGS.attendance,
     admission: settingsData.admission ?? DEFAULT_SETTINGS.admission,
+    grading: settingsData.grading ?? DEFAULT_SETTINGS.grading,
+    receipt: settingsData.receipt ?? DEFAULT_SETTINGS.receipt,
   }
 
   // 19. Updates
   const updates: SchoolUpdate[] = updatesData.length
     ? updatesData.map((u) => ({
         id: String(u.id),
-        classId: String(u.fkClassId),
+        classId: String(u.classId),
         kind: (u.kind ?? "Notice") as UpdateKind,
         subject: u.subject ?? "General",
         text: u.text,
         status: (u.status ?? "Draft") as UpdateStatus,
-        due: u.dueDate ? u.dueDate.slice(0, 10) : today,
+        due: u.due ? u.due.slice(0, 10) : today,
         author: u.author ?? "School Office",
+        authorUserId: u.authorUserId ?? undefined,
       }))
     : []
 

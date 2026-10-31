@@ -1,4 +1,6 @@
+import { holds, type PermissionKey } from "@/lib/access"
 import type { Role } from "@/lib/auth"
+import { useAuthStore } from "@/stores/auth-store"
 
 /** Loaded on every authenticated admin portal view (session label, class pickers, etc.). */
 export const PORTAL_CORE_SLICES = [
@@ -34,7 +36,8 @@ export type SchoolDataSlice =
 const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   /** List loads via paginated admissions API in the list page. */
   admissions: [],
-  dashboard: ["students", "applications", "feeMonths", "payments"],
+  /** One server-built payload via React Query (`features/dashboard`). */
+  dashboard: [],
   overview: [
     "students",
     "applications",
@@ -62,7 +65,6 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   absences: ["classes", "slots"],
   "lesson-plan": [],
   curriculum: ["plannedChapters"],
-  "lesson-review": ["dailyLessons", "plannedChapters", "staff"],
   "daily-test-schedule": ["classes", "subjects", "settings", "slots", "testSchedules"],
   "weekly-tests": ["testSchedules", "weeklyTests"],
   students: ["staff", "students"],
@@ -71,10 +73,9 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   "student-attendance": ["attendance", "students"],
   "collect-fee": ["students", "feeMonths", "payments"],
   "offline-sync": ["students", "feeMonths", "payments"],
-  /** Examination UI is not integrated. Do not preload portal datasets. */
+  /** Exam list/marks load via React Query (`examsService`). */
   exams: [],
   "results-gate": ["resultOverrides", "students", "feeMonths"],
-  messages: ["updates"],
   settings: [],
   /** Fee reports load from /fees/reports; only the SA audit trail comes from the store. */
   reports: ["audits"],
@@ -82,68 +83,69 @@ const ADMIN_SECTION_SLICES: Record<string, SchoolDataSlice[]> = {
   "audit-log": ["audits"],
 }
 
-const SA = "super_admin"
-const OPS = "operations_manager"
-const ACC = "accountant"
-const TCH = "teacher"
-const PAR = "parent"
-const EVERYONE: Role[] = [SA, OPS, ACC, TCH, PAR]
-
 /**
- * Who may read each slice's endpoint. Mirrors the API permission map
- * (Eduvia-Api `constants/permissions.js`); a role missing here gets a 403 from the API,
- * so the portal never asks. Fee data is Super Admin + Accountant (+ a parent's own child);
- * the Operations Manager never receives fee months, payments or expenses.
+ * The permission each slice's read endpoint requires (Eduvia-Api `constants/permissions.js`).
+ * A session without it would get a 403, so the portal never asks.
  */
-export const SLICE_READ_ROLES: Record<SchoolDataSlice | "users", readonly Role[]> = {
-  classes: EVERYONE, // academic.read
-  sessions: EVERYONE,
-  subjects: EVERYONE,
-  settings: [SA, OPS], // settings.read
-  staff: [SA, OPS, TCH], // teachers.read (/teachers)
-  users: [SA, OPS], // users.read (/users)
-  students: EVERYONE, // students.read (scoped server-side)
-  applications: [SA, OPS], // admissions.manage
-  feeMonths: [SA, ACC, PAR], // fees.months.read
-  payments: [SA, ACC, PAR], // fees.payments.read
-  expenses: [SA, ACC], // expenses.read
-  sheets: [SA, OPS, TCH, PAR], // exams.read
-  resultOverrides: [SA, OPS], // results.override
-  attendance: [SA, OPS, TCH, PAR], // attendance.read
-  plannedChapters: [SA, OPS, TCH], // chapters.read
-  dailyLessons: [SA, OPS, TCH, PAR], // lessons.read
-  slots: [SA, OPS, TCH, PAR], // timetable.read
-  teacherAbsences: [SA, OPS, TCH], // absences.read
-  substitutions: [SA, OPS, TCH],
-  testSchedules: [SA, OPS, TCH, PAR], // tests.read
-  weeklyTests: [SA, OPS, TCH, PAR],
-  updates: EVERYONE, // updates.read
-  audits: [SA, OPS], // audit.read (Ops read-only, fee entries filtered server-side)
+export const SLICE_READ_PERMISSIONS: Record<SchoolDataSlice | "users", PermissionKey> = {
+  classes: "academic.read",
+  sessions: "academic.read",
+  subjects: "academic.read",
+  settings: "settings.read",
+  staff: "teachers.read",
+  users: "users.read",
+  students: "students.read",
+  applications: "admissions.manage",
+  feeMonths: "fees.months.read",
+  payments: "fees.payments.read",
+  expenses: "expenses.read",
+  sheets: "exams.read",
+  resultOverrides: "results.override",
+  attendance: "attendance.read",
+  plannedChapters: "chapters.read",
+  dailyLessons: "lessons.read",
+  slots: "timetable.read",
+  teacherAbsences: "absences.read",
+  substitutions: "absences.read",
+  testSchedules: "tests.read",
+  weeklyTests: "tests.read",
+  updates: "updates.read",
+  audits: "audit.read",
 }
 
-export function canReadSlice(role: Role | undefined, slice: SchoolDataSlice | "users") {
-  return Boolean(role) && SLICE_READ_ROLES[slice].includes(role as Role)
+/** Permissions of the signed-in session; `undefined` before sign-in. */
+export type SessionPermissions = readonly PermissionKey[] | undefined
+
+/** The live session's permissions for non-React callers. */
+export function sessionPermissions(): SessionPermissions {
+  const { role, permissions } = useAuthStore.getState()
+  if (!role) return undefined
+  return permissions
 }
 
-/** Slices whose endpoints this role may not read, so syncing skips them (no doomed 403s). */
-export function unavailableSlicesFor(role: Role | undefined): ReadonlySet<SchoolDataSlice> {
-  if (!role) return new Set()
+export function canReadSlice(permissions: SessionPermissions, slice: SchoolDataSlice | "users") {
+  return Boolean(permissions) && holds(permissions ?? [], SLICE_READ_PERMISSIONS[slice])
+}
+
+/** Slices this session may not read, so syncing skips them (no doomed 403s). */
+export function unavailableSlicesFor(permissions: SessionPermissions): ReadonlySet<SchoolDataSlice> {
+  if (!permissions) return new Set()
   return new Set(
-    (Object.keys(SLICE_READ_ROLES) as (SchoolDataSlice | "users")[]).filter(
-      (slice): slice is SchoolDataSlice => slice !== "users" && !canReadSlice(role, slice)
+    (Object.keys(SLICE_READ_PERMISSIONS) as (SchoolDataSlice | "users")[]).filter(
+      (slice): slice is SchoolDataSlice => slice !== "users" && !canReadSlice(permissions, slice)
     )
   )
 }
 
-/** Drop the slices a role cannot read. */
-export function readableSlices(role: Role | undefined, slices: Iterable<SchoolDataSlice>): SchoolDataSlice[] {
-  const blocked = unavailableSlicesFor(role)
+/** Drop the slices this session cannot read. */
+export function readableSlices(permissions: SessionPermissions, slices: Iterable<SchoolDataSlice>): SchoolDataSlice[] {
+  const blocked = unavailableSlicesFor(permissions)
   return [...new Set(slices)].filter((slice) => !blocked.has(slice))
 }
 
-/** Staff user accounts (/users) are management-only; teachers still load /teachers. */
-export function canListUserAccounts(role: Role | undefined) {
-  return canReadSlice(role, "users")
+/** Staff user accounts (/users) need users.read; teachers still load /teachers. */
+export function canListUserAccounts(permissions: SessionPermissions) {
+  return canReadSlice(permissions, "users")
 }
 
 export type PortalSyncPlan =
@@ -173,22 +175,26 @@ const NO_DEFAULT_CORE = new Set([
   "absences",
 ])
 
-export function resolvePortalSyncPlan(role: Role, section: string): PortalSyncPlan {
+export function resolvePortalSyncPlan(
+  role: Role,
+  permissions: SessionPermissions,
+  section: string
+): PortalSyncPlan {
   if (role === "teacher" || role === "parent" || role === "accountant") {
     return { mode: "full" }
   }
   if (section === "settings") {
-    return { mode: "partial", slices: readableSlices(role, ["settings"]) }
+    return { mode: "partial", slices: readableSlices(permissions, ["settings"]) }
   }
   const sectionSlices = ADMIN_SECTION_SLICES[section]
   if (!sectionSlices) {
     return { mode: "partial", slices: [] }
   }
   if (NO_DEFAULT_CORE.has(section)) {
-    return { mode: "partial", slices: readableSlices(role, sectionSlices) }
+    return { mode: "partial", slices: readableSlices(permissions, sectionSlices) }
   }
   const core = MINIMAL_CORE_SECTIONS.has(section)
     ? (["classes"] as const)
     : PORTAL_CORE_SLICES
-  return { mode: "partial", slices: readableSlices(role, [...core, ...sectionSlices]) }
+  return { mode: "partial", slices: readableSlices(permissions, [...core, ...sectionSlices]) }
 }

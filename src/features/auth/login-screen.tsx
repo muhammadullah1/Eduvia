@@ -72,7 +72,12 @@ export function LoginScreen() {
         return
       }
 
-      saveAuth({ role: res.user.role, token: res.token, user: res.user })
+      saveAuth({
+        role: res.user.role,
+        token: res.token,
+        user: res.user,
+        permissions: res.permissions,
+      })
       window.dispatchEvent(new Event("eduvia:auth-changed"))
       toast.success(`Welcome back, ${res.user.firstName} ${res.user.lastName}!`)
       const target =

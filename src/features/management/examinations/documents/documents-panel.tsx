@@ -221,11 +221,11 @@ function DocumentCard({
         ) : null}
       </div>
       <div className="flex items-center justify-end gap-2 border-t border-[var(--cls-border)] bg-[var(--page-wash)]/60 px-5 py-3">
-        <Button variant="outline" size="sm" className="h-8" disabled={busy != null} onClick={() => void run("preview")}>
+        <Button variant="outline" size="sm" disabled={busy != null} onClick={() => void run("preview")}>
           {busy === "preview" ? <Loader2 className="animate-spin" /> : <Eye />}
           Preview
         </Button>
-        <Button size="sm" className="h-8" disabled={busy != null} onClick={() => void run("download")}>
+        <Button size="sm" disabled={busy != null} onClick={() => void run("download")}>
           {busy === "download" ? <Loader2 className="animate-spin" /> : <Download />}
           Download PDF
         </Button>

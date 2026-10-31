@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CalendarClock, History, Lock, Plus, Trash2 } from "lucide-react"
 import { useMemo, useState } from "react"
+import { useSearchParams } from "react-router-dom"
 import { toast } from "sonner"
 
 import feeStructureService, {
@@ -16,9 +17,8 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table"
-import { useActor } from "@/lib/actor"
+import { useCan } from "@/lib/access"
 import { formatDate } from "@/lib/format"
-import { can } from "@/lib/permissions"
 import { cn } from "@/lib/utils"
 
 import { useClassesList } from "../classes/hooks/use-classes"
@@ -29,19 +29,36 @@ import { FeeTypePill } from "./fee-type-pill"
 
 /** Fee Structure tab: what each class pays, by fee type, with dated changes and full history. */
 export function FeeStructurePage() {
-  const { role } = useActor()
-  const canManage = can(role, "fees.structure.manage")
+  const can = useCan()
+  const canManage = can("fees.structure.update")
   const queryClient = useQueryClient()
 
   const sessions = useSessionsList()
+  const [searchParams, setSearchParams] = useSearchParams()
   // Selections fall back to the current session and its first class until the user picks.
   const [pickedSession, setSessionId] = useState("")
-  const [pickedClass, setClassId] = useState("")
+  const [pickedClass, setPickedClass] = useState("")
   const sessionId =
     pickedSession || (sessions.data?.find((s) => s.current) ?? sessions.data?.[0])?.id || ""
 
   const classes = useClassesList(sessionId ? Number(sessionId) : undefined)
-  const classId = classes.data?.some((c) => c.id === pickedClass) ? pickedClass : (classes.data?.[0]?.id ?? "")
+  const preferredClass = pickedClass || searchParams.get("classId") || ""
+  const classId = classes.data?.some((c) => c.id === preferredClass)
+    ? preferredClass
+    : (classes.data?.[0]?.id ?? "")
+
+  function setClassId(next: string) {
+    setPickedClass(next)
+    setSearchParams(
+      (prev) => {
+        const out = new URLSearchParams(prev)
+        if (next) out.set("classId", next)
+        else out.delete("classId")
+        return out
+      },
+      { replace: true }
+    )
+  }
 
   const numericClassId = Number(classId)
   const structure = useQuery({
@@ -63,7 +80,7 @@ export function FeeStructurePage() {
     onSuccess: async (_data, input) => {
       await refresh()
       setAddOpen(false)
-      toast.success(`${input.feeType} set to PKR ${formatAmount(input.amount)} from ${formatDate(input.effectiveFrom)}`)
+      toast.success(`${input.feeType} set to PKR ${formatAmount(input.amount)}`)
     },
   })
   const remove = useMutation({
@@ -128,21 +145,46 @@ export function FeeStructurePage() {
             </Select>
           </div>
         </div>
-        {canManage ? (
+        {canManage && structure.data && !structure.data.sessionLocked ? (
           <Button
             className="w-full bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)] sm:w-auto"
-            disabled={!structure.data}
             onClick={() => openAdd()}
           >
             <Plus data-icon="inline-start" />
             Add Fee Type
           </Button>
-        ) : (
+        ) : canManage && structure.data?.sessionLocked && (structure.data.bootstrapEligible?.length ?? 0) > 0 ? (
+          <Button
+            className="w-full bg-[var(--cls-brand)] hover:bg-[var(--cls-brand-hover)] sm:w-auto"
+            onClick={() => openAdd(structure.data?.bootstrapEligible?.[0])}
+          >
+            <Plus data-icon="inline-start" />
+            Bootstrap missing fee
+          </Button>
+        ) : canManage && structure.data?.sessionLocked ? (
+          <p className="inline-flex items-center gap-1.5 text-xs text-[var(--cls-muted)]">
+            <Lock className="size-3.5" aria-hidden /> Session fees are locked. Configure the next session&apos;s classes
+            instead.
+          </p>
+        ) : !canManage ? (
           <p className="inline-flex items-center gap-1.5 text-xs text-[var(--cls-muted)]">
             <Lock className="size-3.5" aria-hidden /> Read only — only a Super Admin can change fees.
           </p>
-        )}
+        ) : null}
       </div>
+
+      {structure.data?.sessionLocked ? (
+        <div className="flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900">
+          <Lock className="mt-0.5 size-4 shrink-0" aria-hidden />
+          <p>
+            This session started on {formatDate(structure.data.sessionStartDate || structure.data.asOf)}. Class fee
+            amounts are locked.{" "}
+            {(structure.data.bootstrapEligible?.length ?? 0) > 0
+              ? `You may still set up missing types once: ${structure.data.bootstrapEligible?.join(", ")}.`
+              : "Configure fees on classes for a future academic session."}
+          </p>
+        </div>
+      ) : null}
 
       {filterError ? (
         <LoadError message={errorText(filterError)} onRetry={() => void (sessions.error ? sessions.refetch() : classes.refetch())} />
@@ -162,7 +204,9 @@ export function FeeStructurePage() {
           />
           <StructureTable
             data={structure.data}
-            canManage={canManage}
+            canManage={Boolean(canManage && !structure.data.sessionLocked)}
+            canBootstrap={Boolean(canManage && structure.data.sessionLocked)}
+            bootstrapEligible={structure.data.bootstrapEligible ?? []}
             onAdd={() => openAdd()}
             onChange={(type) => openAdd(type)}
             onHistory={setHistoryOf}
@@ -235,6 +279,8 @@ function SummaryBanner({ data, sessionLabel }: { data: FeeStructure; sessionLabe
 function StructureTable({
   data,
   canManage,
+  canBootstrap = false,
+  bootstrapEligible = [],
   onAdd,
   onChange,
   onHistory,
@@ -242,6 +288,8 @@ function StructureTable({
 }: {
   data: FeeStructure
   canManage: boolean
+  canBootstrap?: boolean
+  bootstrapEligible?: FeeType[]
   onAdd: () => void
   onChange: (type: FeeType) => void
   onHistory: (type: FeeType) => void
@@ -262,11 +310,11 @@ function StructureTable({
     return (
       <ClsPanel>
         <ClsEmpty title="No fees set for this class">
-          {canManage ? (
+          {canManage || (canBootstrap && bootstrapEligible.length > 0) ? (
             <div className="grid justify-items-center gap-3">
-              <p>Add tuition and any admission, exam or annual fees.</p>
+              <p>Add tuition and any admission, exam, annual or promotion fees.</p>
               <Button size="sm" variant="outline" onClick={onAdd}>
-                <Plus data-icon="inline-start" /> Add Fee Type
+                <Plus data-icon="inline-start" /> {canBootstrap ? "Bootstrap fee type" : "Add Fee Type"}
               </Button>
             </div>
           ) : (
@@ -279,6 +327,9 @@ function StructureTable({
 
   const row = (fee: FeeStructureFee, scheduled = false) => {
     const next = scheduled ? undefined : upcoming.get(fee.feeType)
+    const canBootstrapThis = canBootstrap && bootstrapEligible.includes(fee.feeType)
+    const canChange = !scheduled && (canManage || canBootstrapThis)
+    const canRemove = canManage && !scheduled
     return (
       <TableRow key={`${fee.feeType}-${fee.id}`} className={clsRowClass}>
         <TableCell className="pl-4 sm:pl-5">
@@ -292,8 +343,8 @@ function StructureTable({
           <span className="font-semibold text-[var(--cls-ink)] tabular-nums">
             {scheduled ? "—" : formatAmount(fee.amount)}
           </span>
-          {!scheduled && fee.feeType === "Tuition" && fee.amount === 0 ? (
-            <span className="mt-0.5 block text-[11px] text-[var(--cls-muted)]">School default applies</span>
+          {!scheduled && fee.amount === 0 ? (
+            <span className="mt-0.5 block text-[11px] text-amber-800">Not configured</span>
           ) : null}
           {next || scheduled ? (
             <span className="mt-0.5 flex items-center justify-end gap-1 text-[11px] text-sky-700">
@@ -310,33 +361,33 @@ function StructureTable({
             <Button
               size="sm"
               variant="ghost"
-              className="h-8 px-2 text-sky-700"
+              className="px-2 text-sky-700"
               aria-label={`History ${fee.feeType}`}
               onClick={() => onHistory(fee.feeType)}
             >
               <History className="size-3.5" aria-hidden /> <span className="hidden sm:inline">History</span>
             </Button>
-            {canManage && !scheduled ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="hidden h-8 px-2 md:inline-flex"
-                  aria-label={`Change ${fee.feeType}`}
-                  onClick={() => onChange(fee.feeType)}
-                >
-                  Change
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className="h-8 px-2 text-red-600 hover:text-red-700"
-                  aria-label={`Remove ${fee.feeType}`}
-                  onClick={() => onRemove(fee)}
-                >
-                  <Trash2 className="size-3.5" aria-hidden /> <span className="hidden sm:inline">Remove</span>
-                </Button>
-              </>
+            {canChange ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="hidden px-2 md:inline-flex"
+                aria-label={`Change ${fee.feeType}`}
+                onClick={() => onChange(fee.feeType)}
+              >
+                Change
+              </Button>
+            ) : null}
+            {canRemove ? (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="px-2 text-red-600 hover:text-red-700"
+                aria-label={`Remove ${fee.feeType}`}
+                onClick={() => onRemove(fee)}
+              >
+                <Trash2 className="size-3.5" aria-hidden /> <span className="hidden sm:inline">Remove</span>
+              </Button>
             ) : null}
           </div>
         </TableCell>

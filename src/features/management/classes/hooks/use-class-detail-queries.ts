@@ -9,7 +9,7 @@ import studentsService from "@/api/students/students.service"
 import { TIMETABLE_QUERY_KEY } from "@/api/timetable/constants"
 import { mapTimetableSlotDto } from "@/api/timetable/map-timetable"
 import timetableService from "@/api/timetable/timetable.service"
-import { canReadSlice } from "@/data/portal-sync"
+import { canReadSlice, sessionPermissions } from "@/data/portal-sync"
 import type { FeeMonth, TimetableSlot } from "@/data/types"
 import type { Student } from "@/data/types"
 import { loadAuth } from "@/lib/auth"
@@ -90,7 +90,7 @@ export function useFeeMonthsQuery(enabled = true) {
     enabled:
       enabled &&
       Boolean(loadAuth()?.token) &&
-      canReadSlice(loadAuth()?.role, "feeMonths"),
+      canReadSlice(sessionPermissions(), "feeMonths"),
     queryFn: async () => {
       const rows = await feesService.listMonths()
       return (rows ?? []).map(mapFeeMonthDto)

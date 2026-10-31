@@ -1,9 +1,13 @@
-import { useQuery } from "@tanstack/react-query"
-import { Building2, Globe, Mail, MapPin, Phone } from "lucide-react"
-import type { ReactNode } from "react"
+import { Building2, Globe, Mail, MapPin, Pencil, Phone } from "lucide-react"
+import { type ReactNode, useState } from "react"
 
-import schoolCatalogService from "@/api/settings/school-catalog.service"
+import { Button } from "@/components/ui/button"
+import { useSchoolProfile } from "@/hooks/use-print-brand"
+import { useCan } from "@/lib/access"
 import { cn } from "@/lib/utils"
+
+import { SchoolLogoField } from "./school-logo-field"
+import { SchoolProfileDialog } from "./school-profile-dialog"
 
 function MetaTile({
   icon: Icon,
@@ -28,12 +32,9 @@ function MetaTile({
 }
 
 export function SchoolProfileCard({ className }: { className?: string }) {
-  const { data: school, isLoading, isError } = useQuery({
-    queryKey: ["schools", "current"],
-    queryFn: () => schoolCatalogService.getCurrentSchool(),
-    staleTime: 5 * 60 * 1000,
-    retry: false,
-  })
+  const { data: school, isLoading, isError, refetch } = useSchoolProfile()
+  const canEdit = useCan()("school.update")
+  const [editing, setEditing] = useState(false)
 
   if (isLoading) {
     return (
@@ -54,7 +55,16 @@ export function SchoolProfileCard({ className }: { className?: string }) {
     )
   }
 
-  if (isError || !school) return null
+  if (isError || !school) {
+    return (
+      <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/5 px-4 py-3", className)} role="alert">
+        <p className="text-sm text-destructive">Could not load the school profile.</p>
+        <Button type="button" variant="outline" size="sm" onClick={() => void refetch()}>
+          Try again
+        </Button>
+      </div>
+    )
+  }
 
   const statusLabel = school.status
     ? school.status.charAt(0).toUpperCase() + school.status.slice(1)
@@ -69,9 +79,14 @@ export function SchoolProfileCard({ className }: { className?: string }) {
         />
         <div className="relative flex flex-wrap items-start justify-between gap-4 px-5 pb-5 pt-5 sm:px-6">
           <div className="flex items-center gap-3.5">
-            <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--cls-brand)] text-white shadow-[0_8px_20px_color-mix(in_srgb,var(--cls-brand)_28%,transparent)]">
-              <Building2 className="size-6" strokeWidth={1.75} />
-            </div>
+            {school.logoUrl && (
+              <img src={school.logoUrl} alt={`${school.name} logo`} className="size-14 shrink-0 rounded-2xl border border-[var(--cls-border)] bg-white object-contain" />
+            )}
+            {!school.logoUrl && (
+              <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[var(--cls-brand)] text-white shadow-[0_8px_20px_color-mix(in_srgb,var(--cls-brand)_28%,transparent)]">
+                <Building2 className="size-6" strokeWidth={1.75} />
+              </div>
+            )}
             <div className="min-w-0">
               <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--cls-brand)]">
                 School profile
@@ -87,10 +102,18 @@ export function SchoolProfileCard({ className }: { className?: string }) {
               </p>
             </div>
           </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/90 bg-emerald-50/90 px-3 py-1 text-xs font-medium text-emerald-700 backdrop-blur-sm">
-            <span className="size-1.5 rounded-full bg-emerald-500" />
-            {statusLabel}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200/90 bg-emerald-50/90 px-3 py-1 text-xs font-medium text-emerald-700 backdrop-blur-sm">
+              <span className="size-1.5 rounded-full bg-emerald-500" />
+              {statusLabel}
+            </span>
+            {canEdit && (
+              <Button type="button" variant="outline" size="sm" className="bg-white" onClick={() => setEditing(true)}>
+                <Pencil data-icon="inline-start" />
+                Edit profile
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -119,6 +142,13 @@ export function SchoolProfileCard({ className }: { className?: string }) {
           )}
         </MetaTile>
       </dl>
+      {canEdit && (
+        <div className="rounded-2xl border border-[var(--cls-border)] bg-white px-5 py-4 sm:px-6">
+          <SchoolLogoField school={school} />
+          <p className="mt-2 text-xs text-[var(--cls-muted)]">Used on the sidebar, printouts, PDFs and Excel exports. Without one, the default crest is used.</p>
+        </div>
+      )}
+      {editing && <SchoolProfileDialog school={school} open={editing} onOpenChange={setEditing} />}
     </div>
   )
 }

@@ -6,8 +6,8 @@ import teachersService from "@/api/teachers/teachers.service"
 import usersService from "@/api/users/users.service"
 import { ConfirmDialog } from "@/components/app/kit"
 import { useSubjectsList } from "@/features/management/subjects/hooks/use-subjects"
+import { useCan } from "@/lib/access"
 import { useActor } from "@/lib/actor"
-import { can } from "@/lib/permissions"
 import { toast } from "@/lib/toast"
 
 import { EditStaffUserModal } from "./edit-staff-user-modal"
@@ -31,6 +31,7 @@ type Props = {
 
 export function StaffDetailPage({ userId, onBack }: Props) {
   const actor = useActor()
+  const can = useCan()
   const queryClient = useQueryClient()
   const [saving, setSaving] = useState(false)
   const [resending, setResending] = useState(false)
@@ -60,7 +61,7 @@ export function StaffDetailPage({ userId, onBack }: Props) {
     return timetableTeacherHref(actor.role, staff.teacherId)
   }, [actor.role, staff])
 
-  const canResendInvite = staff ? canResendStaffInvitation(actor.role, staff) : false
+  const canResendInvite = staff ? canResendStaffInvitation(can, staff) : false
 
   async function afterMutation(message: string) {
     await invalidateStaffDirectory(queryClient)
@@ -91,11 +92,11 @@ export function StaffDetailPage({ userId, onBack }: Props) {
 
   const canManageStaff = useMemo(() => {
     if (!staff) return false
-    if (can(actor.role, "staff.create.any")) return true
+    if (can("roles.manage")) return true
     return (
-      staff.role === "teacher" && can(actor.role, "staff.create.teacher")
+      staff.role === "teacher" && can("users.create")
     )
-  }, [actor.role, staff])
+  }, [can, staff])
 
   async function handleEditSave(payload: {
     firstName: string
@@ -218,7 +219,6 @@ export function StaffDetailPage({ userId, onBack }: Props) {
         teacherError={teacherQuery.isError}
         subjects={subjects}
         timetableHref={timetableHref ?? ""}
-        viewerRole={actor.role}
         saving={saving}
         onSubjectSave={handleSubjectSave}
         onRetryTeacher={() => void teacherQuery.refetch()}
@@ -240,7 +240,7 @@ export function StaffDetailPage({ userId, onBack }: Props) {
         deleting={deleting}
       />
 
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_1fr] lg:items-start">
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,360px)_1fr] lg:items-start">
         <aside className="flex flex-col gap-4 lg:sticky lg:top-4">
           <UserDetailProfileCard staff={staff} />
           <div className="grid grid-cols-2 gap-2">

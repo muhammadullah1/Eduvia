@@ -1,4 +1,5 @@
 import {
+  BadgePercent,
   Bell,
   BookOpen,
   Building2,
@@ -8,13 +9,14 @@ import {
   MessageSquareText,
   Receipt,
   ReceiptText,
+  Shield,
   ShieldCheck,
   UserRound,
-  Wallet,
 } from "lucide-react"
 import { type ComponentType } from "react"
 
-import { ALL_ROLES, type Role } from "@/lib/auth"
+import type { Can, PermissionKey } from "@/lib/access"
+import type { PortalSlug, Role } from "@/lib/auth"
 
 import { navIcons } from "./nav-icons"
 
@@ -56,127 +58,165 @@ export const roles: Record<
   },
 }
 
-/** Shared by the super admin and the operations manager; fee sections are super-admin only. */
-const managementNav: { id: string; label: string; icon: Icon }[] = [
-  { id: "sessions", label: "Sessions", icon: navIcons.sessions },
-  { id: "classes", label: "Classes", icon: navIcons.classes },
-  { id: "subjects", label: "Subjects", icon: navIcons.subjects },
-  {
-    id: "teachers-assignments",
-    label: "Staff",
-    icon: navIcons.staff,
-  },
-  { id: "timetable", label: "Timetable", icon: navIcons.timetable },
-  { id: "substitutes", label: "Substitutes", icon: navIcons.substitutes },
-  { id: "lesson-plan", label: "Lesson Plan", icon: navIcons.lessonPlan },
+export type NavItem = {
+  id: string
+  label: string
+  icon: Icon
+  /** Shown when the signed-in role holds any one of these permissions. */
+  requires: readonly PermissionKey[]
+  /** Hidden when the role holds this permission: a richer section already covers it. */
+  hiddenWith?: PermissionKey
+}
+
+/** The single staff portal (/admin): what each role sees follows from its permissions. */
+const STAFF_SECTIONS: readonly NavItem[] = [
+  { id: "dashboard", label: "Dashboard", icon: navIcons.dashboard, requires: ["reports.dashboard", "fees.collections.mine"] },
+  { id: "sessions", label: "Sessions", icon: navIcons.sessions, requires: ["academic.manage"] },
+  { id: "classes", label: "Classes", icon: navIcons.classes, requires: ["academic.manage"] },
+  { id: "subjects", label: "Subjects", icon: navIcons.subjects, requires: ["academic.manage"] },
+  { id: "teachers-assignments", label: "Staff", icon: navIcons.staff, requires: ["users.read"] },
+  { id: "timetable", label: "Timetable", icon: navIcons.timetable, requires: ["timetable.manage"] },
+  { id: "substitutes", label: "Substitutes", icon: navIcons.substitutes, requires: ["absences.manage"] },
+  { id: "lesson-plan", label: "Lesson Plan", icon: navIcons.lessonPlan, requires: ["chapters.manage"] },
   {
     id: "daily-test-schedule",
     label: "Daily Test Schedule",
     icon: navIcons.dailyTests,
+    requires: ["tests.schedule"],
   },
-  { id: "admissions", label: "Admissions", icon: navIcons.admissions },
-  { id: "students", label: "Students", icon: navIcons.students },
+  { id: "exams", label: "Examinations", icon: navIcons.exams, requires: ["exams.create"] },
+  { id: "admissions", label: "Admissions", icon: navIcons.admissions, requires: ["admissions.manage"] },
+  { id: "students", label: "Students", icon: navIcons.students, requires: ["students.manage"] },
   {
     id: "enrollment-promotion",
     label: "Enrollment & Promotion",
     icon: navIcons.enrollment,
+    requires: ["students.manage"],
   },
-  { id: "lifecycle", label: "Lifecycle", icon: navIcons.lifecycle },
-  { id: "student-attendance", label: "Attendance", icon: navIcons.attendance },
-  { id: "exams", label: "Examinations", icon: navIcons.exams },
-  { id: "fees", label: "Fee Management", icon: navIcons.fees },
-  { id: "collect-fee", label: "Collect Fee", icon: navIcons.collectFee },
-  { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline },
-  { id: "messages", label: "Communication", icon: MessageSquareText },
+  { id: "lifecycle", label: "Lifecycle", icon: navIcons.lifecycle, requires: ["students.manage"] },
+  {
+    id: "student-attendance",
+    label: "Attendance",
+    icon: navIcons.attendance,
+    requires: ["attendance.review"],
+  },
+  { id: "fees", label: "Fee Management", icon: navIcons.fees, requires: ["fees.totals"] },
+  { id: "collect-fee", label: "Collect Fee", icon: navIcons.collectFee, requires: ["fees.payments.record"] },
+  {
+    id: "collections",
+    label: "My daily receipts",
+    icon: ReceiptText,
+    requires: ["fees.collections.mine"],
+  },
+  {
+    id: "fee-structure",
+    label: "Fee structure",
+    icon: Layers,
+    requires: ["fees.structure.read"],
+    hiddenWith: "fees.totals",
+  },
+  {
+    id: "fee-generation",
+    label: "Monthly generation",
+    icon: CalendarRange,
+    requires: ["fees.months.generate"],
+    hiddenWith: "fees.totals",
+  },
+  {
+    id: "fee-concessions",
+    label: "Concessions",
+    icon: BadgePercent,
+    requires: ["fees.concessions.approve"],
+  },
+  {
+    id: "expenses",
+    label: "Expenses",
+    icon: Receipt,
+    requires: ["expenses.create"],
+    hiddenWith: "income.read",
+  },
+  { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline, requires: ["fees.import"] },
+  { id: "finance", label: "Finance", icon: navIcons.finance, requires: ["income.read"] },
+  { id: "reports", label: "Reports", icon: navIcons.reports, requires: ["finance.reports", "students.manage"] },
+  {
+    id: "audit-log",
+    label: "Audit log",
+    icon: navIcons.reports,
+    requires: ["audit.read"],
+    hiddenWith: "students.manage",
+  },
+  { id: "settings", label: "Settings", icon: navIcons.settings, requires: ["settings.read"] },
+  { id: "roles", label: "Roles & Permissions", icon: Shield, requires: ["roles.manage"] },
 ]
 
-/** Legacy section ids kept for deep links and redirects. */
-const legacyManagementNav: { id: string; label: string; icon: Icon }[] = [
-  { id: "academic", label: "Sessions", icon: navIcons.sessions },
-  { id: "curriculum", label: "Lesson Plan", icon: navIcons.lessonPlan },
-  { id: "lesson-review", label: "Lesson review", icon: navIcons.dailyTests },
-  { id: "people", label: "Students", icon: navIcons.students },
-  { id: "absences", label: "Substitutes", icon: navIcons.substitutes },
-  { id: "weekly-tests", label: "Daily Test Schedule", icon: navIcons.dailyTests },
-  { id: "results-gate", label: "Lifecycle", icon: navIcons.lifecycle },
-  { id: "settings-academic", label: "Settings", icon: navIcons.settings },
-  { id: "settings-calendar", label: "Settings", icon: navIcons.settings },
-  { id: "settings-rooms", label: "Settings", icon: navIcons.settings },
-  { id: "settings-archives", label: "Settings", icon: navIcons.settings },
-  { id: "settings-roles", label: "Settings", icon: navIcons.settings },
+const TEACHER_SECTIONS: readonly NavItem[] = [
+  { id: "today", label: "Today", icon: navIcons.dashboard, requires: ["timetable.read"] },
+  { id: "classes", label: "My classes", icon: navIcons.classes, requires: ["academic.read"] },
+  { id: "attendance", label: "Attendance", icon: navIcons.attendance, requires: ["attendance.mark"] },
+  { id: "daily-update", label: "Daily update", icon: navIcons.lessonPlan, requires: ["lessons.write"] },
+  { id: "weekly-tests", label: "Weekly tests", icon: navIcons.dailyTests, requires: ["tests.marks"] },
+  { id: "notices", label: "Class notices", icon: MessageSquareText, requires: ["updates.write"] },
+  { id: "marks", label: "Marks entry", icon: navIcons.exams, requires: ["exams.marks"] },
 ]
 
-export const settingsNav: { id: string; label: string; icon: Icon }[] = [
-  { id: "settings", label: "Settings", icon: navIcons.settings },
+const PARENT_SECTIONS: readonly NavItem[] = [
+  { id: "home", label: "My child", icon: navIcons.dashboard, requires: ["students.read"] },
+  { id: "attendance", label: "Attendance", icon: navIcons.attendance, requires: ["attendance.read"] },
+  { id: "results", label: "Results & DMC", icon: navIcons.students, requires: ["results.parent"] },
+  { id: "tests", label: "Weekly tests", icon: navIcons.dailyTests, requires: ["tests.read"] },
+  { id: "fees", label: "Fees & receipts", icon: navIcons.fees, requires: ["fees.months.read"] },
+  { id: "timetable", label: "Timetable", icon: navIcons.timetable, requires: ["timetable.read"] },
+  { id: "updates", label: "Updates", icon: Bell, requires: ["updates.read"] },
 ]
 
-export const navigation: Record<
-  Role,
-  { id: string; label: string; icon: Icon }[]
-> = {
-  super_admin: [
-    { id: "dashboard", label: "Dashboard", icon: navIcons.dashboard },
-    ...managementNav,
-    { id: "finance", label: "Finance", icon: navIcons.finance },
-    { id: "reports", label: "Reports", icon: navIcons.reports },
-    ...settingsNav,
-    ...legacyManagementNav,
-  ],
-  operations_manager: [
-    { id: "overview", label: "Overview", icon: navIcons.dashboard },
-    ...managementNav.filter((item) =>
-      !["fees", "collect-fee", "offline-sync", "finance"].includes(item.id)
-    ),
-    ...settingsNav,
-    // No Reports: every report there is fee data. Ops reads the audit trail only.
-    { id: "audit-log", label: "Audit log", icon: navIcons.reports },
-    ...legacyManagementNav,
-  ],
-  accountant: [
-    { id: "collect", label: "Record payment", icon: Wallet },
-    { id: "collections", label: "My daily receipts", icon: ReceiptText },
-    { id: "fee-structure", label: "Fee structure", icon: Layers },
-    { id: "fee-generation", label: "Monthly generation", icon: CalendarRange },
-    { id: "expenses", label: "Expenses", icon: Receipt },
-    { id: "offline-sync", label: "Offline Sync", icon: navIcons.offline },
-  ],
-  teacher: [
-    { id: "today", label: "Today", icon: navIcons.dashboard },
-    { id: "classes", label: "My classes", icon: navIcons.classes },
-    { id: "attendance", label: "Attendance", icon: navIcons.attendance },
-    { id: "daily-update", label: "Daily update", icon: navIcons.lessonPlan },
-    { id: "weekly-tests", label: "Weekly tests", icon: navIcons.dailyTests },
-    { id: "notices", label: "Class notices", icon: MessageSquareText },
-    { id: "marks", label: "Marks entry", icon: navIcons.exams },
-  ],
-  parent: [
-    { id: "home", label: "My child", icon: navIcons.dashboard },
-    { id: "attendance", label: "Attendance", icon: navIcons.attendance },
-    { id: "results", label: "Results & DMC", icon: navIcons.students },
-    { id: "tests", label: "Weekly tests", icon: navIcons.dailyTests },
-    { id: "fees", label: "Fees & receipts", icon: navIcons.fees },
-    { id: "timetable", label: "Timetable", icon: navIcons.timetable },
-    { id: "updates", label: "Updates", icon: Bell },
-  ],
+const SECTIONS_BY_PORTAL: Record<PortalSlug, readonly NavItem[]> = {
+  admin: STAFF_SECTIONS,
+  teacher: TEACHER_SECTIONS,
+  parent: PARENT_SECTIONS,
 }
 
-export const sectionIds = Object.fromEntries(
-  ALL_ROLES.map((role) => [
-    role,
-    new Set(navigation[role].map((item) => item.id)),
-  ])
-) as Record<Role, Set<string>>
+/** Old staff section ids (and the earlier operations/accountant portals) mapped to today's sections. */
+export const LEGACY_SECTIONS: Record<string, { section: string; query?: string; rest?: string }> = {
+  overview: { section: "dashboard" },
+  collect: { section: "collect-fee" },
+  academic: { section: "sessions" },
+  curriculum: { section: "lesson-plan" },
+  people: { section: "students" },
+  absences: { section: "substitutes" },
+  "weekly-tests": { section: "daily-test-schedule" },
+  "results-gate": { section: "exams", rest: "result-visibility" },
+  "settings-academic": { section: "settings" },
+  "settings-calendar": { section: "settings", query: "?panel=calendar" },
+  "settings-rooms": { section: "settings", query: "?panel=rooms" },
+  "settings-archives": { section: "settings", query: "?panel=archives" },
+  "settings-roles": { section: "roles" },
+}
 
-export function navigationLabelForSection(section: string, role: Role) {
-  const item = navigation[role].find((entry) => entry.id === section)
+export function sectionsForPortal(portal: PortalSlug): readonly NavItem[] {
+  return SECTIONS_BY_PORTAL[portal]
+}
+
+export function isSectionAllowed(item: NavItem, can: Can) {
+  if (item.hiddenWith && can(item.hiddenWith)) return false
+  return item.requires.some((key) => can(key))
+}
+
+export function allowedSections(portal: PortalSlug, can: Can): NavItem[] {
+  return sectionsForPortal(portal).filter((item) => isSectionAllowed(item, can))
+}
+
+export function findSection(portal: PortalSlug, id: string) {
+  return sectionsForPortal(portal).find((item) => item.id === id)
+}
+
+export function navigationLabelForSection(section: string, portal: PortalSlug) {
+  const item = findSection(portal, section)
   if (item) return item.label
-  if (section === "dashboard" && role === "super_admin") return "Dashboard"
   return section
 }
 
 export const subtitles: Record<string, string> = {
   dashboard: "A live view of people, learning, fees and school operations.",
-  overview: "Today’s academic operations — cover, reviews, tests and results.",
   sessions: "Only one session can be marked as Current at a time.",
   subjects: "Subject catalog for the current session.",
   "teachers-assignments": "Portal users, teachers, and office staff.",
@@ -194,7 +234,6 @@ export const subtitles: Record<string, string> = {
   academic: "Sessions, subjects and a conflict-aware timetable.",
   classes: "Class sections for the current session — students, subjects, and status.",
   curriculum: "Plan the chapters teachers select in their daily updates.",
-  "lesson-review": "Approve daily updates before parents can see them.",
   admissions: "Applications, enrollment and the student register.",
   people: "Teachers and office staff; one active subject per teacher.",
   absences: "Mark teachers absent by period and assign a free substitute.",
@@ -204,17 +243,16 @@ export const subtitles: Record<string, string> = {
   "results-gate":
     "Published results, the fee rule at view time and audited overrides.",
   fees: "Receipts, monthly fee status and offline synchronisation.",
+  "fee-concessions": "Pending approvals and school concession reasons.",
   finance: "Income, expenses and the operating position.",
-  messages: "Approve what families are allowed to see.",
   settings: "Configure school-wide policies, assessment criteria, and admission numbering.",
   "settings-academic": "Academic structure, current session details, and catalog overview.",
   "settings-calendar": "School closures, holidays, and calendar black-out dates.",
   "settings-rooms": "School room directory, location codes, and room capacities.",
   "settings-archives": "Review and restore soft-deleted records across all categories.",
-  "settings-roles": "Fixed role permissions matrix and system capabilities by role.",
+  roles: "Who can see and do what in each role; changes apply on the next request.",
   reports: "Printable insight and a traceable audit history.",
   "audit-log": "Sensitive actions recorded by the school system (read-only).",
-  collect: "Record a payment; it clears the oldest unpaid month first.",
   collections: "Only the receipts you recorded, day by day.",
   expenses: "Record school expenses; you see only the entries you recorded.",
   today: "Your timetable for today, including substitute duties.",

@@ -1,4 +1,5 @@
-import { type AuthUser, clearAuth, loadAuth, saveAuth } from "@/lib/auth"
+import type { PermissionKey } from "@/lib/access"
+import { type AuthUser, clearAuth, loadAuth, type PortalSlug, saveAuth } from "@/lib/auth"
 import { markSessionExpired, SESSION_EXPIRED_MESSAGE } from "@/lib/session-expiry"
 import { announceLogout, coordinatedRefresh, onLogoutFromOtherTab, onTokenFromOtherTab } from "@/lib/token-refresh"
 
@@ -170,6 +171,10 @@ function getCacheKey(
   return url
 }
 
+export type LoginResponse = { user: AuthUser; token: string; permissions: PermissionKey[] }
+
+export type SessionResponse = { user: AuthUser; portal: PortalSlug; permissions: PermissionKey[] }
+
 export const api = {
   get: <T>(
     path: string,
@@ -274,8 +279,8 @@ export const api = {
     email: string,
     password: string,
     schoolId?: number
-  ): Promise<{ user: AuthUser; token: string }> => {
-    return request<{ user: AuthUser; token: string }>("/auth/login", {
+  ): Promise<LoginResponse> => {
+    return request<LoginResponse>("/auth/login", {
       method: "POST",
       body: JSON.stringify({
         email,
@@ -284,6 +289,9 @@ export const api = {
       }),
     })
   },
+
+  /** The signed-in user's current role and effective permissions (they change when a Super Admin edits the role). */
+  me: () => request<SessionResponse>("/auth/me", { method: "GET" }),
 
   /** Revokes the refresh cookie server-side; local sign-out happens regardless. */
   logout: async (): Promise<void> => {

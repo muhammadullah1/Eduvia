@@ -6,6 +6,7 @@ export type PresignedUpload = {
   objectKey: string
   bucket: string
   contentType: string
+  contentLength: number
   expiresIn: number
 }
 
@@ -38,7 +39,9 @@ export function resolveStorageUrl(value: string | null | undefined): string | nu
 /**
  * Uploads straight to R2: ask the API for a presigned PUT, then send the
  * file with the same Content-Type and no auth header (the signature is the
- * credential). The R2 bucket's CORS must allow PUT from the portal origin.
+ * credential). The file size is signed too, so R2 refuses any other body and
+ * the API refuses to sign a file over the folder's limit. The R2 bucket's
+ * CORS must allow PUT from the portal origin.
  */
 export async function uploadFileToStorage(file: File, dirName: string): Promise<StoredFile> {
   const contentType = file.type || "application/octet-stream"
@@ -46,6 +49,7 @@ export async function uploadFileToStorage(file: File, dirName: string): Promise<
     dirName,
     fileName: `${crypto.randomUUID()}${extensionOf(file.name)}`,
     contentType,
+    contentLength: file.size,
   })
   const put = await fetch(presigned.uploadUrl, {
     method: "PUT",
@@ -63,5 +67,7 @@ export async function uploadFileToStorage(file: File, dirName: string): Promise<
 /** Upload folders, one per feature. */
 export const STORAGE_DIRS = {
   avatars: "avatars",
+  schoolLogo: (schoolId: number) => `school-logos/${schoolId}`,
+  studentPhotos: (studentId: number) => `students/${studentId}/photos`,
   admissionDocuments: (applicationId: number) => `admissions/${applicationId}/documents`,
 } as const
